@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum GameStatus {
+  DRAFT
+  LOBBY
+  QUESTION
+  REVEAL
+  FINISHED
+}
+
+model Game {
+  id                   String     @id @default(cuid())
+  title                String
+  code                 String     @unique
+  status               GameStatus @default(DRAFT)
+  currentQuestionIndex Int        @default(0)
+  questionOpenedAt     DateTime?
+  hostToken            String     @unique @default(cuid())
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  questions            Question[]
+  players              Player[]
+}
+
+model Question {
+  id            String   @id @default(cuid())
+  gameId        String
+  game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  order         Int
+  prompt        String
+  options       String[]
+  correctIndex  Int
+  timeLimitSec  Int      @default(30)
+  basePoints    Int      @default(500)
+  timeBonus     Int      @default(500)
+  answers       Answer[]
+
+  @@unique([gameId, order])
+}
+
+model Player {
+  id         String   @id @default(cuid())
+  gameId     String
+  game       Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  name       String
+  token      String   @unique @default(cuid())
+  totalScore Int      @default(0)
+  createdAt  DateTime @default(now())
+  answers    Answer[]
+
+  @@unique([gameId, name])
+}
+
+model Answer {
+  id          String   @id @default(cuid())
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  questionId  String
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  choiceIndex Int
+  answeredAt  DateTime @default(now())
+  points      Int      @default(0)
+  isCorrect   Boolean  @default(false)
+
+  @@unique([playerId, questionId])
+}
