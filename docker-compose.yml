@@ -4,13 +4,13 @@ services:
     environment:
       POSTGRES_USER: trivia
       POSTGRES_PASSWORD: trivia
-      POSTGRES_DB: bar_trivia
+      POSTGRES_DB: trivia_live
     ports:
       - "5432:5432"
     volumes:
       - trivia_pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U trivia -d bar_trivia"]
+      test: ["CMD-SHELL", "pg_isready -U trivia -d trivia_live"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -20,14 +20,17 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgresql://trivia:trivia@db:5432/bar_trivia?schema=public
+      DATABASE_URL: postgresql://trivia:trivia@db:5432/trivia_live?schema=public
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-trivia-admin}
       HOST: 0.0.0.0
       PORT: 3000
       NODE_ENV: production
+    volumes:
+      - trivia_uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
   trivia_pg:
+  trivia_uploads:

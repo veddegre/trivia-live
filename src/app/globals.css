@@ -5,14 +5,14 @@
   --ink-2: #141b2f;
   --panel: #1a2338;
   --line: #2a3550;
-  --foam: #f4f0e6;
+  --chalk: #f4f0e6;
   --muted: #9aa6c1;
   --amber: #e8a317;
   --amber-hot: #ffc14d;
   --good: #3ecf8e;
   --bad: #ff6b6b;
   --background: var(--ink);
-  --foreground: var(--foam);
+  --foreground: var(--chalk);
 }
 
 @theme inline {
@@ -22,7 +22,7 @@
   --color-ink-2: var(--ink-2);
   --color-panel: var(--panel);
   --color-line: var(--line);
-  --color-foam: var(--foam);
+  --color-chalk: var(--chalk);
   --color-muted: var(--muted);
   --color-amber: var(--amber);
   --color-amber-hot: var(--amber-hot);
@@ -43,12 +43,12 @@ body {
 
 body {
   margin: 0;
-  color: var(--foam);
+  color: var(--chalk);
   font-family: var(--font-body), system-ui, sans-serif;
   background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(232, 163, 23, 0.18), transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, rgba(62, 207, 142, 0.08), transparent 50%),
-    linear-gradient(180deg, #0b1020 0%, #10182c 45%, #0b1020 100%);
+    radial-gradient(1200px 600px at 10% -10%, color-mix(in srgb, var(--amber) 18%, transparent), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, color-mix(in srgb, var(--good) 8%, transparent), transparent 50%),
+    linear-gradient(180deg, var(--ink) 0%, var(--ink-2) 45%, var(--ink) 100%);
   background-attachment: fixed;
 }
 
@@ -104,7 +104,7 @@ select {
 .btn-ghost {
   background: transparent;
   border-color: var(--line);
-  color: var(--foam);
+  color: var(--chalk);
 }
 
 .btn-ghost:hover {
@@ -121,7 +121,7 @@ select {
   width: 100%;
   border: 1px solid var(--line);
   background: var(--ink-2);
-  color: var(--foam);
+  color: var(--chalk);
   border-radius: 0.65rem;
   padding: 0.8rem 0.95rem;
 }

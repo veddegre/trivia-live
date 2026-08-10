@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import Link from "next/link";
+import { BrandMark } from "@/components/BrandMark";
 
 export default function JoinPage() {
   const router = useRouter();
@@ -19,9 +19,7 @@ export default function JoinPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 py-10">
-      <Link href="/" className="display text-2xl text-amber">
-        Bar Trivia
-      </Link>
+      <BrandMark />
       <h1 className="display anim-rise mt-10 text-4xl">Join game</h1>
       <p className="mt-2 text-muted">Enter the code on the host screen.</p>
 

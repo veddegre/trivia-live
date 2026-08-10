@@ -4,15 +4,19 @@ import { prisma } from "@/lib/db";
 import {
   buildPlayerView,
   buildPublicState,
+  clearQuestionTimer,
   finishGame,
   lockQuestion,
   markBroadcast,
   nextQuestion,
   openLobby,
   openQuestion,
+  resetGame,
+  scheduleQuestionAutoLock,
   shouldThrottleBroadcast,
   submitAnswer,
 } from "@/lib/game-manager";
+import { setSocketServer } from "@/lib/realtime";
 
 type JoinHostPayload = { code: string; hostToken: string };
 type JoinPlayerPayload = { code: string; name: string };
@@ -55,11 +59,34 @@ async function refreshPlayers(io: Server, code: string) {
   );
 }
 
+async function autoLockAndBroadcast(io: Server, code: string) {
+  try {
+    const game = await prisma.game.findUnique({ where: { code: code.toUpperCase() } });
+    if (!game || game.status !== "QUESTION") return;
+    await lockQuestion(code);
+    await broadcastState(io, code, true);
+    await refreshPlayers(io, code);
+  } catch {
+    /* already locked or game gone */
+  }
+}
+
+function armQuestionTimer(
+  io: Server,
+  code: string,
+  timeLimitSec: number
+) {
+  scheduleQuestionAutoLock(code, timeLimitSec, () => {
+    void autoLockAndBroadcast(io, code);
+  });
+}
+
 export function createSocketServer(httpServer: HttpServer) {
   const io = new Server(httpServer, {
     path: "/socket.io",
     cors: { origin: true, credentials: true },
   });
+  setSocketServer(io);
 
   io.on("connection", (socket: Socket) => {
     const data = socket.data as SocketData;
@@ -168,7 +195,8 @@ export function createSocketServer(httpServer: HttpServer) {
     socket.on("host:openQuestion", async (ack?: (r: unknown) => void) => {
       try {
         if (data.role !== "host" || !data.code) throw new Error("Not authorized");
-        await openQuestion(data.code);
+        const opened = await openQuestion(data.code);
+        armQuestionTimer(io, data.code, opened.timeLimitSec);
         await broadcastState(io, data.code, true);
         ack?.({ ok: true });
         void refreshPlayers(io, data.code);
@@ -182,6 +210,7 @@ export function createSocketServer(httpServer: HttpServer) {
     socket.on("host:lock", async (ack?: (r: unknown) => void) => {
       try {
         if (data.role !== "host" || !data.code) throw new Error("Not authorized");
+        clearQuestionTimer(data.code);
         await lockQuestion(data.code);
         await broadcastState(io, data.code, true);
         ack?.({ ok: true });
@@ -197,6 +226,11 @@ export function createSocketServer(httpServer: HttpServer) {
       try {
         if (data.role !== "host" || !data.code) throw new Error("Not authorized");
         const result = await nextQuestion(data.code);
+        if (!result.finished) {
+          armQuestionTimer(io, data.code, result.timeLimitSec);
+        } else {
+          clearQuestionTimer(data.code);
+        }
         await broadcastState(io, data.code, true);
         ack?.({ ok: true, ...result });
         void refreshPlayers(io, data.code);
@@ -210,7 +244,24 @@ export function createSocketServer(httpServer: HttpServer) {
     socket.on("host:finish", async (ack?: (r: unknown) => void) => {
       try {
         if (data.role !== "host" || !data.code) throw new Error("Not authorized");
+        clearQuestionTimer(data.code);
         await finishGame(data.code);
+        await broadcastState(io, data.code, true);
+        ack?.({ ok: true });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Failed";
+        ack?.({ ok: false, message });
+        socket.emit("error", { message });
+      }
+    });
+
+    socket.on("host:reset", async (ack?: (r: unknown) => void) => {
+      try {
+        if (data.role !== "host" || !data.code) throw new Error("Not authorized");
+        const game = await prisma.game.findUnique({ where: { code: data.code } });
+        if (!game) throw new Error("Game not found");
+        await resetGame(game.id);
+        io.to(room(data.code)).emit("game:reset", { code: data.code });
         await broadcastState(io, data.code, true);
         ack?.({ ok: true });
       } catch (e) {

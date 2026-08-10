@@ -1,3 +1,5 @@
+import type { BrandConfig } from "@/lib/branding";
+
 export type GamePhase = "lobby" | "question" | "reveal" | "finished";
 
 export type PublicQuestion = {
@@ -31,6 +33,7 @@ export type GamePublicState = {
   timeLimitSec: number | null;
   leaderboard: LeaderboardEntry[];
   winner: LeaderboardEntry | null;
+  brand: BrandConfig;
 };
 
 export type PlayerView = {
@@ -39,6 +42,7 @@ export type PlayerView = {
   token: string;
   totalScore: number;
   hasAnswered: boolean;
+  selectedChoice: number | null;
   lastResult: { isCorrect: boolean; points: number } | null;
 };
 

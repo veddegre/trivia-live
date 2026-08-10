@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveBrand } from "@/lib/branding";
 import { prisma } from "@/lib/db";
+import { getSiteBrand } from "@/lib/site-brand";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -8,17 +10,15 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const { code } = await ctx.params;
   const game = await prisma.game.findUnique({
     where: { code: code.toUpperCase() },
-    select: {
-      title: true,
-      code: true,
-      status: true,
-      hostToken: true,
-      _count: { select: { questions: true, players: true } },
-    },
   });
   if (!game) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // hostToken only returned when ?host=1 and matches query token (validated client-side via URL)
+  const playerCount = await prisma.player.count({ where: { gameId: game.id } });
+  const questionCount = await prisma.question.count({ where: { gameId: game.id } });
+
+  const site = await getSiteBrand();
+  const brand = resolveBrand(site, game);
+
   const urlHost = _req.nextUrl.searchParams.get("hostToken");
   const includeHost = urlHost && urlHost === game.hostToken;
 
@@ -27,9 +27,10 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       title: game.title,
       code: game.code,
       status: game.status,
-      questionCount: game._count.questions,
-      playerCount: game._count.players,
+      questionCount,
+      playerCount,
       ...(includeHost ? { hostToken: game.hostToken } : {}),
     },
+    brand,
   });
 }

@@ -1,4 +1,6 @@
 import type { Game, Question, Player } from "@prisma/client";
+import { resolveBrand } from "@/lib/branding";
+import { getSiteBrand } from "@/lib/site-brand";
 import { prisma } from "@/lib/db";
 import { scoreAnswer } from "@/lib/scoring";
 import type {
@@ -18,9 +20,33 @@ type Runtime = {
   answerCount: number;
   dirtyLeaderboard: boolean;
   lastBroadcastAt: number;
+  autoLockTimer?: ReturnType<typeof setTimeout>;
 };
 
 const runtime = new Map<string, Runtime>();
+
+export function clearQuestionTimer(code: string) {
+  const rt = runtime.get(code.toUpperCase());
+  if (rt?.autoLockTimer) {
+    clearTimeout(rt.autoLockTimer);
+    rt.autoLockTimer = undefined;
+  }
+}
+
+/** Schedule auto-lock when the question timer hits zero. */
+export function scheduleQuestionAutoLock(
+  code: string,
+  timeLimitSec: number,
+  onExpire: () => void
+) {
+  const key = code.toUpperCase();
+  clearQuestionTimer(key);
+  const rt = getRuntime(key);
+  rt.autoLockTimer = setTimeout(() => {
+    rt.autoLockTimer = undefined;
+    onExpire();
+  }, Math.max(0, timeLimitSec) * 1000);
+}
 
 function phaseFromStatus(status: Game["status"]): GamePhase {
   switch (status) {
@@ -101,6 +127,9 @@ export async function buildPublicState(
     rt.answerCount = await prisma.answer.count({ where: { questionId: q.id } });
   }
 
+  const site = await getSiteBrand();
+  const brand = resolveBrand(site, game);
+
   return {
     code: game.code,
     title: game.title,
@@ -115,6 +144,7 @@ export async function buildPublicState(
     timeLimitSec: q?.timeLimitSec ?? null,
     leaderboard,
     winner,
+    brand,
   };
 }
 
@@ -138,6 +168,7 @@ export async function buildPlayerView(
   let hasAnswered = false;
   let lastResult: PlayerView["lastResult"] = null;
 
+  let selectedChoice: number | null = null;
   if (q) {
     const answer = await prisma.answer.findUnique({
       where: {
@@ -146,6 +177,7 @@ export async function buildPlayerView(
     });
     if (answer) {
       hasAnswered = true;
+      selectedChoice = answer.choiceIndex;
       if (player.game.status === "REVEAL" || player.game.status === "FINISHED") {
         lastResult = { isCorrect: answer.isCorrect, points: answer.points };
       }
@@ -158,6 +190,7 @@ export async function buildPlayerView(
     token: player.token,
     totalScore: player.totalScore,
     hasAnswered,
+    selectedChoice,
     lastResult,
   };
 }
@@ -180,6 +213,7 @@ export async function openQuestion(code: string, index?: number) {
     throw new Error("Question index out of range");
   }
 
+  const q = game.questions[nextIndex];
   const openedAt = new Date();
   await prisma.game.update({
     where: { id: game.id },
@@ -191,7 +225,7 @@ export async function openQuestion(code: string, index?: number) {
   });
   const rt = getRuntime(game.code);
   rt.answerCount = 0;
-  return openedAt;
+  return { openedAt, timeLimitSec: q.timeLimitSec, questionIndex: nextIndex };
 }
 
 export async function submitAnswer(opts: {
@@ -224,7 +258,9 @@ export async function submitAnswer(opts: {
 
   const answeredAt = new Date();
   const elapsedMs = answeredAt.getTime() - game.questionOpenedAt.getTime();
-  // Still accept late answers until lock, but score uses elapsed (can be 0 bonus)
+  if (elapsedMs > q.timeLimitSec * 1000) {
+    throw new Error("Time is up");
+  }
   const isCorrect = opts.choiceIndex === q.correctIndex;
   const points = scoreAnswer({
     isCorrect,
@@ -263,6 +299,7 @@ export async function lockQuestion(code: string) {
   if (!game) throw new Error("Game not found");
   if (game.status !== "QUESTION") throw new Error("No open question");
 
+  clearQuestionTimer(game.code);
   await prisma.game.update({
     where: { id: game.id },
     data: { status: "REVEAL" },
@@ -282,14 +319,57 @@ export async function nextQuestion(code: string) {
     return { finished: true as const };
   }
 
-  await openQuestion(game.code, next);
-  return { finished: false as const, index: next };
+  const opened = await openQuestion(game.code, next);
+  return {
+    finished: false as const,
+    index: next,
+    timeLimitSec: opened.timeLimitSec,
+  };
 }
 
 export async function finishGame(code: string) {
+  clearQuestionTimer(code);
   await prisma.game.update({
     where: { code: code.toUpperCase() },
     data: { status: "FINISHED", questionOpenedAt: null },
+  });
+}
+
+/**
+ * Clear players/answers and return the game to lobby.
+ * Keeps questions, join code, host token, and branding.
+ */
+export async function resetGame(gameId: string) {
+  const game = await prisma.game.findUnique({ where: { id: gameId } });
+  if (!game) throw new Error("Game not found");
+
+  clearQuestionTimer(game.code);
+
+  await prisma.$transaction([
+    prisma.answer.deleteMany({
+      where: { player: { gameId: game.id } },
+    }),
+    prisma.player.deleteMany({ where: { gameId: game.id } }),
+    prisma.game.update({
+      where: { id: game.id },
+      data: {
+        status: "LOBBY",
+        currentQuestionIndex: 0,
+        questionOpenedAt: null,
+      },
+    }),
+  ]);
+
+  const rt = getRuntime(game.code);
+  rt.answerCount = 0;
+  rt.dirtyLeaderboard = false;
+
+  return prisma.game.findUnique({
+    where: { id: game.id },
+    include: {
+      questions: { orderBy: { order: "asc" } },
+      _count: { select: { questions: true, players: true } },
+    },
   });
 }
 

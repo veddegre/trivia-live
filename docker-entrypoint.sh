@@ -6,5 +6,5 @@ if [ -d prisma/migrations ] && [ "$(ls -A prisma/migrations 2>/dev/null | grep -
 else
   npx prisma db push --skip-generate
 fi
-echo "Starting Bar Trivia..."
+echo "Starting Trivia Live..."
 exec npx tsx server/index.ts

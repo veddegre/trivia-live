@@ -28,6 +28,6 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/next.config.ts ./
 COPY --from=builder /app/tsconfig.json ./
 COPY docker-entrypoint.sh ./
-RUN chmod +x docker-entrypoint.sh
+RUN chmod +x docker-entrypoint.sh && mkdir -p uploads
 EXPOSE 3000
 ENTRYPOINT ["./docker-entrypoint.sh"]

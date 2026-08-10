@@ -15,16 +15,48 @@ enum GameStatus {
   FINISHED
 }
 
+enum BrandPreset {
+  default
+  ocean
+  forest
+  sunset
+  slate
+}
+
+enum BrandMode {
+  dark
+  light
+}
+
+model SiteBrand {
+  id          String      @id @default("default")
+  displayName String      @default("Trivia Live")
+  tagline     String?
+  logoUrl     String?
+  preset      BrandPreset @default(default)
+  mode        BrandMode   @default(dark)
+  accent      String?
+  background  String?
+  updatedAt   DateTime    @updatedAt
+}
+
 model Game {
-  id                   String     @id @default(cuid())
+  id                   String       @id @default(cuid())
   title                String
-  code                 String     @unique
-  status               GameStatus @default(DRAFT)
-  currentQuestionIndex Int        @default(0)
+  code                 String       @unique
+  status               GameStatus   @default(DRAFT)
+  currentQuestionIndex Int          @default(0)
   questionOpenedAt     DateTime?
-  hostToken            String     @unique @default(cuid())
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
+  hostToken            String       @unique @default(cuid())
+  brandDisplayName     String?
+  brandTagline         String?
+  brandLogoUrl         String?
+  brandPreset          BrandPreset?
+  brandMode            BrandMode?
+  brandAccent          String?
+  brandBackground      String?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
   questions            Question[]
   players              Player[]
 }

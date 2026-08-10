@@ -19,7 +19,7 @@ async function main() {
   createSocketServer(httpServer);
 
   httpServer.listen(port, hostname, () => {
-    console.log(`> Bar Trivia ready on http://${hostname}:${port}`);
+    console.log(`> Trivia Live ready on http://${hostname}:${port}`);
   });
 }
 
