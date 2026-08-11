@@ -27,6 +27,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       title: game.title,
       code: game.code,
       status: game.status,
+      allowLateJoin: game.allowLateJoin,
       questionCount,
       playerCount,
       ...(includeHost ? { hostToken: game.hostToken } : {}),

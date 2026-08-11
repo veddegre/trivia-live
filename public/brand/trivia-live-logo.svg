@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 282 120" fill="none">
+  <g stroke="#f8b43c" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M42 14v-8M24 22l-6-6M60 22l6-6M16 42H8M66 42h8"/>
+    <path d="M42 22c-12 0-22 9.5-22 22 0 7.5 3.5 14 9 18v8h26v-8c5.5-4 9-10.5 9-18 0-12.5-10-22-22-22z"/>
+    <path d="M31 70h22M33 76h18M35 82h14"/>
+  </g>
+  <path fill="#f8b43c" d="M46 34 36 52h8l-4 14 14-20h-8l6-12z"/>
+  <g font-family="Oswald, Impact, Arial Narrow, sans-serif" font-weight="700" letter-spacing="0.04em">
+    <text x="88" y="58" fill="#ffffff" font-size="38">TRIVIA</text>
+    <text x="88" y="96" fill="#f8b43c" font-size="38">LIVE</text>
+  </g>
+  <g stroke="#f8b43c" stroke-width="4" stroke-linecap="round">
+    <path d="M178 78h48"/>
+    <path d="M178 88h36"/>
+    <path d="M178 98h28"/>
+  </g>
+</svg>

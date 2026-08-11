@@ -1,16 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #0b1020;
-  --ink-2: #141b2f;
-  --panel: #1a2338;
+  --ink: #070b14;
+  --ink-2: #0e1524;
+  --panel: #141c2e;
   --line: #2a3550;
   --chalk: #f4f0e6;
   --muted: #9aa6c1;
-  --amber: #e8a317;
+  --amber: #f0a820;
   --amber-hot: #ffc14d;
   --good: #3ecf8e;
   --bad: #ff6b6b;
+  --silver: #c5cdd8;
+  --bronze: #c47a4a;
   --background: var(--ink);
   --foreground: var(--chalk);
 }
@@ -28,8 +30,15 @@
   --color-amber-hot: var(--amber-hot);
   --color-good: var(--good);
   --color-bad: var(--bad);
+  --color-silver: var(--silver);
+  --color-bronze: var(--bronze);
   --font-display: var(--font-display);
   --font-sans: var(--font-body);
+  --font-condensed: var(--font-condensed);
+}
+
+.condensed {
+  font-family: var(--font-condensed), Impact, sans-serif;
 }
 
 * {
@@ -46,9 +55,17 @@ body {
   color: var(--chalk);
   font-family: var(--font-body), system-ui, sans-serif;
   background:
-    radial-gradient(1200px 600px at 10% -10%, color-mix(in srgb, var(--amber) 18%, transparent), transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, color-mix(in srgb, var(--good) 8%, transparent), transparent 50%),
-    linear-gradient(180deg, var(--ink) 0%, var(--ink-2) 45%, var(--ink) 100%);
+    radial-gradient(
+      900px 520px at 50% 115%,
+      color-mix(in srgb, var(--amber) 22%, transparent),
+      transparent 58%
+    ),
+    radial-gradient(
+      1100px 520px at 8% -8%,
+      color-mix(in srgb, var(--amber) 10%, transparent),
+      transparent 55%
+    ),
+    linear-gradient(180deg, #05080f 0%, var(--ink) 40%, var(--ink-2) 100%);
   background-attachment: fixed;
 }
 
@@ -67,6 +84,14 @@ select {
 .display {
   font-family: var(--font-display), Impact, sans-serif;
   letter-spacing: 0.02em;
+}
+
+.label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .panel {
@@ -101,6 +126,15 @@ select {
   filter: brightness(1.05);
 }
 
+.btn-solid {
+  background: var(--chalk);
+  color: #0b1020;
+}
+
+.btn-solid:hover {
+  filter: brightness(0.96);
+}
+
 .btn-ghost {
   background: transparent;
   border-color: var(--line);
@@ -112,9 +146,14 @@ select {
 }
 
 .btn-danger {
-  background: color-mix(in srgb, var(--bad) 18%, var(--panel));
-  border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
-  color: #ffd5d5;
+  background: transparent;
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--line));
+  color: var(--amber);
+}
+
+.btn-danger:hover {
+  border-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
 }
 
 .field {
@@ -131,6 +170,26 @@ select {
   border-color: var(--amber);
 }
 
+.choice-letter {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--amber);
+  color: #1a1200;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+.choice-letter-lg {
+  height: 2.5rem;
+  width: 2.5rem;
+  font-size: 1.05rem;
+}
+
 @keyframes riseIn {
   from {
     opacity: 0;
@@ -145,19 +204,10 @@ select {
 @keyframes pulseGlow {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(232, 163, 23, 0.35);
+    box-shadow: 0 0 0 0 rgba(240, 168, 32, 0.35);
   }
   50% {
-    box-shadow: 0 0 0 10px rgba(232, 163, 23, 0);
-  }
-}
-
-@keyframes tick {
-  from {
-    transform: scaleX(1);
-  }
-  to {
-    transform: scaleX(0);
+    box-shadow: 0 0 0 10px rgba(240, 168, 32, 0);
   }
 }
 

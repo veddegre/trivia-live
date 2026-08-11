@@ -12,6 +12,7 @@ enum GameStatus {
   LOBBY
   QUESTION
   REVEAL
+  BETWEEN
   FINISHED
 }
 
@@ -48,6 +49,8 @@ model Game {
   currentQuestionIndex Int          @default(0)
   questionOpenedAt     DateTime?
   hostToken            String       @unique @default(cuid())
+  /** When false, players can only join while status is LOBBY */
+  allowLateJoin        Boolean      @default(true)
   brandDisplayName     String?
   brandTagline         String?
   brandLogoUrl         String?
@@ -59,6 +62,25 @@ model Game {
   updatedAt            DateTime     @updatedAt
   questions            Question[]
   players              Player[]
+  results              GameResult[]
+}
+
+/** Survives Play again / player wipe — hall of fame for past nights. */
+model GameResult {
+  id          String   @id @default(cuid())
+  gameId      String?
+  game        Game?    @relation(fields: [gameId], references: [id], onDelete: SetNull)
+  gameTitle   String
+  joinCode    String
+  winnerName  String
+  winnerScore Int
+  playerCount Int
+  /** Top 3: [{ name, totalScore }] */
+  podium      Json?
+  finishedAt  DateTime @default(now())
+
+  @@unique([gameId, joinCode])
+  @@index([finishedAt])
 }
 
 model Question {

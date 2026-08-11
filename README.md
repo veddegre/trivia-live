@@ -4,11 +4,12 @@ Live trivia for up to **200 players**. Build games ahead of time, open a host sc
 
 ## Features
 
-- **Admin** — create games with multiple-choice questions, time limits, and point settings
-- **Branding** — site-wide name, logo, colors, and presets; optional per-game overrides
-- **Host screen** — join code, lobby headcount, question control, live leaderboard, final winner
-- **Player phones** — join with a short code + display name (no accounts); reconnect after refresh
-- **Scoring** — server timestamps only (phones can’t fake speed)
+- **Admin** — create and edit games; 2–6 options (or True/False); per-question timers and scoring; optional late-join lock; site + per-game branding
+- **Host screen** — join code, QR → `/join?code=…`, typed join URL, live lobby roster, question control, reveal, between-round standings pause, podium finish
+- **Player phones** — join with code + name (no accounts); remembered display name; reconnect after refresh; rank/points after each round
+- **Scoring** — server timestamps only (phones can’t fake speed); board updates on lock so mid-question standings don’t spoil answers
+- **Play again** — clear players/scores, keep questions, issue a new join code
+- **Past winners** — hall of fame in admin (winner, podium, date/time) survives Play again
 - Built for work, family, or group events on a small VPS
 
 ## Stack
@@ -43,7 +44,8 @@ cp .env.example .env
 
 # 3. Install + schema
 npm install
-npx prisma db push
+npx prisma migrate deploy
+# or: npx prisma db push
 
 # 4. Run (Next + Socket.io on one port)
 npm run dev
@@ -53,18 +55,30 @@ App: [http://localhost:3000](http://localhost:3000)
 
 ## How a game works
 
-1. Sign in at **`/admin`** and create a game (title + questions). Mark the correct option with the radio next to each choice.
+1. Sign in at **`/admin`** and create a game (title + questions). Mark the correct option with the radio next to each choice. Optionally set base points, speed bonus, timer, and **Allow late joins**.
 2. Click **Open lobby**, then **Host screen** (opens on a big display).
-3. Players go to **`/join`**, enter the code shown on the host screen, and pick a name.
-4. Host presses **Start question** → players answer → **Lock answers** → reveal → **Next question**.
-5. After the last question, the host screen shows the **winner** and full standings.
-6. To run the same quiz again (new crowd, same questions/code), use **Play again** in admin or on the finished host screen — this clears players and scores and reopens the lobby.
+3. Players scan the **QR** (opens `/join` with the code filled in) or open the join URL shown on the host and enter the code, then pick a name.
+4. Host presses **Start question 1** → players answer against the countdown → auto-lock at 0 (or **Lock now**) → reveal correct answer + standings.
+5. Host presses **Continue** → between-round standings pause → **Start question N** for the next prompt (not an immediate jump).
+6. After the last question, the host shows a **top-3 podium** and final standings. Phones show place and score.
+7. **Play again** (admin or finished host screen) clears players/scores, keeps questions, issues a **new join code**, and reopens the lobby. Phones are sent back to `/join`.
+8. Finished nights appear under **Past winners** in admin (date/time, winner, podium, player count).
+
+You can **Edit** a game in admin to fix questions or settings before answers exist (or after Play again). Mid-round edits are blocked.
+
+### Join codes
+
+Codes use an unambiguous alphabet (no `I`/`J`/`L`/`O`/`Q`/`0`/`1`) so they’re easy to read off a TV.
+
+### Late joins
+
+By default players can join during the lobby **or** mid-game. Uncheck **Allow late joins** on the game to limit joining to the lobby only.
 
 ## Branding
 
 In **`/admin`**, use **Site branding** to set the display name, tagline, logo (URL or upload), color preset (`default`, `ocean`, `forest`, `sunset`, `slate`), light/dark mode, and optional accent/background hex colors. These apply across the app.
 
-When creating a game, check **Customize this game’s look** to override site defaults for that game’s host and player screens.
+When creating or editing a game, check **Customize this game’s look** to override site defaults for that game’s host and player screens.
 
 Uploaded logos are stored in `uploads/` (Docker volume `trivia_uploads`) and served at `/uploads/…`.
 
@@ -73,9 +87,9 @@ Uploaded logos are stored in `uploads/` (Docker volume `trivia_uploads`) and ser
 | Path | Who | Purpose |
 |------|-----|---------|
 | `/` | Anyone | Landing |
-| `/admin` | Host / organizer | Build and manage games |
+| `/admin` | Host / organizer | Branding, build/edit games, past winners |
 | `/host/[code]?token=…` | Host display | Control game + live board |
-| `/join` | Players | Enter code + name |
+| `/join` | Players | Enter code + name (`?code=` prefill from QR) |
 | `/play/[code]` | Players | Answer questions |
 
 ## Scoring
@@ -88,7 +102,9 @@ points = base + timeBonus × (1 − elapsed / timeLimit)
 
 Defaults per question: **base 500**, **time bonus 500** → max **1000** if answered instantly. Wrong answers get **0**. Totals carry across the whole game.
 
-Elapsed time is measured on the **server** from question open to answer receive.
+Elapsed time is measured on the **server** from question open to answer receive. Per-question base/bonus can be set in the admin builder.
+
+Scores are stored when answers land but **not added to the board until the question locks**, so the live standings don’t spoil who got it right. After lock/reveal, the host shows who’s in the lead (with round deltas); phones show rank and round points. Between rounds, standings stay up until the host starts the next question.
 
 ## Environment
 
@@ -101,6 +117,7 @@ Copy from `.env.example`:
 | `PORT` | HTTP + WebSocket port | `3000` |
 | `HOST` | Bind address | `0.0.0.0` |
 | `NEXT_PUBLIC_SOCKET_URL` | Leave empty when UI and sockets share the same origin | _(empty)_ |
+| `NEXT_PUBLIC_PUBLIC_URL` | Public origin for host-screen join QR / URL (set to your LAN IP when testing phones locally) | _(current browser origin)_ |
 
 ## Scripts
 
@@ -125,7 +142,7 @@ SMOKE_PLAYERS=200 SMOKE_BASE_URL=http://127.0.0.1:3000 npm run smoke
 ```text
 server/           Custom Node server + Socket.io handlers
 src/app/          Next.js pages (admin, host, play, join) + API routes
-src/components/   BrandMark, BrandProvider, BrandEditor
+src/components/   Brand, QR, countdown, question editor
 src/lib/          DB, scoring, branding, game manager, auth helpers
 prisma/           Schema + migrations
 uploads/          Logo uploads (gitignored; Docker volume)
@@ -146,7 +163,9 @@ export ADMIN_PASSWORD='a-strong-password'
 docker compose up --build -d
 ```
 
-Put **HTTPS** in front (Caddy, nginx, or a reverse proxy). For production, change `ADMIN_PASSWORD` and keep `.env` out of git.
+Put **HTTPS** in front (Caddy, nginx, or a reverse proxy). Enable WebSockets on the proxy. For production, change `ADMIN_PASSWORD` and keep `.env` out of git.
+
+Set `NEXT_PUBLIC_PUBLIC_URL` to your public origin (e.g. `https://trivia.example.com`) so host QR codes and join URLs point at the right place for phones.
 
 ## Capacity notes
 

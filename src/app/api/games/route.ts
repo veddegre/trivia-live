@@ -5,19 +5,12 @@ import { brandOverrideSchema, validateBrandColors } from "@/lib/brand-schema";
 import { brandOverridesFromInput } from "@/lib/branding";
 import { generateJoinCode } from "@/lib/codes";
 import { prisma } from "@/lib/db";
-
-const questionSchema = z.object({
-  prompt: z.string().min(1).max(500),
-  options: z.array(z.string().min(1).max(200)).min(2).max(6),
-  correctIndex: z.number().int().min(0),
-  timeLimitSec: z.number().int().min(5).max(300).default(30),
-  basePoints: z.number().int().min(0).max(10000).default(500),
-  timeBonus: z.number().int().min(0).max(10000).default(500),
-});
+import { assertCorrectIndexes, questionSchema } from "@/lib/question-schema";
 
 const createSchema = z
   .object({
     title: z.string().min(1).max(120),
+    allowLateJoin: z.boolean().optional().default(true),
     questions: z.array(questionSchema).min(1).max(100),
   })
   .merge(brandOverrideSchema);
@@ -50,13 +43,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: colorErr }, { status: 400 });
   }
 
-  for (const q of parsed.data.questions) {
-    if (q.correctIndex >= q.options.length) {
-      return NextResponse.json(
-        { error: "correctIndex out of range for a question" },
-        { status: 400 }
-      );
-    }
+  const indexErr = assertCorrectIndexes(parsed.data.questions);
+  if (indexErr) {
+    return NextResponse.json({ error: indexErr }, { status: 400 });
   }
 
   let code = generateJoinCode();
@@ -82,6 +71,7 @@ export async function POST(req: NextRequest) {
       title: parsed.data.title,
       code,
       status: "DRAFT",
+      allowLateJoin: parsed.data.allowLateJoin,
       ...branding,
       questions: {
         create: parsed.data.questions.map((q, order) => ({

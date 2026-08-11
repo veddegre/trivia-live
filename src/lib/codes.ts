@@ -1,4 +1,7 @@
-const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+/**
+ * Unambiguous alphabet — no I/l/1, O/0, J, L, Q (easy to misread aloud or on a TV).
+ */
+const ALPHABET = "ABCDEFGHKMNPRSTUVWXYZ23456789";
 
 export function generateJoinCode(length = 6): string {
   let out = "";

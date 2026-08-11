@@ -25,6 +25,7 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
       NODE_ENV: production
+      NEXT_PUBLIC_PUBLIC_URL: ${NEXT_PUBLIC_PUBLIC_URL:-}
     volumes:
       - trivia_uploads:/app/uploads
     depends_on:

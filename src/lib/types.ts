@@ -1,6 +1,6 @@
 import type { BrandConfig } from "@/lib/branding";
 
-export type GamePhase = "lobby" | "question" | "reveal" | "finished";
+export type GamePhase = "lobby" | "question" | "reveal" | "between" | "finished";
 
 export type PublicQuestion = {
   id: string;
@@ -32,7 +32,10 @@ export type GamePublicState = {
   questionOpenedAt: string | null;
   timeLimitSec: number | null;
   leaderboard: LeaderboardEntry[];
+  /** Present after a round ends (reveal / between / finished) */
+  leader: LeaderboardEntry | null;
   winner: LeaderboardEntry | null;
+  allowLateJoin: boolean;
   brand: BrandConfig;
 };
 
@@ -48,3 +51,5 @@ export type PlayerView = {
 
 export const SCORE_BASE_DEFAULT = 500;
 export const SCORE_TIME_BONUS_DEFAULT = 500;
+
+export const DISPLAY_NAME_KEY = "trivia-display-name";

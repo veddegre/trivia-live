@@ -18,7 +18,11 @@ export function getSocket(): Socket {
 
 export type ServerToClientEvents = {
   "game:state": (state: GamePublicState) => void;
-  "game:reset": (payload: { code: string }) => void;
+  "game:reset": (payload: {
+    previousCode?: string;
+    code: string;
+    hostToken?: string;
+  }) => void;
   "player:state": (player: PlayerView) => void;
   error: (payload: { message: string }) => void;
 };

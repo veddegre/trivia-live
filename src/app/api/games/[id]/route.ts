@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 import { brandOverrideSchema, validateBrandColors } from "@/lib/brand-schema";
 import { brandOverridesFromInput } from "@/lib/branding";
 import { prisma } from "@/lib/db";
+import { assertCorrectIndexes, questionSchema } from "@/lib/question-schema";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -27,6 +28,8 @@ const patchSchema = z
   .object({
     title: z.string().min(1).max(120).optional(),
     status: z.enum(["DRAFT", "LOBBY"]).optional(),
+    allowLateJoin: z.boolean().optional(),
+    questions: z.array(questionSchema).min(1).max(100).optional(),
   })
   .merge(brandOverrideSchema);
 
@@ -45,10 +48,61 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: colorErr }, { status: 400 });
   }
 
-  const { title, status, customize, ...brandFields } = parsed.data;
+  const existing = await prisma.game.findUnique({ where: { id } });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const { title, status, allowLateJoin, questions, customize, ...brandFields } =
+    parsed.data;
+
+  if (questions) {
+    const indexErr = assertCorrectIndexes(questions);
+    if (indexErr) {
+      return NextResponse.json({ error: indexErr }, { status: 400 });
+    }
+    if (
+      existing.status === "QUESTION" ||
+      existing.status === "REVEAL" ||
+      existing.status === "BETWEEN"
+    ) {
+      return NextResponse.json(
+        { error: "Can’t edit questions while a round is in progress" },
+        { status: 400 }
+      );
+    }
+    const answerCount = await prisma.answer.count({
+      where: { question: { gameId: id } },
+    });
+    if (answerCount > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Can’t edit questions after answers exist. Use Play again first to clear the round.",
+        },
+        { status: 400 }
+      );
+    }
+
+    await prisma.$transaction([
+      prisma.question.deleteMany({ where: { gameId: id } }),
+      prisma.question.createMany({
+        data: questions.map((q, order) => ({
+          gameId: id,
+          order,
+          prompt: q.prompt,
+          options: q.options,
+          correctIndex: q.correctIndex,
+          timeLimitSec: q.timeLimitSec,
+          basePoints: q.basePoints,
+          timeBonus: q.timeBonus,
+        })),
+      }),
+    ]);
+  }
+
   const data: Record<string, unknown> = {};
   if (title !== undefined) data.title = title;
   if (status !== undefined) data.status = status;
+  if (allowLateJoin !== undefined) data.allowLateJoin = allowLateJoin;
 
   if (customize !== undefined || Object.keys(brandFields).length > 0) {
     Object.assign(
@@ -65,6 +119,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   const game = await prisma.game.update({
     where: { id },
     data,
+    include: { questions: { orderBy: { order: "asc" } } },
   });
   return NextResponse.json({ game });
 }

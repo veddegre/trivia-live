@@ -12,20 +12,24 @@ export async function POST(_req: Request, ctx: Ctx) {
 
   const { id } = await ctx.params;
   try {
-    const game = await resetGame(id);
+    const { game, previousCode } = await resetGame(id);
     if (!game) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     const io = getSocketServer();
     if (io) {
-      const room = `game:${game.code}`;
+      const payload = {
+        previousCode,
+        code: game.code,
+        hostToken: game.hostToken,
+      };
+      io.to(`game:${previousCode}`).emit("game:reset", payload);
       const state = await buildPublicState(game.code);
-      io.to(room).emit("game:reset", { code: game.code });
-      if (state) io.to(room).emit("game:state", state);
+      if (state) io.to(`game:${game.code}`).emit("game:state", state);
     }
 
-    return NextResponse.json({ game });
+    return NextResponse.json({ game, previousCode });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Reset failed";
     const status = message === "Game not found" ? 404 : 400;

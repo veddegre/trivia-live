@@ -96,7 +96,9 @@ export function createSocketServer(httpServer: HttpServer) {
         const code = payload.code?.toUpperCase();
         const game = await prisma.game.findUnique({ where: { code } });
         if (!game || game.hostToken !== payload.hostToken) {
-          throw new Error("Invalid host credentials");
+          throw new Error(
+            "This host link is outdated (the game may have been reset). Open Host screen again from Admin."
+          );
         }
         data.role = "host";
         data.code = code;
@@ -121,9 +123,20 @@ export function createSocketServer(httpServer: HttpServer) {
           where: { code },
           include: { players: true },
         });
-        if (!game) throw new Error("Game not found");
-        if (game.status === "DRAFT") throw new Error("Game has not started yet");
-        if (game.status === "FINISHED") throw new Error("Game is finished");
+        if (!game) {
+          throw new Error(
+            "Game not found — that join code is no longer active. Scan the current QR or ask the host for the new code."
+          );
+        }
+        if (game.status === "DRAFT") {
+          throw new Error("Game has not started yet — wait for the host to open the lobby");
+        }
+        if (game.status === "FINISHED") {
+          throw new Error("Game is finished — ask the host to hit Play again");
+        }
+        if (!game.allowLateJoin && game.status !== "LOBBY") {
+          throw new Error("This game isn’t accepting late joins");
+        }
         if (game.players.length >= 200) throw new Error("Game is full");
 
         const existing = game.players.find(
@@ -226,11 +239,7 @@ export function createSocketServer(httpServer: HttpServer) {
       try {
         if (data.role !== "host" || !data.code) throw new Error("Not authorized");
         const result = await nextQuestion(data.code);
-        if (!result.finished) {
-          armQuestionTimer(io, data.code, result.timeLimitSec);
-        } else {
-          clearQuestionTimer(data.code);
-        }
+        clearQuestionTimer(data.code);
         await broadcastState(io, data.code, true);
         ack?.({ ok: true, ...result });
         void refreshPlayers(io, data.code);
@@ -258,12 +267,23 @@ export function createSocketServer(httpServer: HttpServer) {
     socket.on("host:reset", async (ack?: (r: unknown) => void) => {
       try {
         if (data.role !== "host" || !data.code) throw new Error("Not authorized");
-        const game = await prisma.game.findUnique({ where: { code: data.code } });
-        if (!game) throw new Error("Game not found");
-        await resetGame(game.id);
-        io.to(room(data.code)).emit("game:reset", { code: data.code });
-        await broadcastState(io, data.code, true);
-        ack?.({ ok: true });
+        const existing = await prisma.game.findUnique({ where: { code: data.code } });
+        if (!existing) throw new Error("Game not found");
+        const previousCode = data.code;
+        const { game } = await resetGame(existing.id);
+        if (!game) throw new Error("Reset failed");
+
+        const payload = {
+          previousCode,
+          code: game.code,
+          hostToken: game.hostToken,
+        };
+        io.to(room(previousCode)).emit("game:reset", payload);
+        data.code = game.code;
+        await socket.leave(room(previousCode));
+        await socket.join(room(game.code));
+        await broadcastState(io, game.code, true);
+        ack?.({ ok: true, ...payload });
       } catch (e) {
         const message = e instanceof Error ? e.message : "Failed";
         ack?.({ ok: false, message });
