@@ -26,7 +26,7 @@ export const emptyBrandForm = (): BrandFormState => ({
   tagline: "",
   logoUrl: "",
   preset: "default",
-  mode: "dark",
+  mode: "light",
   accent: "",
   background: "",
 });

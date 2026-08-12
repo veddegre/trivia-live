@@ -80,21 +80,16 @@ export function QuestionEditor({
 
   return (
     <div
-      className="rounded-2xl border p-5 md:p-6"
-      style={{ borderColor: "#2a3550", background: "#121826" }}
+      className="rounded-2xl border border-line bg-panel p-5 md:p-6"
     >
       <div className="flex items-center justify-between gap-3">
-        <div
-          className="text-xs font-bold uppercase tracking-[0.16em]"
-          style={{ color: "#f8b62d" }}
-        >
+        <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
           Question {qi + 1}
         </div>
         <div className="flex flex-wrap gap-4">
           <button
             type="button"
-            className="text-sm font-semibold"
-            style={{ color: "#f8b62d" }}
+            className="text-sm font-semibold text-amber"
             onClick={makeTrueFalse}
           >
             True / False
@@ -102,8 +97,7 @@ export function QuestionEditor({
           {canRemove && (
             <button
               type="button"
-              className="text-sm font-semibold"
-              style={{ color: "#f8b62d" }}
+              className="text-sm font-semibold text-amber"
               onClick={onRemove}
             >
               Remove question
@@ -115,10 +109,7 @@ export function QuestionEditor({
       <div className="mt-5 grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
         <div className="space-y-4">
           <label className="block space-y-2">
-            <span
-              className="text-xs font-bold uppercase tracking-[0.16em]"
-              style={{ color: "#f8b62d" }}
-            >
+            <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
               Question prompt
             </span>
             <textarea
@@ -130,10 +121,7 @@ export function QuestionEditor({
           </label>
 
           <div>
-            <div
-              className="text-xs font-bold uppercase tracking-[0.16em]"
-              style={{ color: "#f8b62d" }}
-            >
+            <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
               Options
             </div>
             <div className="mt-2 space-y-2">
@@ -144,7 +132,7 @@ export function QuestionEditor({
                     name={`correct-${qi}`}
                     checked={q.correctIndex === oi}
                     onChange={() => onChange({ ...q, correctIndex: oi })}
-                    className="h-4 w-4 accent-[#f8b62d]"
+                    className="h-4 w-4 accent-[var(--amber)]"
                   />
                   <input
                     className="field"
@@ -159,8 +147,7 @@ export function QuestionEditor({
                   {q.options.length > 2 && (
                     <button
                       type="button"
-                      className="shrink-0 text-xs"
-                      style={{ color: "#9aa6c1" }}
+                      className="shrink-0 text-xs text-muted"
                       onClick={() => removeOption(oi)}
                       aria-label={`Remove option ${oi + 1}`}
                     >
@@ -173,8 +160,7 @@ export function QuestionEditor({
             {q.options.length < 6 && (
               <button
                 type="button"
-                className="mt-2 text-sm font-semibold"
-                style={{ color: "#f8b62d" }}
+                className="mt-2 text-sm font-semibold text-amber"
                 onClick={addOption}
               >
                 + Add option
@@ -185,10 +171,7 @@ export function QuestionEditor({
 
         <div className="space-y-4">
           <div>
-            <div
-              className="text-xs font-bold uppercase tracking-[0.16em]"
-              style={{ color: "#f8b62d" }}
-            >
+            <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
               Timer
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -201,11 +184,11 @@ export function QuestionEditor({
                     className="rounded-full px-3 py-1.5 text-sm font-bold"
                     style={
                       on
-                        ? { background: "#f8b62d", color: "#0b0e14" }
+                        ? { background: "var(--amber)", color: "#ffffff" }
                         : {
                             background: "transparent",
-                            color: "#f8b62d",
-                            border: "1px solid rgba(248,182,45,0.45)",
+                            color: "var(--amber)",
+                            border: "1px solid color-mix(in srgb, var(--amber) 45%, var(--line))",
                           }
                     }
                     onClick={() => onChange({ ...q, timeLimitSec: sec })}
@@ -228,10 +211,7 @@ export function QuestionEditor({
           </div>
 
           <label className="block space-y-2">
-            <span
-              className="text-xs font-bold uppercase tracking-[0.16em]"
-              style={{ color: "#f8b62d" }}
-            >
+            <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
               Base points
             </span>
             <input
@@ -247,10 +227,7 @@ export function QuestionEditor({
           </label>
 
           <label className="block space-y-2">
-            <span
-              className="text-xs font-bold uppercase tracking-[0.16em]"
-              style={{ color: "#f8b62d" }}
-            >
+            <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
               Speed bonus (max points)
             </span>
             <input
@@ -269,15 +246,15 @@ export function QuestionEditor({
             <label className="flex items-start gap-3 pt-1">
               <input
                 type="checkbox"
-                className="mt-1 h-4 w-4 accent-[#f8b62d]"
+                className="mt-1 h-4 w-4 accent-[var(--amber)]"
                 checked={!!allowLateJoin}
                 onChange={(e) => onAllowLateJoinChange(e.target.checked)}
               />
               <span>
-                <span className="block text-sm font-semibold" style={{ color: "#f8b62d" }}>
+                <span className="block text-sm font-semibold text-amber">
                   Allow late joins
                 </span>
-                <span className="text-xs" style={{ color: "#9aa6c1" }}>
+                <span className="text-xs text-muted">
                   Players can join after the game has started.
                 </span>
               </span>

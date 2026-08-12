@@ -9,23 +9,20 @@ export default function HomePage() {
 
   return (
     <main
-      className="relative flex min-h-screen flex-col overflow-x-hidden"
-      style={{ background: "#0b0e14", color: "#ffffff" }}
+      className="relative flex min-h-screen flex-col overflow-x-hidden bg-ink text-chalk"
     >
       <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-7 md:px-10">
         <BrandMark href="/" size="md" />
         <nav className="flex items-center gap-6 md:gap-8">
           <a
             href="#how-to-play"
-            className="text-[11px] font-semibold uppercase tracking-[0.18em] hover:opacity-80"
-            style={{ color: "#ffffff" }}
+            className="text-[11px] font-semibold uppercase tracking-[0.18em] text-chalk hover:opacity-80"
           >
             How to play
           </a>
           <a
             href="#features"
-            className="text-[11px] font-semibold uppercase tracking-[0.18em] hover:opacity-80"
-            style={{ color: "#ffffff" }}
+            className="text-[11px] font-semibold uppercase tracking-[0.18em] text-chalk hover:opacity-80"
           >
             Features
           </a>
@@ -38,7 +35,7 @@ export default function HomePage() {
           <BrandMark href={null} size="hero" />
         </div>
 
-        <p className="mt-10 text-lg font-medium leading-relaxed md:text-xl" style={{ color: "#ffffff" }}>
+        <p className="mt-10 text-lg font-medium leading-relaxed text-chalk md:text-xl">
           {brand.tagline?.trim() ? (
             brand.tagline
           ) : (
@@ -46,7 +43,7 @@ export default function HomePage() {
               Live multiplayer trivia.
               <br />
               Real people. Real time.{" "}
-              <span style={{ color: "#f8b43c" }}>Real fun.</span>
+              <span className="text-amber">Real fun.</span>
             </>
           )}
         </p>
@@ -54,15 +51,13 @@ export default function HomePage() {
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
           <Link
             href="/join"
-            className="inline-flex items-center justify-center rounded-md px-7 py-3 text-sm font-bold uppercase tracking-[0.12em] transition hover:opacity-90"
-            style={{ background: "#ffffff", color: "#0b0e14" }}
+            className="inline-flex items-center justify-center rounded-md bg-chalk px-7 py-3 text-sm font-bold uppercase tracking-[0.12em] text-white transition hover:opacity-90"
           >
             Join a game
           </Link>
           <Link
             href="/admin"
-            className="inline-flex items-center justify-center rounded-md border px-7 py-3 text-sm font-bold uppercase tracking-[0.12em] transition hover:bg-white/5"
-            style={{ borderColor: "#ffffff", color: "#ffffff", background: "transparent" }}
+            className="inline-flex items-center justify-center rounded-md border border-line px-7 py-3 text-sm font-bold uppercase tracking-[0.12em] text-chalk transition hover:border-amber"
           >
             Admin
           </Link>
@@ -78,7 +73,7 @@ export default function HomePage() {
           className="absolute inset-0"
           style={{
             background:
-              "radial-gradient(ellipse 55% 70% at 50% 100%, rgba(248,180,60,0.45) 0%, rgba(248,180,60,0.12) 35%, transparent 70%)",
+              "radial-gradient(ellipse 55% 70% at 50% 100%, color-mix(in srgb, var(--amber) 35%, transparent) 0%, color-mix(in srgb, var(--amber) 10%, transparent) 35%, transparent 70%)",
           }}
         />
         <svg
@@ -87,9 +82,9 @@ export default function HomePage() {
           preserveAspectRatio="xMidYMax meet"
           fill="none"
         >
-          <ellipse cx="600" cy="380" rx="520" ry="28" stroke="rgba(248,180,60,0.35)" strokeWidth="2" />
-          <ellipse cx="600" cy="340" rx="420" ry="40" stroke="rgba(248,180,60,0.22)" strokeWidth="1.5" />
-          <ellipse cx="600" cy="290" rx="300" ry="50" stroke="rgba(248,180,60,0.14)" strokeWidth="1.5" />
+          <ellipse cx="600" cy="380" rx="520" ry="28" stroke="color-mix(in srgb, var(--amber) 40%, transparent)" strokeWidth="2" />
+          <ellipse cx="600" cy="340" rx="420" ry="40" stroke="color-mix(in srgb, var(--amber) 25%, transparent)" strokeWidth="1.5" />
+          <ellipse cx="600" cy="290" rx="300" ry="50" stroke="color-mix(in srgb, var(--amber) 16%, transparent)" strokeWidth="1.5" />
         </svg>
       </div>
 
@@ -103,15 +98,12 @@ export default function HomePage() {
             ["Crown a winner", "Reveal, standings between rounds, then the podium finish."],
           ].map(([title, body], i) => (
             <li key={title} className="flex gap-5">
-              <span
-                className="display shrink-0 text-3xl font-extrabold"
-                style={{ color: "#f8b43c" }}
-              >
+              <span className="display shrink-0 text-3xl font-extrabold text-amber">
                 {i + 1}.
               </span>
               <div>
                 <h3 className="text-lg font-bold">{title}</h3>
-                <p className="mt-1 text-sm leading-relaxed" style={{ color: "#9aa6c1" }}>
+                <p className="mt-1 text-sm leading-relaxed text-muted">
                   {body}
                 </p>
               </div>
@@ -129,11 +121,11 @@ export default function HomePage() {
             ["Pace the room", "Reveal, between-round standings pause, then the next question."],
           ].map(([title, body]) => (
             <div key={title} className="text-center">
-              <div className="text-amber" style={{ color: "#f8b43c" }} aria-hidden>
+              <div className="text-amber" aria-hidden>
                 ★
               </div>
               <h3 className="mt-3 font-bold">{title}</h3>
-              <p className="mt-2 text-sm leading-relaxed" style={{ color: "#9aa6c1" }}>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
                 {body}
               </p>
             </div>

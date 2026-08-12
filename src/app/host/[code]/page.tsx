@@ -594,15 +594,14 @@ function HostInner({ code }: { code: string }) {
   }
 
   // ── LOBBY / DRAFT (TV mock) ──
-  const amber = "#f8b43c";
-  const line = "#243044";
+  const amber = "var(--amber)";
+  const line = "var(--line)";
   const nextQ = Math.max(1, (state.questionIndex ?? 0) + 1);
 
   return (
     <BrandProvider brand={brand}>
       <main
-        className="flex min-h-screen flex-col"
-        style={{ background: "#050a14", color: "#ffffff" }}
+        className="flex min-h-screen flex-col bg-ink text-chalk"
       >
         {error && (
           <p className="mx-8 mt-4 rounded-xl border border-bad/40 bg-bad/10 px-4 py-3 text-sm text-bad md:mx-12">
@@ -626,7 +625,7 @@ function HostInner({ code }: { code: string }) {
               <span className="text-sm leading-none md:text-base" style={{ color: amber }} aria-hidden>
                 ★
               </span>
-              <h1 className="display shrink-0 text-center text-[clamp(2.1rem,4.2vw,3.25rem)] font-extrabold tracking-tight text-white">
+              <h1 className="display shrink-0 text-center text-[clamp(2.1rem,4.2vw,3.25rem)] font-extrabold tracking-tight text-chalk">
                 {state.title}
               </h1>
               <span className="text-sm leading-none md:text-base" style={{ color: amber }} aria-hidden>
@@ -643,7 +642,7 @@ function HostInner({ code }: { code: string }) {
               <div className="mt-6 flex justify-center">
                 <button
                   className="rounded-2xl px-7 py-3.5 text-sm font-extrabold uppercase tracking-[0.14em]"
-                  style={{ background: amber, color: "#0b0e14" }}
+                  style={{ background: amber, color: "#ffffff" }}
                   onClick={() => emit("host:start")}
                 >
                   Open lobby
@@ -679,7 +678,7 @@ function HostInner({ code }: { code: string }) {
                     {liveCode}
                   </div>
                   {!connected && (
-                    <p className="mt-2 text-sm" style={{ color: "#9aa6c1" }}>
+                    <p className="mt-2 text-sm text-muted">
                       Connecting…
                     </p>
                   )}
@@ -703,7 +702,7 @@ function HostInner({ code }: { code: string }) {
                   </div>
 
                   <div className="pt-7">
-                    <div className="condensed flex items-center gap-2.5 text-[15px] font-bold uppercase tracking-[0.24em] text-white">
+                    <div className="condensed flex items-center gap-2.5 text-[15px] font-bold uppercase tracking-[0.24em] text-chalk">
                       <svg
                         viewBox="0 0 24 24"
                         className="h-5 w-5 shrink-0"
@@ -725,7 +724,7 @@ function HostInner({ code }: { code: string }) {
                       {manualJoinUrl || "…/join"}
                     </p>
                     {state.allowLateJoin === false && (
-                      <p className="mt-1 text-xs" style={{ color: "#9aa6c1" }}>
+                      <p className="mt-1 text-xs text-muted">
                         Late joins off
                       </p>
                     )}
@@ -741,13 +740,13 @@ function HostInner({ code }: { code: string }) {
               <span
                 className="h-3 w-3 rounded-full"
                 style={{
-                  background: state.status === "DRAFT" ? "#9aa6c1" : "#4caf50",
+                  background: state.status === "DRAFT" ? "var(--muted)" : "#0f9f6e",
                 }}
               />
               <span
                 className="condensed text-[14px] font-semibold uppercase tracking-[0.2em]"
                 style={{
-                  color: state.status === "DRAFT" ? "#9aa6c1" : "#4caf50",
+                  color: state.status === "DRAFT" ? "var(--muted)" : "#0f9f6e",
                 }}
               >
                 {state.status === "DRAFT" ? "Draft" : "Lobby open"}
@@ -755,10 +754,10 @@ function HostInner({ code }: { code: string }) {
             </div>
 
             <div className="mt-7 border-t pt-6" style={{ borderColor: line }}>
-              <div className="condensed text-[15px] font-bold uppercase tracking-[0.22em] text-white">
+              <div className="condensed text-[15px] font-bold uppercase tracking-[0.22em] text-chalk">
                 Players ready
               </div>
-              <div className="condensed mt-1 text-[clamp(5.5rem,11vw,8rem)] font-bold leading-none tabular-nums text-white">
+              <div className="condensed mt-1 text-[clamp(5.5rem,11vw,8rem)] font-bold leading-none tabular-nums text-chalk">
                 {state.playerCount}
               </div>
             </div>
@@ -767,23 +766,19 @@ function HostInner({ code }: { code: string }) {
               className="mt-7 flex min-h-0 flex-1 flex-col border-t pt-5"
               style={{ borderColor: line }}
             >
-              <div
-                className="condensed text-[12px] font-semibold uppercase tracking-[0.22em]"
-                style={{ color: "#8b95a8" }}
-              >
+              <div className="condensed text-[12px] font-semibold uppercase tracking-[0.22em] text-muted">
                 Players
               </div>
               <ul className="mt-4 max-h-[42vh] space-y-3 overflow-y-auto">
                 {roster.length === 0 && (
-                  <li className="text-[15px] italic" style={{ color: "#8b95a8" }}>
+                  <li className="text-[15px] italic text-muted">
                     Waiting for players…
                   </li>
                 )}
                 {roster.map((row) => (
                   <li
                     key={row.playerId}
-                    className="flex items-center gap-3 rounded-xl border px-4 py-3"
-                    style={{ borderColor: "#2a3550", background: "#0a1220" }}
+                    className="flex items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3"
                   >
                     <svg
                       viewBox="0 0 24 24"
@@ -794,7 +789,7 @@ function HostInner({ code }: { code: string }) {
                     >
                       <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5Z" />
                     </svg>
-                    <span className="text-base font-semibold text-white">
+                    <span className="text-base font-semibold text-chalk">
                       {row.name}
                     </span>
                   </li>
@@ -805,7 +800,7 @@ function HostInner({ code }: { code: string }) {
             <div className="mt-auto flex flex-col gap-3.5 pt-8">
               <button
                 className="condensed flex w-full items-center justify-center gap-2.5 rounded-2xl py-[1.05rem] text-[15px] font-bold uppercase tracking-[0.14em] disabled:opacity-40"
-                style={{ background: amber, color: "#0b0e14" }}
+                style={{ background: amber, color: "#ffffff" }}
                 onClick={() => emit("host:openQuestion")}
                 disabled={state.status === "DRAFT"}
               >

@@ -24,18 +24,18 @@ export function useBrandOrFallback(): BrandConfig {
     tagline: null,
     logoUrl: null,
     preset: "default",
-    mode: "dark",
+    mode: "light",
     accent: null,
     background: null,
     tokens: {
-      ink: "#0b1020",
-      ink2: "#141b2f",
-      panel: "#1a2338",
-      line: "#2a3550",
-      chalk: "#f4f0e6",
-      muted: "#9aa6c1",
-      amber: "#e8a317",
-      amberHot: "#ffc14d",
+      ink: "#e8ecf1",
+      ink2: "#dde3eb",
+      panel: "#ffffff",
+      line: "#c5ceda",
+      chalk: "#171c26",
+      muted: "#5a6478",
+      amber: "#1d4ed8",
+      amberHot: "#3b82f6",
     },
   };
 }
@@ -81,7 +81,7 @@ export function BrandProvider({
 
   return (
     <BrandContext.Provider value={active}>
-      <div className={className ?? "min-h-screen"} data-brand-mode={active?.mode ?? "dark"}>
+      <div className={className ?? "min-h-screen"} data-brand-mode={active?.mode ?? "light"}>
         {children}
       </div>
     </BrandContext.Provider>

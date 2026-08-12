@@ -98,11 +98,11 @@ function NavButton({
       style={
         active
           ? {
-              background: "#1a2338",
-              color: "#ffffff",
-              boxShadow: "inset 3px 0 0 #f8b62d",
+              background: "var(--ink-2)",
+              color: "var(--chalk)",
+              boxShadow: "inset 3px 0 0 var(--amber)",
             }
-          : { color: "#c8cdd8" }
+          : { color: "var(--muted)" }
       }
     >
       {children}
@@ -170,7 +170,7 @@ function AdminInner() {
       tagline: s.tagline || "",
       logoUrl: s.logoUrl || "",
       preset: s.preset || "default",
-      mode: s.mode || "dark",
+      mode: s.mode || "light",
       accent: s.accent || "",
       background: s.background || "",
     });
@@ -327,7 +327,7 @@ function AdminInner() {
         tagline: g.brandTagline || "",
         logoUrl: g.brandLogoUrl || "",
         preset: g.brandPreset || "default",
-        mode: g.brandMode || "dark",
+        mode: g.brandMode || "light",
         accent: g.brandAccent || "",
         background: g.brandBackground || "",
       });
@@ -436,27 +436,23 @@ function AdminInner() {
 
   if (authed === null) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-5" style={{ background: "#0b0e14" }}>
-        <p style={{ color: "#9aa6c1" }}>Checking session…</p>
+      <main className="flex min-h-screen items-center justify-center bg-ink px-5">
+        <p className="text-muted">Checking session…</p>
       </main>
     );
   }
 
   if (!authed) {
     return (
-      <main
-        className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-5 py-10"
-        style={{ background: "#0b0e14" }}
-      >
+      <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center bg-ink px-5 py-10">
         <BrandMark badgeLast />
-        <h1 className="mt-8 text-3xl font-bold text-white">Admin</h1>
+        <h1 className="mt-8 text-3xl font-bold text-chalk">Admin</h1>
         <form
           onSubmit={login}
-          className="mt-6 space-y-4 rounded-2xl border p-5"
-          style={{ borderColor: "#2a3550", background: "#121826" }}
+          className="mt-6 space-y-4 rounded-2xl border border-line bg-panel p-5"
         >
           <label className="block space-y-2">
-            <span className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: "#f8b62d" }}>
+            <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
               Password
             </span>
             <input
@@ -477,21 +473,15 @@ function AdminInner() {
   }
 
   return (
-    <div className="flex min-h-screen" style={{ background: "#0b0e14", color: "#ffffff" }}>
+    <div className="flex min-h-screen bg-ink text-chalk">
       {/* Sidebar */}
-      <aside
-        className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r px-3 py-5 md:w-64"
-        style={{ borderColor: "#2a3550", background: "#0e1420" }}
-      >
+      <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-line bg-panel px-3 py-5 md:w-64">
         <div className="px-1">
           <BrandMark href="/" size="sm" />
         </div>
 
         <nav className="mt-8 flex flex-1 flex-col gap-1">
-          <div
-            className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em]"
-            style={{ color: "#9aa6c1" }}
-          >
+          <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
             Games
           </div>
           <NavButton active={tab === "create"} onClick={() => setTab("create")}>
@@ -501,20 +491,14 @@ function AdminInner() {
             All games
           </NavButton>
 
-          <div
-            className="mt-5 px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em]"
-            style={{ color: "#9aa6c1" }}
-          >
+          <div className="mt-5 px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
             History
           </div>
           <NavButton active={tab === "winners"} onClick={() => setTab("winners")}>
             Past winners
           </NavButton>
 
-          <div
-            className="mt-5 px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em]"
-            style={{ color: "#9aa6c1" }}
-          >
+          <div className="mt-5 px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
             Settings
           </div>
           <NavButton active={tab === "branding"} onClick={() => setTab("branding")}>
@@ -525,8 +509,7 @@ function AdminInner() {
         <button
           type="button"
           onClick={() => void logout()}
-          className="mt-auto flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold"
-          style={{ color: "#9aa6c1" }}
+          className="mt-auto flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-muted"
         >
           ← Log out
         </button>
@@ -534,17 +517,11 @@ function AdminInner() {
 
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header
-          className="flex items-center justify-end border-b px-6 py-4"
-          style={{ borderColor: "#2a3550" }}
-        >
-          <div
-            className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold"
-            style={{ borderColor: "#2a3550", background: "#121826" }}
-          >
+        <header className="flex items-center justify-end border-b border-line px-6 py-4">
+          <div className="flex items-center gap-2 rounded-full border border-line bg-panel px-3 py-1.5 text-sm font-semibold">
             <span
-              className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
-              style={{ background: "#f8b62d", color: "#0b0e14" }}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white"
+              style={{ background: "var(--amber)" }}
             >
               A
             </span>
@@ -558,16 +535,13 @@ function AdminInner() {
               <h1 className="text-3xl font-bold md:text-4xl">
                 {editingId ? "Edit game" : "Create a game"}
               </h1>
-              <p className="mt-1 text-sm" style={{ color: "#9aa6c1" }}>
+              <p className="mt-1 text-sm text-muted">
                 Build your Trivia Live game
               </p>
 
               <form onSubmit={saveGame} className="mt-8 space-y-5">
                 <label className="block space-y-2">
-                  <span
-                    className="text-xs font-bold uppercase tracking-[0.16em]"
-                    style={{ color: "#f8b62d" }}
-                  >
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
                     Game title
                   </span>
                   <input
@@ -598,14 +572,11 @@ function AdminInner() {
                   />
                 ))}
 
-                <div
-                  className="rounded-2xl border p-4"
-                  style={{ borderColor: "#2a3550", background: "#121826" }}
-                >
+                <div className="rounded-2xl border border-line bg-panel p-4">
                   <label className="flex items-center gap-3">
                     <input
                       type="checkbox"
-                      className="accent-[#f8b62d]"
+                      className="accent-[var(--amber)]"
                       checked={customizeGame}
                       onChange={(e) => setCustomizeGame(e.target.checked)}
                     />
@@ -627,7 +598,10 @@ function AdminInner() {
                 <button
                   type="button"
                   className="w-full rounded-xl border border-dashed py-3.5 text-sm font-bold"
-                  style={{ borderColor: "rgba(248,182,45,0.5)", color: "#f8b62d" }}
+                  style={{
+                    borderColor: "color-mix(in srgb, var(--amber) 50%, var(--line))",
+                    color: "var(--amber)",
+                  }}
                   onClick={() => setQuestions((prev) => [...prev, emptyQuestion()])}
                 >
                   + Add question
@@ -638,7 +612,7 @@ function AdminInner() {
                     <button
                       type="button"
                       className="rounded-md border px-5 py-2.5 text-sm font-bold"
-                      style={{ borderColor: "#2a3550", color: "#ffffff" }}
+                      style={{ borderColor: "var(--line)", color: "var(--chalk)" }}
                       onClick={resetForm}
                     >
                       Cancel
@@ -662,7 +636,7 @@ function AdminInner() {
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <h1 className="text-3xl font-bold md:text-4xl">All games</h1>
-                  <p className="mt-1 text-sm" style={{ color: "#9aa6c1" }}>
+                  <p className="mt-1 text-sm text-muted">
                     Open a lobby, host a night, or edit questions
                   </p>
                 </div>
@@ -680,18 +654,17 @@ function AdminInner() {
               {message && <p className="mt-4 text-sm text-good">{message}</p>}
               <div className="mt-6 space-y-3">
                 {games.length === 0 && (
-                  <p style={{ color: "#9aa6c1" }}>No games yet — create one.</p>
+                  <p className="text-muted">No games yet — create one.</p>
                 )}
                 {games.map((g) => (
                   <article
                     key={g.id}
-                    className="flex flex-col gap-3 rounded-2xl border p-4 md:flex-row md:items-center md:justify-between"
-                    style={{ borderColor: "#2a3550", background: "#121826" }}
+                    className="flex flex-col gap-3 rounded-2xl border border-line bg-panel p-4 md:flex-row md:items-center md:justify-between"
                   >
                     <div>
                       <div className="text-xl font-bold">{g.title}</div>
-                      <div className="mt-1 text-sm" style={{ color: "#9aa6c1" }}>
-                        Code <span style={{ color: "#f8b62d" }}>{g.code}</span> ·{" "}
+                      <div className="mt-1 text-sm text-muted">
+                        Code <span className="text-amber">{g.code}</span> ·{" "}
                         {g._count.questions} questions · {g._count.players} players ·{" "}
                         {g.status}
                         {g.allowLateJoin === false ? " · no late joins" : ""}
@@ -748,29 +721,28 @@ function AdminInner() {
           {tab === "winners" && (
             <section className="mx-auto max-w-4xl">
               <h1 className="text-3xl font-bold md:text-4xl">Past winners</h1>
-              <p className="mt-1 text-sm" style={{ color: "#9aa6c1" }}>
+              <p className="mt-1 text-sm text-muted">
                 Saved when a night finishes — kept after Play again.
               </p>
               <div className="mt-6 space-y-3">
                 {results.length === 0 && (
-                  <p style={{ color: "#9aa6c1" }}>No finished games yet.</p>
+                  <p className="text-muted">No finished games yet.</p>
                 )}
                 {results.map((r) => (
                   <article
                     key={r.id}
-                    className="flex flex-col gap-2 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between"
-                    style={{ borderColor: "#2a3550", background: "#121826" }}
+                    className="flex flex-col gap-2 rounded-2xl border border-line bg-panel p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div>
-                      <div className="text-xl font-bold" style={{ color: "#f8b62d" }}>
+                      <div className="text-xl font-bold text-amber">
                         {r.winnerName}
                       </div>
-                      <div className="mt-1 text-sm" style={{ color: "#9aa6c1" }}>
+                      <div className="mt-1 text-sm text-muted">
                         {r.gameTitle} · {r.winnerScore} pts · {r.playerCount} players · code{" "}
                         {r.joinCode}
                       </div>
                       {Array.isArray(r.podium) && r.podium.length > 1 && (
-                        <div className="mt-1 text-xs" style={{ color: "#9aa6c1" }}>
+                        <div className="mt-1 text-xs text-muted">
                           Podium:{" "}
                           {r.podium
                             .map((p, i) => `${i + 1}. ${p.name} (${p.totalScore})`)
@@ -778,7 +750,7 @@ function AdminInner() {
                         </div>
                       )}
                     </div>
-                    <div className="shrink-0 text-sm tabular-nums" style={{ color: "#9aa6c1" }}>
+                    <div className="shrink-0 text-sm tabular-nums text-muted">
                       {formatFinishedAt(r.finishedAt)}
                     </div>
                   </article>
@@ -790,13 +762,12 @@ function AdminInner() {
           {tab === "branding" && (
             <section className="mx-auto max-w-4xl">
               <h1 className="text-3xl font-bold md:text-4xl">Branding</h1>
-              <p className="mt-1 text-sm" style={{ color: "#9aa6c1" }}>
+              <p className="mt-1 text-sm text-muted">
                 Defaults for every screen. Games can override these when created.
               </p>
               <form
                 onSubmit={saveSiteBrand}
-                className="mt-8 space-y-5 rounded-2xl border p-5 md:p-6"
-                style={{ borderColor: "#2a3550", background: "#121826" }}
+                className="mt-8 space-y-5 rounded-2xl border border-line bg-panel p-5 md:p-6"
               >
                 <BrandEditor
                   value={siteBrand}
@@ -854,10 +825,7 @@ export default function AdminPage() {
   return (
     <Suspense
       fallback={
-        <main
-          className="flex min-h-screen items-center justify-center px-5"
-          style={{ background: "#0b0e14", color: "#9aa6c1" }}
-        >
+        <main className="flex min-h-screen items-center justify-center bg-ink px-5 text-muted">
           Loading…
         </main>
       }

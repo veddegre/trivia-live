@@ -99,25 +99,26 @@ type PresetBase = {
 
 const PRESETS: Record<BrandPresetId, PresetBase> = {
   default: {
-    dark: {
-      ink: "#0b1020",
-      ink2: "#141b2f",
-      panel: "#1a2338",
-      line: "#2a3550",
-      chalk: "#f4f0e6",
-      muted: "#9aa6c1",
-      amber: "#e8a317",
-      amberHot: "#ffc14d",
-    },
+    /* Studio daylight — cool floor, charcoal type, cobalt accent */
     light: {
-      ink: "#f4f0e6",
-      ink2: "#ebe6d8",
+      ink: "#e8ecf1",
+      ink2: "#dde3eb",
       panel: "#ffffff",
-      line: "#d4cfc0",
-      chalk: "#141b2f",
-      muted: "#5c667a",
-      amber: "#c4840a",
-      amberHot: "#e8a317",
+      line: "#c5ceda",
+      chalk: "#171c26",
+      muted: "#5a6478",
+      amber: "#1d4ed8",
+      amberHot: "#3b82f6",
+    },
+    dark: {
+      ink: "#12151c",
+      ink2: "#1a1f2a",
+      panel: "#222836",
+      line: "#343b4a",
+      chalk: "#eef1f5",
+      muted: "#8b93a5",
+      amber: "#3b82f6",
+      amberHot: "#60a5fa",
     },
   },
   ocean: {
@@ -314,7 +315,7 @@ const DEFAULT_SITE: SiteBrandInput = {
   tagline: null,
   logoUrl: null,
   preset: "default",
-  mode: "dark",
+  mode: "light",
   accent: null,
   background: null,
 };

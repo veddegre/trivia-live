@@ -307,10 +307,10 @@ function PlayInner({ code }: { code: string }) {
   }, [player, state, rank]);
 
   const shell = {
-    background: "#050a14",
-    color: "#ffffff",
+    background: "var(--ink)",
+    color: "var(--chalk)",
   } as const;
-  const amber = "#f8b43c";
+  const amber = "var(--amber)";
 
   if (!player) {
     return (
@@ -331,8 +331,8 @@ function PlayInner({ code }: { code: string }) {
               <button
                 className="w-full rounded-xl py-4 text-base font-extrabold uppercase tracking-[0.12em]"
                 style={{
-                  background: "linear-gradient(180deg, #ffc14d, #f8b43c 55%, #e09a20)",
-                  color: "#1a1200",
+                  background: "linear-gradient(180deg, var(--amber-hot), var(--amber))",
+                  color: "#ffffff",
                 }}
                 onClick={() => router.push("/join")}
               >
@@ -349,8 +349,7 @@ function PlayInner({ code }: { code: string }) {
                   Display name
                 </span>
                 <input
-                  className="w-full rounded-xl border bg-[#0a1220] px-4 py-3.5 text-[17px] font-semibold text-white outline-none"
-                  style={{ borderColor: "#2a3550" }}
+                  className="w-full rounded-xl border border-line bg-panel px-4 py-3.5 text-[17px] font-semibold text-chalk outline-none"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   maxLength={24}
@@ -363,8 +362,8 @@ function PlayInner({ code }: { code: string }) {
               <button
                 className="w-full rounded-xl py-4 text-base font-extrabold uppercase tracking-[0.12em] disabled:opacity-50"
                 style={{
-                  background: "linear-gradient(180deg, #ffc14d, #f8b43c 55%, #e09a20)",
-                  color: "#1a1200",
+                  background: "linear-gradient(180deg, var(--amber-hot), var(--amber))",
+                  color: "#ffffff",
                 }}
                 disabled={joining || !!gameMissing}
               >
@@ -389,22 +388,22 @@ function PlayInner({ code }: { code: string }) {
           <div className="flex min-w-0 items-center gap-3">
             <span
               className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 text-lg font-extrabold"
-              style={{ borderColor: amber, color: amber, background: "#0a1220" }}
+              style={{ borderColor: amber, color: amber, background: "var(--panel)" }}
             >
               {initial}
             </span>
             <div className="min-w-0">
-              <div className="truncate font-semibold text-white">{player.name}</div>
+              <div className="truncate font-semibold text-chalk">{player.name}</div>
               <div className="mt-0.5 flex items-center gap-1.5 text-sm font-bold" style={{ color: amber }}>
                 <span aria-hidden>★</span>
                 <span>{player.totalScore.toLocaleString()}</span>
-                {rank ? <span style={{ color: "#9aa6c1" }}>· #{rank}</span> : null}
+                {rank ? <span className="text-muted">· #{rank}</span> : null}
               </div>
             </div>
           </div>
           <div
             className="shrink-0 rounded-xl border px-3 py-1.5 text-center"
-            style={{ borderColor: "rgba(248,180,60,0.55)" }}
+            style={{ borderColor: "color-mix(in srgb, var(--amber) 55%, var(--line))" }}
           >
             <div
               className="text-[0.6rem] font-bold uppercase tracking-[0.16em]"
@@ -427,22 +426,22 @@ function PlayInner({ code }: { code: string }) {
           {(!state || state.phase === "lobby") && (
             <div
               className="rounded-2xl border px-5 py-14 text-center"
-              style={{ borderColor: "#2a3550", background: "#0a1220" }}
+              style={{ borderColor: "var(--line)", background: "var(--panel)" }}
             >
               <h2 className="display text-3xl">You’re in</h2>
-              <p className="mt-2" style={{ color: "#9aa6c1" }}>
+              <p className="mt-2 text-muted">
                 Waiting for the host to start…
               </p>
               <div className="display mt-8 text-6xl" style={{ color: amber }}>
                 {state?.playerCount ?? "—"}
               </div>
-              <div style={{ color: "#9aa6c1" }}>players</div>
+              <div className="text-muted">players</div>
             </div>
           )}
 
           {state?.phase === "question" && state.question && (
             <div>
-              <p className="text-center text-sm" style={{ color: "#9aa6c1" }}>
+              <p className="text-center text-sm text-muted">
                 Question {state.questionIndex + 1}/{state.questionTotal}
               </p>
               <div className="mt-4">
@@ -452,7 +451,7 @@ function PlayInner({ code }: { code: string }) {
                   size="md"
                 />
               </div>
-              <h2 className="display mt-6 text-center text-[1.65rem] leading-snug text-white md:text-2xl">
+              <h2 className="display mt-6 text-center text-[1.65rem] leading-snug text-chalk md:text-2xl">
                 {state.question.prompt}
               </h2>
               <div className="mt-7 grid gap-3">
@@ -466,14 +465,14 @@ function PlayInner({ code }: { code: string }) {
                       style={
                         selected
                           ? {
-                              borderColor: "#f4f0e6",
-                              background: "#f4f0e6",
-                              color: "#0b0e14",
+                              borderColor: "var(--chalk)",
+                              background: "var(--chalk)",
+                              color: "#ffffff",
                             }
                           : {
-                              borderColor: "#2a3550",
-                              background: "#0a1220",
-                              color: "#ffffff",
+                              borderColor: "var(--line)",
+                              background: "var(--panel)",
+                              color: "var(--chalk)",
                             }
                       }
                       disabled={locked}
@@ -483,8 +482,8 @@ function PlayInner({ code }: { code: string }) {
                         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-extrabold"
                         style={
                           selected
-                            ? { background: "#0b0e14", color: amber }
-                            : { background: "rgba(248,180,60,0.15)", color: amber }
+                            ? { background: "#ffffff", color: amber }
+                            : { background: "color-mix(in srgb, var(--amber) 12%, transparent)", color: amber }
                         }
                       >
                         {letter}
@@ -514,7 +513,7 @@ function PlayInner({ code }: { code: string }) {
 
           {state?.phase === "reveal" && state.question && (
             <div className="space-y-5">
-              <h2 className="display text-center text-2xl text-white">Results</h2>
+              <h2 className="display text-center text-2xl text-chalk">Results</h2>
               <div className="text-center">
                 {player.lastResult?.isCorrect ? (
                   <>
@@ -534,21 +533,17 @@ function PlayInner({ code }: { code: string }) {
                     <p className="mt-3 text-2xl font-bold text-bad">
                       {player.hasAnswered ? "Incorrect" : "No answer"}
                     </p>
-                    <p style={{ color: "#9aa6c1" }}>+0 pts</p>
+                    <p className="text-muted">+0 pts</p>
                   </>
                 )}
               </div>
 
               <div>
-                <div
-                  className="text-[11px] font-bold uppercase tracking-[0.18em]"
-                  style={{ color: "#9aa6c1" }}
-                >
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">
                   Correct answer
                 </div>
                 <div
-                  className="mt-2 rounded-xl border px-4 py-3.5 font-semibold text-white"
-                  style={{ borderColor: "#2a3550", background: "#0a1220" }}
+                  className="mt-2 rounded-xl border border-line bg-panel px-4 py-3.5 font-semibold text-chalk"
                 >
                   {state.question.options[state.question.correctIndex ?? -1] ?? "—"}
                 </div>
@@ -557,24 +552,21 @@ function PlayInner({ code }: { code: string }) {
               <div
                 className="rounded-2xl border px-5 py-5 text-center"
                 style={{
-                  borderColor: "rgba(248,180,60,0.55)",
-                  background: "#0a1220",
-                  boxShadow: "0 0 28px rgba(248,180,60,0.12)",
+                  borderColor: "color-mix(in srgb, var(--amber) 55%, var(--line))",
+                  background: "var(--panel)",
+                  boxShadow: "0 0 28px color-mix(in srgb, var(--amber) 12%, transparent)",
                 }}
               >
-                <div
-                  className="text-[11px] font-bold uppercase tracking-[0.18em]"
-                  style={{ color: "#9aa6c1" }}
-                >
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">
                   You
                 </div>
                 <p className="display mt-1 text-5xl" style={{ color: amber }}>
                   {rank ? ordinal(rank) : "—"}
                 </p>
-                <p className="mt-2 text-sm text-white">
+                <p className="mt-2 text-sm text-chalk">
                   {player.totalScore.toLocaleString()} pts total
                   {roundPoints != null && roundPoints > 0 ? (
-                    <span style={{ color: "#3ecf8e" }}>
+                    <span className="text-good">
                       {" "}
                       · +{roundPoints} this round
                     </span>
@@ -584,13 +576,12 @@ function PlayInner({ code }: { code: string }) {
 
               {state.leader && rank !== 1 && (
                 <div
-                  className="rounded-xl border px-4 py-3 text-sm text-white"
-                  style={{ borderColor: "#2a3550", background: "#0a1220" }}
+                  className="rounded-xl border border-line bg-panel px-4 py-3 text-sm text-chalk"
                 >
                   <span style={{ color: amber }}>★</span> You’re in{" "}
                   {rank ? ordinal(rank) : "—"} place
                   {leadGap != null && leadGap > 0 ? (
-                    <span style={{ color: "#9aa6c1" }}>
+                    <span className="text-muted">
                       {" "}
                       — leader ahead by {leadGap.toLocaleString()} pts
                     </span>
@@ -602,8 +593,7 @@ function PlayInner({ code }: { code: string }) {
 
           {state?.phase === "between" && (
             <div
-              className="rounded-2xl border px-5 py-12 text-center"
-              style={{ borderColor: "#2a3550", background: "#0a1220" }}
+              className="rounded-2xl border border-line bg-panel px-5 py-12 text-center"
             >
               <div
                 className="text-[11px] font-bold uppercase tracking-[0.18em]"
@@ -611,16 +601,16 @@ function PlayInner({ code }: { code: string }) {
               >
                 Between rounds
               </div>
-              <h2 className="display mt-3 text-3xl text-white">
+              <h2 className="display mt-3 text-3xl text-chalk">
                 You’re {rank ? ordinal(rank) : "in"}
               </h2>
-              <p className="mt-2 text-white">
+              <p className="mt-2 text-chalk">
                 {player.totalScore.toLocaleString()} pts
                 {roundPoints != null && roundPoints > 0
                   ? ` · +${roundPoints} last round`
                   : ""}
               </p>
-              <p className="mt-6" style={{ color: "#9aa6c1" }}>
+              <p className="mt-6 text-muted">
                 Up next: question {state.questionIndex + 1} of {state.questionTotal}
               </p>
             </div>
@@ -628,35 +618,29 @@ function PlayInner({ code }: { code: string }) {
 
           {state?.phase === "finished" && (
             <div className="space-y-5 py-4 text-center">
-              <div
-                className="text-[11px] font-bold uppercase tracking-[0.18em]"
-                style={{ color: "#9aa6c1" }}
-              >
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">
                 Game over
               </div>
               <h2 className="display text-4xl" style={{ color: amber }}>
                 {state.winner?.name || "—"}
               </h2>
-              <p style={{ color: "#9aa6c1" }}>
+              <p className="text-muted">
                 wins with {(state.winner?.totalScore ?? 0).toLocaleString()} pts
               </p>
               <div
                 className="rounded-2xl border px-5 py-5 text-left"
                 style={{
-                  borderColor: "rgba(248,180,60,0.55)",
-                  background: "#0a1220",
+                  borderColor: "color-mix(in srgb, var(--amber) 55%, var(--line))",
+                  background: "var(--panel)",
                 }}
               >
-                <div
-                  className="text-[11px] font-bold uppercase tracking-[0.18em]"
-                  style={{ color: "#9aa6c1" }}
-                >
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">
                   You finished
                 </div>
                 <p className="display mt-1 text-4xl" style={{ color: amber }}>
                   {rank ? ordinal(rank) : "—"}
                 </p>
-                <p className="mt-1 text-white">
+                <p className="mt-1 text-chalk">
                   {player.totalScore.toLocaleString()} pts
                 </p>
               </div>
@@ -668,19 +652,19 @@ function PlayInner({ code }: { code: string }) {
                     style={
                       row.playerId === player.playerId
                         ? {
-                            borderColor: "rgba(248,180,60,0.5)",
-                            background: "rgba(248,180,60,0.1)",
+                            borderColor: "color-mix(in srgb, var(--amber) 50%, var(--line))",
+                            background: "color-mix(in srgb, var(--amber) 10%, var(--panel))",
                           }
-                        : { borderColor: "#2a3550", background: "#0a1220" }
+                        : { borderColor: "var(--line)", background: "var(--panel)" }
                     }
                   >
-                    <span className="text-white">
+                    <span className="text-chalk">
                       <span className="mr-2" style={{ color: amber }}>
                         {i + 1}.
                       </span>
                       {row.name}
                     </span>
-                    <span className="tabular-nums text-white">
+                    <span className="tabular-nums text-chalk">
                       {row.totalScore.toLocaleString()}
                     </span>
                   </li>

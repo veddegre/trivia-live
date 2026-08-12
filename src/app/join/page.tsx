@@ -70,8 +70,7 @@ function JoinInner() {
 
   return (
     <main
-      className="relative mx-auto flex min-h-screen w-full max-w-md flex-col px-6 pb-10 pt-12"
-      style={{ background: "#050a14", color: "#ffffff" }}
+      className="relative mx-auto flex min-h-screen w-full max-w-md flex-col bg-ink px-6 pb-10 pt-12 text-chalk"
     >
       <div className="flex justify-center">
         <BrandMark href="/" size="lg" />
@@ -79,24 +78,20 @@ function JoinInner() {
 
       <div className="mt-10 text-center">
         <h1 className="display text-[2.5rem] leading-none tracking-tight">Join game</h1>
-        <p className="mx-auto mt-3 max-w-[18rem] text-[15px] leading-snug" style={{ color: "#9aa6c1" }}>
+        <p className="mx-auto mt-3 max-w-[18rem] text-[15px] leading-snug text-muted">
           Enter the game code and your display name to join the live trivia!
         </p>
       </div>
 
       <form onSubmit={onSubmit} className="mt-10 flex flex-1 flex-col gap-5">
         <label className="block space-y-2">
-          <span
-            className="block text-[11px] font-bold uppercase tracking-[0.2em]"
-            style={{ color: "#f8b43c" }}
-          >
+          <span className="block text-[11px] font-bold uppercase tracking-[0.2em] text-amber">
             Game code
           </span>
           <input
-            className="w-full rounded-xl border bg-[#0a1220] px-4 py-3.5 text-center font-bold uppercase tracking-[0.35em] outline-none"
+            className="w-full rounded-xl border bg-panel px-4 py-3.5 text-center font-bold uppercase tracking-[0.35em] text-amber outline-none"
             style={{
-              borderColor: "#f8b43c",
-              color: "#f8b43c",
+              borderColor: "var(--amber)",
               fontSize: "1.5rem",
             }}
             value={code}
@@ -108,15 +103,11 @@ function JoinInner() {
           />
         </label>
         <label className="block space-y-2">
-          <span
-            className="block text-[11px] font-bold uppercase tracking-[0.2em]"
-            style={{ color: "#f8b43c" }}
-          >
+          <span className="block text-[11px] font-bold uppercase tracking-[0.2em] text-amber">
             Display name
           </span>
           <input
-            className="w-full rounded-xl border bg-[#0a1220] px-4 py-3.5 text-[17px] font-semibold text-white outline-none"
-            style={{ borderColor: "#2a3550" }}
+            className="w-full rounded-xl border border-line bg-panel px-4 py-3.5 text-[17px] font-semibold text-chalk outline-none"
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={24}
@@ -127,10 +118,9 @@ function JoinInner() {
         {error && <p className="text-sm text-bad">{error}</p>}
         <button
           type="submit"
-          className="mt-2 w-full rounded-xl py-4 text-base font-extrabold uppercase tracking-[0.12em] disabled:opacity-50"
+          className="mt-2 w-full rounded-xl py-4 text-base font-extrabold uppercase tracking-[0.12em] text-white disabled:opacity-50"
           style={{
-            background: "linear-gradient(180deg, #ffc14d 0%, #f8b43c 55%, #e09a20 100%)",
-            color: "#1a1200",
+            background: "linear-gradient(180deg, var(--amber-hot) 0%, var(--amber) 100%)",
           }}
           disabled={checking}
         >
@@ -138,14 +128,10 @@ function JoinInner() {
         </button>
       </form>
 
-      <p
-        className="relative z-10 mt-8 flex items-start justify-center gap-2 text-center text-xs leading-snug"
-        style={{ color: "#8b95a8" }}
-      >
+      <p className="relative z-10 mt-8 flex items-start justify-center gap-2 text-center text-xs leading-snug text-muted">
         <svg
           viewBox="0 0 24 24"
-          className="mt-0.5 h-4 w-4 shrink-0"
-          style={{ color: "#f8b43c" }}
+          className="mt-0.5 h-4 w-4 shrink-0 text-amber"
           fill="currentColor"
           aria-hidden
         >
@@ -159,7 +145,7 @@ function JoinInner() {
         className="pointer-events-none absolute inset-x-0 bottom-0 h-40"
         style={{
           background:
-            "radial-gradient(ellipse 90% 80% at 50% 100%, rgba(248,180,60,0.28) 0%, transparent 70%)",
+            "radial-gradient(ellipse 90% 80% at 50% 100%, color-mix(in srgb, var(--amber) 22%, transparent) 0%, transparent 70%)",
         }}
       />
       <svg
@@ -168,9 +154,9 @@ function JoinInner() {
         viewBox="0 0 400 120"
         fill="none"
       >
-        <ellipse cx="200" cy="110" rx="170" ry="14" stroke="rgba(248,180,60,0.5)" strokeWidth="1.5" />
-        <ellipse cx="200" cy="90" rx="130" ry="18" stroke="rgba(248,180,60,0.3)" strokeWidth="1" />
-        <ellipse cx="200" cy="68" rx="90" ry="20" stroke="rgba(248,180,60,0.18)" strokeWidth="1" />
+        <ellipse cx="200" cy="110" rx="170" ry="14" stroke="color-mix(in srgb, var(--amber) 50%, transparent)" strokeWidth="1.5" />
+        <ellipse cx="200" cy="90" rx="130" ry="18" stroke="color-mix(in srgb, var(--amber) 30%, transparent)" strokeWidth="1" />
+        <ellipse cx="200" cy="68" rx="90" ry="20" stroke="color-mix(in srgb, var(--amber) 18%, transparent)" strokeWidth="1" />
       </svg>
     </main>
   );
@@ -180,7 +166,7 @@ export default function JoinPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-screen items-center justify-center p-10" style={{ background: "#050a14", color: "#9aa6c1" }}>
+        <main className="flex min-h-screen items-center justify-center bg-ink p-10 text-muted">
           Loading…
         </main>
       }
