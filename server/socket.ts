@@ -16,7 +16,7 @@ import {
   shouldThrottleBroadcast,
   submitAnswer,
 } from "@/lib/game-manager";
-import { setSocketServer } from "@/lib/realtime";
+import { setSocketServer, emitGameReset } from "@/lib/realtime";
 
 type JoinHostPayload = { code: string; hostToken: string };
 type JoinPlayerPayload = { code: string; name: string };
@@ -273,17 +273,21 @@ export function createSocketServer(httpServer: HttpServer) {
         const { game } = await resetGame(existing.id);
         if (!game) throw new Error("Reset failed");
 
-        const payload = {
-          previousCode,
+        await emitGameReset(io, previousCode, {
           code: game.code,
           hostToken: game.hostToken,
-        };
-        io.to(room(previousCode)).emit("game:reset", payload);
+        });
         data.code = game.code;
         await socket.leave(room(previousCode));
         await socket.join(room(game.code));
         await broadcastState(io, game.code, true);
-        ack?.({ ok: true, ...payload });
+        // Ack includes hostToken only for the host socket that triggered reset
+        ack?.({
+          ok: true,
+          previousCode,
+          code: game.code,
+          hostToken: game.hostToken,
+        });
       } catch (e) {
         const message = e instanceof Error ? e.message : "Failed";
         ack?.({ ok: false, message });

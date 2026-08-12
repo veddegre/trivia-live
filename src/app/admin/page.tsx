@@ -18,7 +18,7 @@ import {
   type DraftQuestion,
 } from "@/components/QuestionEditor";
 
-type AdminTab = "create" | "games" | "winners" | "hosts";
+type AdminTab = "create" | "games" | "winners" | "hosts" | "admins" | "account";
 
 const LIVE_STATUSES = new Set(["QUESTION", "REVEAL", "BETWEEN"]);
 
@@ -47,6 +47,14 @@ type HostListItem = {
   role: string;
   createdAt: string;
   _count: { games: number };
+};
+
+type AdminListItem = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  createdAt: string;
 };
 
 type GameResultItem = {
@@ -109,7 +117,14 @@ function NavButton({
   );
 }
 
-const ADMIN_TABS: AdminTab[] = ["create", "games", "winners", "hosts"];
+const ADMIN_TABS: AdminTab[] = [
+  "create",
+  "games",
+  "winners",
+  "hosts",
+  "admins",
+  "account",
+];
 
 function AdminInner() {
   const router = useRouter();
@@ -121,18 +136,35 @@ function AdminInner() {
       : "create";
 
   const [authed, setAuthed] = useState<boolean | null>(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
+  const [setupTokenRequired, setSetupTokenRequired] = useState(false);
   const [user, setUser] = useState<SessionUser | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [setupName, setSetupName] = useState("");
+  const [setupToken, setSetupToken] = useState("");
   const [loginError, setLoginError] = useState("");
   const [tab, setTab] = useState<AdminTab>(initialTab);
   const [games, setGames] = useState<GameListItem[]>([]);
   const [results, setResults] = useState<GameResultItem[]>([]);
   const [hosts, setHosts] = useState<HostListItem[]>([]);
+  const [admins, setAdmins] = useState<AdminListItem[]>([]);
   const [hostForm, setHostForm] = useState({
     id: null as string | null,
     name: "",
     email: "",
+    password: "",
+  });
+  const [adminForm, setAdminForm] = useState({
+    id: null as string | null,
+    name: "",
+    email: "",
+    password: "",
+  });
+  const [accountForm, setAccountForm] = useState({
+    name: "",
+    email: "",
+    currentPassword: "",
     password: "",
   });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -147,7 +179,12 @@ function AdminInner() {
 
   const goTab = useCallback(
     (next: AdminTab) => {
-      if (next === "hosts" && user?.role !== "SUPERADMIN") return;
+      if (
+        (next === "hosts" || next === "admins") &&
+        user?.role !== "SUPERADMIN"
+      ) {
+        return;
+      }
       setTab(next);
       const params = new URLSearchParams(search.toString());
       if (next === "create") params.delete("tab");
@@ -184,6 +221,13 @@ function AdminInner() {
     setHosts(data.hosts || []);
   }, []);
 
+  const loadAdmins = useCallback(async () => {
+    const res = await fetch("/api/admin/admins");
+    if (res.status === 401 || res.status === 403) return;
+    const data = await res.json();
+    setAdmins(data.admins || []);
+  }, []);
+
   useEffect(() => {
     if (tabParam && ADMIN_TABS.includes(tabParam as AdminTab)) {
       setTab(tabParam as AdminTab);
@@ -196,17 +240,43 @@ function AdminInner() {
     void (async () => {
       try {
         const res = await fetch("/api/admin/login", { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        if (data.needsSetup) {
+          setNeedsSetup(true);
+          setSetupTokenRequired(!!data.setupTokenRequired);
+          setAuthed(false);
+          setUser(null);
+          // Prefer dedicated setup endpoint flags when available
+          try {
+            const setupRes = await fetch("/api/admin/setup", { cache: "no-store" });
+            const setupData = await setupRes.json().catch(() => ({}));
+            if (typeof setupData.setupTokenRequired === "boolean") {
+              setSetupTokenRequired(setupData.setupTokenRequired);
+            }
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
+        setNeedsSetup(false);
         if (!res.ok) {
           setAuthed(false);
           setUser(null);
           return;
         }
-        const data = await res.json().catch(() => ({}));
         if (data.authenticated && data.user) {
           setUser(data.user);
+          setAccountForm({
+            name: data.user.name,
+            email: data.user.email,
+            currentPassword: "",
+            password: "",
+          });
           setAuthed(true);
           await Promise.all([loadGames(), loadResults()]);
-          if (data.user.role === "SUPERADMIN") await loadHosts();
+          if (data.user.role === "SUPERADMIN") {
+            await Promise.all([loadHosts(), loadAdmins()]);
+          }
         } else {
           setAuthed(false);
           setUser(null);
@@ -218,7 +288,7 @@ function AdminInner() {
         setLoginError("Could not reach the server. Try refreshing.");
       }
     })();
-  }, [loadGames, loadResults, loadHosts]);
+  }, [loadGames, loadResults, loadHosts, loadAdmins]);
 
   function resetForm() {
     setEditingId(null);
@@ -231,9 +301,51 @@ function AdminInner() {
     setHostForm({ id: null, name: "", email: "", password: "" });
   }
 
+  function resetAdminForm() {
+    setAdminForm({ id: null, name: "", email: "", password: "" });
+  }
+
   function showMessage(text: string, tone: "good" | "bad" = "good") {
     setMessageTone(tone);
     setMessage(text);
+  }
+
+  async function completeSetup(e: FormEvent) {
+    e.preventDefault();
+    setLoginError("");
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: setupName,
+          email,
+          password,
+          ...(setupTokenRequired ? { setupToken } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLoginError(
+          typeof data.error === "string" ? data.error : "Setup failed"
+        );
+        return;
+      }
+      setNeedsSetup(false);
+      setUser(data.user);
+      setAccountForm({
+        name: data.user.name,
+        email: data.user.email,
+        currentPassword: "",
+        password: "",
+      });
+      setAuthed(true);
+      setPassword("");
+      await Promise.all([loadGames(), loadResults(), loadHosts(), loadAdmins()]);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function login(e: FormEvent) {
@@ -245,6 +357,11 @@ function AdminInner() {
       body: JSON.stringify({ email, password }),
     });
     const data = await res.json().catch(() => ({}));
+    if (data.needsSetup) {
+      setNeedsSetup(true);
+      setLoginError("Complete first-time setup first.");
+      return;
+    }
     if (!res.ok) {
       setLoginError(
         typeof data.error === "string" ? data.error : "Wrong email or password"
@@ -252,10 +369,18 @@ function AdminInner() {
       return;
     }
     setUser(data.user);
+    setAccountForm({
+      name: data.user.name,
+      email: data.user.email,
+      currentPassword: "",
+      password: "",
+    });
     setAuthed(true);
     setPassword("");
     await Promise.all([loadGames(), loadResults()]);
-    if (data.user?.role === "SUPERADMIN") await loadHosts();
+    if (data.user?.role === "SUPERADMIN") {
+      await Promise.all([loadHosts(), loadAdmins()]);
+    }
   }
 
   async function logout() {
@@ -265,7 +390,9 @@ function AdminInner() {
     setGames([]);
     setResults([]);
     setHosts([]);
+    setAdmins([]);
     resetHostForm();
+    resetAdminForm();
   }
 
 
@@ -471,6 +598,133 @@ function AdminInner() {
     await Promise.all([loadHosts(), loadGames(), loadResults()]);
   }
 
+  async function saveAdmin(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMessage("");
+    try {
+      const editing = !!adminForm.id;
+      const payload: { name: string; email: string; password?: string } = {
+        name: adminForm.name.trim(),
+        email: adminForm.email.trim(),
+      };
+      if (adminForm.password.trim()) payload.password = adminForm.password;
+      if (!editing && !payload.password) {
+        showMessage("Password is required for new admins", "bad");
+        return;
+      }
+
+      const res = await fetch(
+        editing ? `/api/admin/admins/${adminForm.id}` : "/api/admin/admins",
+        {
+          method: editing ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showMessage(
+          typeof data.error === "string" ? data.error : "Could not save admin",
+          "bad"
+        );
+        return;
+      }
+      showMessage(editing ? `Updated ${payload.name}` : `Created admin ${payload.name}`);
+      resetAdminForm();
+      await loadAdmins();
+      // If we edited ourselves, refresh header user
+      if (editing && adminForm.id === user?.id && data.admin) {
+        setUser((u) =>
+          u
+            ? {
+                ...u,
+                name: data.admin.name,
+                email: data.admin.email,
+              }
+            : u
+        );
+        setAccountForm((a) => ({
+          ...a,
+          name: data.admin.name,
+          email: data.admin.email,
+        }));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeAdmin(id: string, name: string) {
+    if (
+      !confirm(
+        `Delete super-admin “${name}”?\n\nTheir games will be reassigned to you.`
+      )
+    ) {
+      return;
+    }
+    const res = await fetch(`/api/admin/admins/${id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showMessage(
+        typeof data.error === "string" ? data.error : "Could not delete admin",
+        "bad"
+      );
+      return;
+    }
+    if (data.deletedSelf) {
+      await logout();
+      return;
+    }
+    if (adminForm.id === id) resetAdminForm();
+    showMessage(`Deleted admin ${name}`);
+    await Promise.all([loadAdmins(), loadGames(), loadResults()]);
+  }
+
+  async function saveAccount(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMessage("");
+    try {
+      const payload: {
+        name: string;
+        email: string;
+        password?: string;
+        currentPassword?: string;
+      } = {
+        name: accountForm.name.trim(),
+        email: accountForm.email.trim(),
+      };
+      if (accountForm.password.trim()) {
+        payload.password = accountForm.password;
+        payload.currentPassword = accountForm.currentPassword;
+      }
+      const res = await fetch("/api/admin/account", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showMessage(
+          typeof data.error === "string" ? data.error : "Could not update account",
+          "bad"
+        );
+        return;
+      }
+      setUser(data.user);
+      setAccountForm({
+        name: data.user.name,
+        email: data.user.email,
+        currentPassword: "",
+        password: "",
+      });
+      showMessage("Account updated");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const canSubmit = useMemo(() => {
     if (!title.trim()) return false;
     return questions.every((q) => {
@@ -483,6 +737,87 @@ function AdminInner() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-ink px-5">
         <p className="text-muted">Checking session…</p>
+      </main>
+    );
+  }
+
+  if (!authed && needsSetup) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center bg-ink px-5 py-10">
+        <BrandMark badgeLast />
+        <h1 className="mt-8 text-3xl font-bold text-chalk">Create admin</h1>
+        <p className="mt-2 text-sm text-muted">
+          First-time setup — choose your name, email, and password for the
+          super-admin account.
+        </p>
+        <form
+          onSubmit={completeSetup}
+          className="mt-6 space-y-4 rounded-2xl border border-line bg-panel p-5"
+        >
+          <label className="block space-y-2">
+            <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+              Name
+            </span>
+            <input
+              className="field"
+              value={setupName}
+              onChange={(e) => setSetupName(e.target.value)}
+              autoComplete="name"
+              autoFocus
+              required
+            />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+              Email
+            </span>
+            <input
+              type="email"
+              className="field"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              required
+            />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+              Password
+            </span>
+            <input
+              type="password"
+              className="field"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              minLength={6}
+              required
+            />
+          </label>
+          {setupTokenRequired && (
+            <label className="block space-y-2">
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                Setup token
+              </span>
+              <input
+                type="password"
+                className="field"
+                value={setupToken}
+                onChange={(e) => setSetupToken(e.target.value)}
+                autoComplete="off"
+                required
+                placeholder="From server SETUP_TOKEN"
+              />
+              <span className="block text-xs text-muted">
+                Set in the server environment as SETUP_TOKEN, then enter it here.
+              </span>
+            </label>
+          )}
+          {loginError && <p className="text-sm text-bad">{loginError}</p>}
+          <button className="btn btn-primary w-full" type="submit" disabled={busy}>
+            {busy ? "Creating…" : "Create super-admin"}
+          </button>
+        </form>
       </main>
     );
   }
@@ -566,8 +901,18 @@ function AdminInner() {
               <NavButton active={tab === "hosts"} onClick={() => goTab("hosts")}>
                 Hosts
               </NavButton>
+              <NavButton active={tab === "admins"} onClick={() => goTab("admins")}>
+                Super-admins
+              </NavButton>
             </>
           )}
+
+          <div className="mt-5 px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
+            You
+          </div>
+          <NavButton active={tab === "account"} onClick={() => goTab("account")}>
+            Account
+          </NavButton>
         </nav>
 
         <button
@@ -939,6 +1284,227 @@ function AdminInner() {
                   </article>
                 ))}
               </div>
+            </section>
+          )}
+
+          {tab === "admins" && isSuper && (
+            <section className="mx-auto max-w-4xl">
+              <h1 className="text-3xl font-bold md:text-4xl">Super-admins</h1>
+              <p className="mt-1 text-sm text-muted">
+                People who can see all games and manage hosts. You can’t delete
+                the last super-admin.
+              </p>
+
+              <form
+                onSubmit={saveAdmin}
+                className="mt-8 space-y-4 rounded-2xl border border-line bg-panel p-5"
+              >
+                <div className="text-sm font-bold text-chalk">
+                  {adminForm.id ? "Edit admin" : "Add admin"}
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block space-y-2">
+                    <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                      Name
+                    </span>
+                    <input
+                      className="field"
+                      value={adminForm.name}
+                      onChange={(e) =>
+                        setAdminForm((a) => ({ ...a, name: e.target.value }))
+                      }
+                      required
+                    />
+                  </label>
+                  <label className="block space-y-2">
+                    <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                      Email
+                    </span>
+                    <input
+                      type="email"
+                      className="field"
+                      value={adminForm.email}
+                      onChange={(e) =>
+                        setAdminForm((a) => ({ ...a, email: e.target.value }))
+                      }
+                      required
+                    />
+                  </label>
+                </div>
+                <label className="block space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                    {adminForm.id ? "New password (optional)" : "Password"}
+                  </span>
+                  <input
+                    type="password"
+                    className="field"
+                    value={adminForm.password}
+                    onChange={(e) =>
+                      setAdminForm((a) => ({ ...a, password: e.target.value }))
+                    }
+                    minLength={adminForm.id ? undefined : 6}
+                    required={!adminForm.id}
+                  />
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  {adminForm.id && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={resetAdminForm}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button type="submit" className="btn btn-primary" disabled={busy}>
+                    {busy
+                      ? "Saving…"
+                      : adminForm.id
+                        ? "Update admin"
+                        : "Add admin"}
+                  </button>
+                </div>
+                {message && tab === "admins" && (
+                  <p
+                    className={`text-sm ${messageTone === "bad" ? "text-bad" : "text-good"}`}
+                  >
+                    {message}
+                  </p>
+                )}
+              </form>
+
+              <div className="mt-8 space-y-3">
+                {admins.map((a) => (
+                  <article
+                    key={a.id}
+                    className="flex flex-col gap-3 rounded-2xl border border-line bg-panel p-4 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div>
+                      <div className="text-xl font-bold">
+                        {a.name}
+                        {a.id === user?.id ? (
+                          <span className="ml-2 text-sm font-semibold text-amber">
+                            (you)
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-1 text-sm text-muted">{a.email}</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="btn btn-ghost"
+                        onClick={() =>
+                          setAdminForm({
+                            id: a.id,
+                            name: a.name,
+                            email: a.email,
+                            password: "",
+                          })
+                        }
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        onClick={() => void removeAdmin(a.id, a.name)}
+                        disabled={admins.length <= 1}
+                        title={
+                          admins.length <= 1
+                            ? "Cannot delete the last super-admin"
+                            : "Delete"
+                        }
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {tab === "account" && (
+            <section className="mx-auto max-w-4xl">
+              <h1 className="text-3xl font-bold md:text-4xl">Account</h1>
+              <p className="mt-1 text-sm text-muted">
+                Update your name, email, or password.
+              </p>
+              <form
+                onSubmit={saveAccount}
+                className="mt-8 max-w-lg space-y-4 rounded-2xl border border-line bg-panel p-5"
+              >
+                <label className="block space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                    Name
+                  </span>
+                  <input
+                    className="field"
+                    value={accountForm.name}
+                    onChange={(e) =>
+                      setAccountForm((a) => ({ ...a, name: e.target.value }))
+                    }
+                    required
+                  />
+                </label>
+                <label className="block space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                    Email
+                  </span>
+                  <input
+                    type="email"
+                    className="field"
+                    value={accountForm.email}
+                    onChange={(e) =>
+                      setAccountForm((a) => ({ ...a, email: e.target.value }))
+                    }
+                    required
+                  />
+                </label>
+                <label className="block space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                    Current password
+                  </span>
+                  <input
+                    type="password"
+                    className="field"
+                    value={accountForm.currentPassword}
+                    onChange={(e) =>
+                      setAccountForm((a) => ({
+                        ...a,
+                        currentPassword: e.target.value,
+                      }))
+                    }
+                    autoComplete="current-password"
+                    placeholder="Only needed to change password"
+                  />
+                </label>
+                <label className="block space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                    New password
+                  </span>
+                  <input
+                    type="password"
+                    className="field"
+                    value={accountForm.password}
+                    onChange={(e) =>
+                      setAccountForm((a) => ({ ...a, password: e.target.value }))
+                    }
+                    autoComplete="new-password"
+                    minLength={6}
+                    placeholder="Leave blank to keep current"
+                  />
+                </label>
+                <button type="submit" className="btn btn-primary" disabled={busy}>
+                  {busy ? "Saving…" : "Save account"}
+                </button>
+                {message && tab === "account" && (
+                  <p
+                    className={`text-sm ${messageTone === "bad" ? "text-bad" : "text-good"}`}
+                  >
+                    {message}
+                  </p>
+                )}
+              </form>
             </section>
           )}
 

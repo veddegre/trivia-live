@@ -209,6 +209,12 @@ function HostInner({ code }: { code: string }) {
         router.replace(
           `/host/${payload.code}?token=${encodeURIComponent(payload.hostToken)}`
         );
+        return;
+      }
+      if (payload.code) {
+        setError(
+          "This game was reset. Open Host screen again from Admin to continue."
+        );
       }
     };
 

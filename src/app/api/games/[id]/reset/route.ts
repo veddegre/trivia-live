@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { canManageGame, requireUser } from "@/lib/auth";
 import { buildPublicState, resetGame } from "@/lib/game-manager";
-import { getSocketServer } from "@/lib/realtime";
+import { emitGameReset, getSocketServer } from "@/lib/realtime";
 import { prisma } from "@/lib/db";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -26,16 +26,15 @@ export async function POST(_req: Request, ctx: Ctx) {
 
     const io = getSocketServer();
     if (io) {
-      const payload = {
-        previousCode,
+      await emitGameReset(io, previousCode, {
         code: game.code,
         hostToken: game.hostToken,
-      };
-      io.to(`game:${previousCode}`).emit("game:reset", payload);
+      });
       const state = await buildPublicState(game.code);
       if (state) io.to(`game:${game.code}`).emit("game:state", state);
     }
 
+    // hostToken only returned to authenticated admin HTTP client
     return NextResponse.json({ game, previousCode });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Reset failed";

@@ -5,22 +5,33 @@ import {
   getSessionUser,
   makeSessionToken,
   parseSessionToken,
+  sessionCookieOptions,
   verifyPassword,
 } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { ensureSuperAdmin } from "@/lib/seed-admin";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { needsSetup, setupTokenRequired } from "@/lib/seed-admin";
 
 export async function POST(req: NextRequest) {
-  try {
-    await ensureSuperAdmin();
-  } catch (e) {
-    console.error("ensureSuperAdmin failed", e);
+  const ip = clientIp(req);
+  const limited = rateLimit(`login:${ip}`, { limit: 20, windowMs: 15 * 60_000 });
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: "Too many login attempts. Try again later." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limited.retryAfterSec) },
+      }
+    );
+  }
+
+  if (await needsSetup()) {
     return NextResponse.json(
       {
-        error:
-          "Database not ready for accounts. Run migrations / db push, then restart the app.",
+        error: "Complete first-time setup before signing in",
+        needsSetup: true,
       },
-      { status: 503 }
+      { status: 409 }
     );
   }
 
@@ -34,6 +45,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Email and password are required" },
       { status: 400 }
+    );
+  }
+
+  // Also throttle by email to slow targeted guessing
+  const emailLimited = rateLimit(`login-email:${email}`, {
+    limit: 10,
+    windowMs: 15 * 60_000,
+  });
+  if (!emailLimited.ok) {
+    return NextResponse.json(
+      { error: "Too many login attempts. Try again later." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(emailLimited.retryAfterSec) },
+      }
     );
   }
 
@@ -65,33 +91,45 @@ export async function POST(req: NextRequest) {
       role: user.role,
     },
   });
-  res.cookies.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 14,
-  });
-  // Clear legacy single-password cookie
+  res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
   res.cookies.set(ADMIN_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
   return res;
 }
 
 export async function GET(req: NextRequest) {
   try {
-    // Don't block the login screen on seeding — seed happens on POST / startup.
+    const setup = await needsSetup();
     const user = await getSessionUser();
     if (user) {
-      return NextResponse.json({ authenticated: true, user });
+      return NextResponse.json({
+        authenticated: true,
+        user,
+        needsSetup: false,
+        setupTokenRequired: false,
+      });
     }
     const token = req.cookies.get(SESSION_COOKIE)?.value;
     if (parseSessionToken(token)) {
-      return NextResponse.json({ authenticated: false });
+      return NextResponse.json({
+        authenticated: false,
+        needsSetup: setup,
+        setupTokenRequired: setup && setupTokenRequired(),
+      });
     }
-    return NextResponse.json({ authenticated: false });
+    return NextResponse.json({
+      authenticated: false,
+      needsSetup: setup,
+      setupTokenRequired: setup && setupTokenRequired(),
+    });
   } catch (e) {
     console.error("admin session check failed", e);
     return NextResponse.json(
-      { authenticated: false, error: "Session check failed" },
+      {
+        authenticated: false,
+        needsSetup: true,
+        setupTokenRequired: setupTokenRequired(),
+        error: "Session check failed",
+      },
       { status: 200 }
     );
   }
@@ -99,7 +137,10 @@ export async function GET(req: NextRequest) {
 
 export async function DELETE() {
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(SESSION_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
+  res.cookies.set(SESSION_COOKIE, "", {
+    ...sessionCookieOptions(),
+    maxAge: 0,
+  });
   res.cookies.set(ADMIN_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
   return res;
 }

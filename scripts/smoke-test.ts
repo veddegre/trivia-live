@@ -57,13 +57,28 @@ function emitAck<T>(socket: Socket, event: string, payload?: unknown, timeoutMs 
 async function main() {
   console.log(`Smoke test against ${BASE} with ${PLAYERS} players`);
 
-  // Login
-  const loginRes = await fetch(`${BASE}/api/admin/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
-  });
-  if (!loginRes.ok) throw new Error("Admin login failed");
+  // Setup or login
+  const statusRes = await fetch(`${BASE}/api/admin/login`);
+  const status = await statusRes.json().catch(() => ({}));
+  let loginRes: Response;
+  if (status.needsSetup) {
+    loginRes = await fetch(`${BASE}/api/admin/setup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Smoke Admin",
+        email: ADMIN_EMAIL,
+        password: ADMIN_PASSWORD,
+      }),
+    });
+  } else {
+    loginRes = await fetch(`${BASE}/api/admin/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
+    });
+  }
+  if (!loginRes.ok) throw new Error("Admin login/setup failed");
   const cookie = loginRes.headers.getSetCookie?.()?.[0]?.split(";")[0] || "";
   // Fallback for older fetch
   const setCookie = loginRes.headers.get("set-cookie") || cookie;

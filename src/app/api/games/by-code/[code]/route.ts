@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveBrand } from "@/lib/branding";
 import { prisma } from "@/lib/db";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 type Ctx = { params: Promise<{ code: string }> };
 
 /** Public lookup for join pages — no answers/correct keys. */
 export async function GET(_req: NextRequest, ctx: Ctx) {
+  const ip = clientIp(_req);
+  const limited = rateLimit(`by-code:${ip}`, { limit: 60, windowMs: 60_000 });
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limited.retryAfterSec) },
+      }
+    );
+  }
+
   const { code } = await ctx.params;
   const game = await prisma.game.findUnique({
     where: { code: code.toUpperCase() },

@@ -29,8 +29,8 @@ docker compose up --build
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Default super-admin: `admin@localhost` / `trivia-admin`  
-Override with `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` (see `.env.example`).
+Default super-admin: create one at `/admin` on first visit  
+Optional: `SUPERADMIN_BOOTSTRAP=1` with `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD`.
 
 ## Local development
 
@@ -55,10 +55,13 @@ App: [http://localhost:3000](http://localhost:3000)
 
 ## Accounts
 
-- **Super-admin** — sees all games, manages host accounts (`/admin` → Hosts)
-- **Host** — sees only their own games and winners
+- **First install** — open `/admin` and create the first super-admin (name, email, password).
+- **Production** — set a strong `SETUP_TOKEN` and enter it on the setup form (required when `NODE_ENV=production` or when `SETUP_TOKEN` is set). Also set a strong `SESSION_SECRET` (24+ chars) or the app will refuse to start.
+- **Account** — any signed-in user can change their own name, email, and password.
+- **Super-admins** — manage other super-admins (can’t delete the last one).
+- **Hosts** — create accounts that only see their own games.
 
-Bootstrap super-admin comes from `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` (defaults: `admin@localhost` / `trivia-admin`).
+Optional headless bootstrap: `SUPERADMIN_BOOTSTRAP=1` plus `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD`.
 
 ## How a game works
 
@@ -112,11 +115,13 @@ Copy from `.env.example`:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATABASE_URL` | Postgres connection string | `postgresql://trivia:trivia@localhost:5432/trivia_live` |
-| `SUPERADMIN_EMAIL` | Bootstrap super-admin email | `admin@localhost` |
-| `SUPERADMIN_PASSWORD` | Bootstrap super-admin password | `trivia-admin` / `change-me` |
-| `SUPERADMIN_NAME` | Display name for bootstrap admin | `Super Admin` |
-| `SESSION_SECRET` | Signs login cookies | falls back to `SUPERADMIN_PASSWORD` |
-| `ADMIN_PASSWORD` | Legacy fallback for super-admin password | `change-me` |
+| `SETUP_TOKEN` | Required for first-time `/admin` setup in production | unset in dev; **set in prod** |
+| `SUPERADMIN_BOOTSTRAP` | If `1`/`true`, auto-create first admin from env | unset (use `/admin` setup) |
+| `SUPERADMIN_EMAIL` | Bootstrap email (only with bootstrap) | `admin@localhost` |
+| `SUPERADMIN_PASSWORD` | Bootstrap password (only with bootstrap) | `trivia-admin` |
+| `SUPERADMIN_NAME` | Bootstrap display name | `Super Admin` |
+| `SESSION_SECRET` | Signs login cookies (**required in production**, 24+) | — |
+| `ADMIN_PASSWORD` | Legacy fallback for bootstrap password | `change-me` |
 | `PORT` | HTTP + WebSocket port | `3000` |
 | `HOST` | Bind address | `0.0.0.0` |
 | `NEXT_PUBLIC_SOCKET_URL` | Leave empty when UI and sockets share the same origin | _(empty)_ |

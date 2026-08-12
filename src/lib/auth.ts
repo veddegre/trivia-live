@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, timingSafeEqual, randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import type { User, UserRole } from "@prisma/client";
@@ -13,7 +13,34 @@ export type SessionUser = {
   role: UserRole;
 };
 
+const WEAK_SECRETS = new Set([
+  "",
+  "trivia-dev-secret",
+  "trivia-admin",
+  "change-me",
+  "change-me-too",
+  "secret",
+  "password",
+]);
+
+export function assertProductionSecrets() {
+  if (process.env.NODE_ENV !== "production") return;
+  const secret = process.env.SESSION_SECRET?.trim() || "";
+  if (!secret || WEAK_SECRETS.has(secret) || secret.length < 24) {
+    throw new Error(
+      "SESSION_SECRET must be set to a strong value (24+ chars) in production"
+    );
+  }
+}
+
 function sessionSecret(): string {
+  if (process.env.NODE_ENV === "production") {
+    const secret = process.env.SESSION_SECRET?.trim();
+    if (!secret || WEAK_SECRETS.has(secret) || secret.length < 24) {
+      throw new Error("SESSION_SECRET is not configured for production");
+    }
+    return secret;
+  }
   return (
     process.env.SESSION_SECRET ||
     process.env.ADMIN_PASSWORD ||
@@ -34,7 +61,12 @@ export function parseSessionToken(token: string | undefined): string | null {
   if (!token) return null;
   const [payload, sig] = token.split(".");
   if (!payload || !sig) return null;
-  const expected = sign(payload);
+  let expected: string;
+  try {
+    expected = sign(payload);
+  } catch {
+    return null;
+  }
   try {
     if (!timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
   } catch {
@@ -42,6 +74,20 @@ export function parseSessionToken(token: string | undefined): string | null {
   }
   const [userId] = payload.split(":");
   return userId || null;
+}
+
+export function sessionCookieOptions() {
+  const secure =
+    process.env.NODE_ENV === "production" ||
+    process.env.COOKIE_SECURE === "1" ||
+    process.env.COOKIE_SECURE === "true";
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 14,
+    secure,
+  };
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -53,6 +99,22 @@ export async function verifyPassword(
   passwordHash: string
 ): Promise<boolean> {
   return bcrypt.compare(password, passwordHash);
+}
+
+/** Constant-time compare for setup tokens / secrets. */
+export function safeEqualString(a: string, b: string): boolean {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ba.length !== bb.length) {
+    // still do a compare to reduce timing oracle on length alone for short tokens
+    timingSafeEqual(ba, ba);
+    return false;
+  }
+  return timingSafeEqual(ba, bb);
+}
+
+export function generateSetupTokenHint(): string {
+  return randomBytes(16).toString("hex");
 }
 
 function toSessionUser(user: User): SessionUser {
