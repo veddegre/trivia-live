@@ -3,15 +3,16 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: trivia
-      POSTGRES_PASSWORD: trivia
-      POSTGRES_DB: trivia_live
+      POSTGRES_USER: ${POSTGRES_USER:-trivia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trivia}
+      POSTGRES_DB: ${POSTGRES_DB:-trivia_live}
+    # Loopback only — not reachable from the public internet.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - trivia_pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U trivia -d trivia_live"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -19,28 +20,30 @@ services:
   app:
     build: .
     restart: unless-stopped
+    # Bind to loopback so only cloudflared / local tools can reach the app.
+    # Remove the 127.0.0.1 prefix if you need LAN access without the tunnel.
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
-      DATABASE_URL: postgresql://trivia:trivia@db:5432/trivia_live?schema=public
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-trivia-admin}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-trivia}:${POSTGRES_PASSWORD:-trivia}@db:5432/${POSTGRES_DB:-trivia_live}?schema=public
       SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-admin@localhost}
       SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-trivia-admin}
       SUPERADMIN_NAME: ${SUPERADMIN_NAME:-Super Admin}
-      SESSION_SECRET: ${SESSION_SECRET:-trivia-local-session-secret-change-me}
+      # Set a strong random value in production (.env). Weak defaults log a warning.
+      SESSION_SECRET: ${SESSION_SECRET:-}
       SETUP_TOKEN: ${SETUP_TOKEN:-}
-      # Default on for Compose so first boot has a known admin; set to 0 in prod after setup
-      SUPERADMIN_BOOTSTRAP: ${SUPERADMIN_BOOTSTRAP:-1}
+      # Leave 0 once an admin exists. Use 1 only for first headless bootstrap.
+      SUPERADMIN_BOOTSTRAP: ${SUPERADMIN_BOOTSTRAP:-0}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       HOST: 0.0.0.0
       PORT: 3000
       NODE_ENV: production
+      # Public HTTPS origin (Cloudflare hostname), e.g. https://trivia.example.com
       NEXT_PUBLIC_PUBLIC_URL: ${NEXT_PUBLIC_PUBLIC_URL:-}
-    volumes:
-      - trivia_uploads:/app/uploads
+      COOKIE_SECURE: ${COOKIE_SECURE:-1}
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
   trivia_pg:
-  trivia_uploads:

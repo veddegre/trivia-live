@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type { BrandConfig } from "@/lib/branding";
-import { tokensToCssVars } from "@/lib/branding";
+import { resolveBrand, tokensToCssVars } from "@/lib/branding";
 
 const BrandContext = createContext<BrandConfig | null>(null);
 
@@ -17,27 +17,7 @@ export function useBrand(): BrandConfig | null {
 }
 
 export function useBrandOrFallback(): BrandConfig {
-  const brand = useContext(BrandContext);
-  if (brand) return brand;
-  return {
-    displayName: "Trivia Live",
-    tagline: null,
-    logoUrl: null,
-    preset: "default",
-    mode: "dark",
-    accent: null,
-    background: null,
-    tokens: {
-      ink: "#070b14",
-      ink2: "#0e1524",
-      panel: "#141c2e",
-      line: "#2a3550",
-      chalk: "#f4f0e6",
-      muted: "#9aa6c1",
-      amber: "#f0a820",
-      amberHot: "#ffc14d",
-    },
-  };
+  return useContext(BrandContext) ?? resolveBrand();
 }
 
 type Props = {
@@ -55,7 +35,7 @@ export function BrandProvider({
   applyToDocument = true,
 }: Props) {
   const parent = useContext(BrandContext);
-  const active = brand ?? parent;
+  const active = brand ?? parent ?? resolveBrand();
 
   const cssVars = useMemo(
     () => (brand ? tokensToCssVars(brand.tokens) : null),
@@ -70,18 +50,18 @@ export function BrandProvider({
       prev[key] = root.style.getPropertyValue(key);
       root.style.setProperty(key, value);
     }
-    if (brand?.mode) root.dataset.brandMode = brand.mode;
+    root.dataset.brandMode = active.mode;
     return () => {
       for (const [key, value] of Object.entries(prev)) {
         if (value) root.style.setProperty(key, value);
         else root.style.removeProperty(key);
       }
     };
-  }, [applyToDocument, brand?.mode, cssVars]);
+  }, [applyToDocument, active.mode, cssVars]);
 
   return (
     <BrandContext.Provider value={active}>
-      <div className={className ?? "min-h-screen"} data-brand-mode={active?.mode ?? "dark"}>
+      <div className={className ?? "min-h-screen"} data-brand-mode={active.mode}>
         {children}
       </div>
     </BrandContext.Provider>

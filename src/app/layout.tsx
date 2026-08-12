@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Figtree, Oswald } from "next/font/google";
-import { SiteBrandShell } from "@/components/SiteBrandShell";
 import "./globals.css";
 
 const display = Bricolage_Grotesque({
@@ -43,7 +42,7 @@ export default function RootLayout({
       <body
         className={`${display.variable} ${body.variable} ${condensed.variable} antialiased`}
       >
-        <SiteBrandShell>{children}</SiteBrandShell>
+        {children}
       </body>
     </html>
   );

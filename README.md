@@ -10,7 +10,7 @@ Live trivia for up to **200 players**. Build games ahead of time, open a host sc
 - **Scoring** — server timestamps only (phones can’t fake speed); board updates on lock so mid-question standings don’t spoil answers
 - **Play again** — clear players/scores, keep questions, issue a new join code
 - **Past winners** — hall of fame in admin (winner, podium, date/time) survives Play again
-- Built for work, family, or group events on a small VPS
+- Built for work, family, or group events on a small VPS or bare-metal box
 
 ## Stack
 
@@ -24,23 +24,31 @@ Live trivia for up to **200 players**. Build games ahead of time, open a host sc
 ## Quick start (Docker)
 
 ```bash
-docker compose up --build
+cp .env.example .env
+# set SESSION_SECRET, SUPERADMIN_PASSWORD (or SETUP_TOKEN), and POSTGRES_PASSWORD
+
+# First boot only — create the default admin from env:
+SUPERADMIN_BOOTSTRAP=1 docker compose up --build -d
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+App listens on **127.0.0.1:3000** (loopback). Open [http://127.0.0.1:3000](http://127.0.0.1:3000) on the server, or put Cloudflare Tunnel in front for public HTTPS.
 
-Default super-admin: create one at `/admin` on first visit  
-Optional: `SUPERADMIN_BOOTSTRAP=1` with `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD`.
+Bootstrap defaults (only when `SUPERADMIN_BOOTSTRAP=1` and no admin exists yet):
+
+- Email: `admin@localhost`
+- Password: value of `SUPERADMIN_PASSWORD` (example: `trivia-admin` / change-me)
+
+Then set `SUPERADMIN_BOOTSTRAP=0` in `.env` for subsequent restarts.
 
 ## Local development
 
 ```bash
-# 1. Postgres
+# 1. Postgres (published on 127.0.0.1:5432 only)
 docker compose up -d db
 
 # 2. Env
 cp .env.example .env
-# edit DATABASE_URL / SUPERADMIN_* if needed
+# edit DATABASE_URL / secrets
 
 # 3. Install + schema
 npm install
@@ -57,12 +65,8 @@ App: [http://localhost:3000](http://localhost:3000)
 
 Login is **email + password** (not a shared single password).
 
-- **Docker Compose (local default)** — first boot bootstraps a super-admin:
-  - Email: `admin@localhost`
-  - Password: `trivia-admin`
-  - Override with `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD`, or set `SUPERADMIN_BOOTSTRAP=0` and use the setup form instead.
-- **First install (no bootstrap)** — open `/admin` and create the first super-admin (name, email, password).
-- **Production** — set a strong `SETUP_TOKEN` and enter it on the setup form (required when `NODE_ENV=production` unless bootstrap is on). Set a strong `SESSION_SECRET` (24+ chars). If `SESSION_SECRET` is missing/weak the app still starts with an ephemeral secret (sessions reset on restart) and logs a warning.
+- **First install** — either open `/admin` and create the first super-admin (production requires `SETUP_TOKEN` on the form), **or** set `SUPERADMIN_BOOTSTRAP=1` once with `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD`.
+- **After setup** — keep `SUPERADMIN_BOOTSTRAP=0`. Set a strong `SESSION_SECRET` (24+ chars). If `SESSION_SECRET` is missing/weak the app still starts with an ephemeral secret (sessions reset on restart) and logs a warning.
 - **Account** — any signed-in user can change their own name, email, and password.
 - **Super-admins** — manage other super-admins (can’t delete the last one).
 - **Hosts** — create accounts that only see their own games.
@@ -118,18 +122,19 @@ Copy from `.env.example`:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_URL` | Postgres connection string | `postgresql://trivia:trivia@localhost:5432/trivia_live` |
-| `SETUP_TOKEN` | Required for first-time `/admin` setup in production | unset in dev; **set in prod** |
-| `SUPERADMIN_BOOTSTRAP` | If `1`/`true`, auto-create first admin from env | unset (use `/admin` setup) |
-| `SUPERADMIN_EMAIL` | Bootstrap email (only with bootstrap) | `admin@localhost` |
-| `SUPERADMIN_PASSWORD` | Bootstrap password (only with bootstrap) | `trivia-admin` |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Compose DB credentials (`DATABASE_URL` is derived) | `trivia` / `trivia` / `trivia_live` |
+| `DATABASE_URL` | Postgres URL (local `npm run dev`) | see `.env.example` |
+| `SETUP_TOKEN` | Required for first-time `/admin` setup in production (unless bootstrap) | unset |
+| `SUPERADMIN_BOOTSTRAP` | `1` = create first admin from env on boot | `0` |
+| `SUPERADMIN_EMAIL` | Bootstrap email | `admin@localhost` |
+| `SUPERADMIN_PASSWORD` | Bootstrap password | `trivia-admin` |
 | `SUPERADMIN_NAME` | Bootstrap display name | `Super Admin` |
-| `SESSION_SECRET` | Signs login cookies (**required in production**, 24+) | — |
-| `ADMIN_PASSWORD` | Legacy fallback for bootstrap password | `change-me` |
+| `SESSION_SECRET` | Signs login cookies (**set in production**, 24+) | unset (ephemeral warning) |
+| `COOKIE_SECURE` | Set `1` behind HTTPS / Cloudflare | `1` in Compose |
 | `PORT` | HTTP + WebSocket port | `3000` |
-| `HOST` | Bind address | `0.0.0.0` |
+| `HOST` | Bind address inside the container | `0.0.0.0` |
 | `NEXT_PUBLIC_SOCKET_URL` | Leave empty when UI and sockets share the same origin | _(empty)_ |
-| `NEXT_PUBLIC_PUBLIC_URL` | Public origin for host-screen join QR / URL (set to your LAN IP when testing phones locally) | _(current browser origin)_ |
+| `NEXT_PUBLIC_PUBLIC_URL` | Public HTTPS origin for host QR / join URLs | _(browser origin)_ |
 
 ## Scripts
 
@@ -154,10 +159,10 @@ SMOKE_PLAYERS=200 SMOKE_BASE_URL=http://127.0.0.1:3000 npm run smoke
 ```text
 server/           Custom Node server + Socket.io handlers
 src/app/          Next.js pages (admin, host, play, join) + API routes
-src/components/   Brand, QR, countdown, question editor
-src/lib/          DB, scoring, branding, game manager, auth helpers
+src/components/   Logo, QR, countdown, question editor
+src/lib/          DB, scoring, game manager, auth helpers
 prisma/           Schema + migrations
-scripts/          Smoke test + scoring tests
+scripts/          Smoke test + scoring tests + admin bootstrap
 docker-compose.yml
 Dockerfile
 ```
@@ -166,31 +171,53 @@ Dockerfile
 
 A **1–2 vCPU / 1–2 GB RAM** box is enough for ~200 concurrent phones.
 
+Compose binds the app to **127.0.0.1:3000** and Postgres to **127.0.0.1:5432** so they are not open to the public internet. Put Cloudflare Tunnel (or another reverse proxy) in front for HTTPS.
+
 ```bash
-# on the VPS
+# on the server
 git clone <this-repo>
 cd trivia-live
-export SUPERADMIN_PASSWORD='a-strong-password'
-docker compose up --build -d
+cp .env.example .env
+# edit .env: SESSION_SECRET, POSTGRES_PASSWORD, SUPERADMIN_PASSWORD / SETUP_TOKEN,
+#            NEXT_PUBLIC_PUBLIC_URL=https://your.domain
+SUPERADMIN_BOOTSTRAP=1 docker compose up --build -d
+# then set SUPERADMIN_BOOTSTRAP=0 in .env
 ```
 
-Put **HTTPS** in front (Caddy, nginx, or a reverse proxy). Enable WebSockets on the proxy. For production, change `SUPERADMIN_PASSWORD` / `SESSION_SECRET` and keep `.env` out of git.
+### Cloudflare Tunnel (recommended)
 
-Set `NEXT_PUBLIC_PUBLIC_URL` to your public origin (e.g. `https://trivia.example.com`) so host QR codes and join URLs point at the right place for phones.
+Yes — this works behind a **Cloudflare Tunnel**. You do **not** need Caddy/nginx TLS on the box.
+
+- Cloudflare terminates **HTTPS** on your hostname.
+- `cloudflared` connects outbound to Cloudflare and proxies to `http://127.0.0.1:3000` on the server (plain HTTP on loopback is fine).
+- **WebSockets are supported** by Cloudflare Tunnel. In the Cloudflare dashboard, keep **Network → WebSockets** On (default on most plans). Socket.io for live play uses WebSockets; leave `NEXT_PUBLIC_SOCKET_URL` empty so the browser uses the same public origin.
+- Set `NEXT_PUBLIC_PUBLIC_URL=https://your.domain` so host QR codes and join URLs use the public hostname (not `127.0.0.1`).
+- Keep `COOKIE_SECURE=1` so admin session cookies are marked Secure.
+
+Example tunnel ingress (hostname → local app):
+
+```yaml
+ingress:
+  - hostname: trivia.example.com
+    service: http://127.0.0.1:3000
+  - service: http_status:404
+```
+
+If you use a classic reverse proxy instead of a tunnel: put HTTPS in front, proxy WebSocket upgrades (`Upgrade` / `Connection` headers) to port 3000, and still set `NEXT_PUBLIC_PUBLIC_URL`.
 
 ### Autostart on Ubuntu
 
 `docker-compose.yml` uses `restart: unless-stopped` so containers come back after a crash or reboot **once Docker itself is running**.
 
 ```bash
-# Docker daemon on boot
 sudo systemctl enable --now docker
-
-# Bring the stack up (from the repo directory)
+cd /opt/trivia-live   # or your install path
 docker compose up --build -d
 ```
 
-Optional — manage the stack as a systemd unit (replace the working directory path):
+Also enable `cloudflared` (or your tunnel package) to start on boot so the public hostname stays up.
+
+Optional — manage the Compose stack as a systemd unit:
 
 ```bash
 sudo tee /etc/systemd/system/trivia-live.service >/dev/null <<'EOF'
@@ -225,12 +252,12 @@ git pull
 docker compose up --build -d
 ```
 
-Migrations run automatically on container start (`prisma migrate deploy` in the entrypoint). Game data in Postgres and any uploads volume are kept across rebuilds.
+Migrations run automatically on container start (`prisma migrate deploy` in the entrypoint). Postgres data in the `trivia_pg` volume is kept across rebuilds.
 
 If you use the systemd unit above:
 
 ```bash
-cd /opt/trivia-live   # or your install path
+cd /opt/trivia-live
 git pull
 sudo systemctl restart trivia-live
 ```

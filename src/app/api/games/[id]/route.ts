@@ -6,17 +6,6 @@ import { assertCorrectIndexes, questionSchema } from "@/lib/question-schema";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** Clear any leftover per-game brand columns (custom branding removed). */
-const CLEAR_GAME_BRAND = {
-  brandDisplayName: null,
-  brandTagline: null,
-  brandLogoUrl: null,
-  brandPreset: null,
-  brandMode: null,
-  brandAccent: null,
-  brandBackground: null,
-} as const;
-
 export async function GET(_req: NextRequest, ctx: Ctx) {
   const user = await requireUser();
   if (!user) {
@@ -107,7 +96,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     ]);
   }
 
-  const data: Record<string, unknown> = { ...CLEAR_GAME_BRAND };
+  const data: Record<string, unknown> = {};
   if (title !== undefined) data.title = title;
   if (status !== undefined) data.status = status;
   if (allowLateJoin !== undefined) data.allowLateJoin = allowLateJoin;
