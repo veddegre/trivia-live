@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/brand/trivia-live-logo.png" alt="Trivia Live" width="320" />
+</p>
+
 # Trivia Live
 
 Live trivia for up to **200 players**. Build games ahead of time, open a host screen on a big display, and let people answer from their phones. Scores update live; correct + faster answers rank higher.
