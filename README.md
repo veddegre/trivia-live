@@ -56,7 +56,7 @@ App: [http://localhost:3000](http://localhost:3000)
 ## Accounts
 
 - **First install** — open `/admin` and create the first super-admin (name, email, password).
-- **Production** — set a strong `SETUP_TOKEN` and enter it on the setup form (required when `NODE_ENV=production` or when `SETUP_TOKEN` is set). Also set a strong `SESSION_SECRET` (24+ chars) or the app will refuse to start.
+- **Production** — set a strong `SETUP_TOKEN` and enter it on the setup form (required when `NODE_ENV=production` or when `SETUP_TOKEN` is set). Set a strong `SESSION_SECRET` (24+ chars). If `SESSION_SECRET` is missing the app still starts with an ephemeral secret (sessions reset on restart) and logs a warning.
 - **Account** — any signed-in user can change their own name, email, and password.
 - **Super-admins** — manage other super-admins (can’t delete the last one).
 - **Hosts** — create accounts that only see their own games.

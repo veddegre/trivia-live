@@ -19,33 +19,54 @@ const WEAK_SECRETS = new Set([
   "trivia-admin",
   "change-me",
   "change-me-too",
+  "change-me-to-a-long-random-string",
   "secret",
   "password",
+  "trivia-session-secret",
 ]);
 
+/** Process-lifetime fallback when SESSION_SECRET is missing in production. */
+let ephemeralSessionSecret: string | null = null;
+
+function isStrongSecret(secret: string): boolean {
+  return secret.length >= 24 && !WEAK_SECRETS.has(secret);
+}
+
+/**
+ * Warns in production if SESSION_SECRET is missing/weak, but does not crash
+ * the process (avoids Cloudflare 502 restart loops). Uses an ephemeral secret
+ * until a permanent SESSION_SECRET is configured.
+ */
 export function assertProductionSecrets() {
   if (process.env.NODE_ENV !== "production") return;
   const secret = process.env.SESSION_SECRET?.trim() || "";
-  if (!secret || WEAK_SECRETS.has(secret) || secret.length < 24) {
-    throw new Error(
-      "SESSION_SECRET must be set to a strong value (24+ chars) in production"
+  if (!isStrongSecret(secret)) {
+    console.error(
+      "[trivia-live] WARNING: SESSION_SECRET is missing or weak. " +
+        "Using an ephemeral secret for this process — set SESSION_SECRET " +
+        "(24+ random chars) and restart so sessions survive restarts."
+    );
+  }
+  if (!(process.env.SETUP_TOKEN || "").trim() && process.env.SUPERADMIN_BOOTSTRAP !== "1") {
+    console.error(
+      "[trivia-live] WARNING: SETUP_TOKEN is not set. First-time /admin setup " +
+        "will fail until you set SETUP_TOKEN (or SUPERADMIN_BOOTSTRAP=1)."
     );
   }
 }
 
 function sessionSecret(): string {
+  const fromEnv = process.env.SESSION_SECRET?.trim() || "";
+  if (isStrongSecret(fromEnv)) return fromEnv;
+
   if (process.env.NODE_ENV === "production") {
-    const secret = process.env.SESSION_SECRET?.trim();
-    if (!secret || WEAK_SECRETS.has(secret) || secret.length < 24) {
-      throw new Error("SESSION_SECRET is not configured for production");
+    if (!ephemeralSessionSecret) {
+      ephemeralSessionSecret = randomBytes(32).toString("hex");
     }
-    return secret;
+    return ephemeralSessionSecret;
   }
-  return (
-    process.env.SESSION_SECRET ||
-    process.env.ADMIN_PASSWORD ||
-    "trivia-dev-secret"
-  );
+
+  return fromEnv || process.env.ADMIN_PASSWORD || "trivia-dev-secret";
 }
 
 function sign(value: string): string {

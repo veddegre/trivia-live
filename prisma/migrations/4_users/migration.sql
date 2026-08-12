@@ -1,8 +1,12 @@
--- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('HOST', 'SUPERADMIN');
+-- CreateEnum (idempotent)
+DO $$ BEGIN
+  CREATE TYPE "UserRole" AS ENUM ('HOST', 'SUPERADMIN');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateTable
-CREATE TABLE "User" (
+CREATE TABLE IF NOT EXISTS "User" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -15,22 +19,29 @@ CREATE TABLE "User" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email");
 
 -- AlterTable
-ALTER TABLE "Game" ADD COLUMN "ownerId" TEXT;
+ALTER TABLE "Game" ADD COLUMN IF NOT EXISTS "ownerId" TEXT;
 
 -- AlterTable
-ALTER TABLE "GameResult" ADD COLUMN "ownerId" TEXT;
+ALTER TABLE "GameResult" ADD COLUMN IF NOT EXISTS "ownerId" TEXT;
 
 -- CreateIndex
-CREATE INDEX "Game_ownerId_idx" ON "Game"("ownerId");
+CREATE INDEX IF NOT EXISTS "Game_ownerId_idx" ON "Game"("ownerId");
 
 -- CreateIndex
-CREATE INDEX "GameResult_ownerId_idx" ON "GameResult"("ownerId");
+CREATE INDEX IF NOT EXISTS "GameResult_ownerId_idx" ON "GameResult"("ownerId");
 
--- AddForeignKey
-ALTER TABLE "Game" ADD CONSTRAINT "Game_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- AddForeignKey (idempotent)
+DO $$ BEGIN
+  ALTER TABLE "Game" ADD CONSTRAINT "Game_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
--- AddForeignKey
-ALTER TABLE "GameResult" ADD CONSTRAINT "GameResult_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "GameResult" ADD CONSTRAINT "GameResult_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
