@@ -1,5 +1,4 @@
 import { createHmac, timingSafeEqual, randomBytes } from "crypto";
-import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import type { User, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -32,28 +31,7 @@ function isStrongSecret(secret: string): boolean {
   return secret.length >= 24 && !WEAK_SECRETS.has(secret);
 }
 
-/**
- * Warns in production if SESSION_SECRET is missing/weak, but does not crash
- * the process (avoids Cloudflare 502 restart loops). Uses an ephemeral secret
- * until a permanent SESSION_SECRET is configured.
- */
-export function assertProductionSecrets() {
-  if (process.env.NODE_ENV !== "production") return;
-  const secret = process.env.SESSION_SECRET?.trim() || "";
-  if (!isStrongSecret(secret)) {
-    console.error(
-      "[trivia-live] WARNING: SESSION_SECRET is missing or weak. " +
-        "Using an ephemeral secret for this process — set SESSION_SECRET " +
-        "(24+ random chars) and restart so sessions survive restarts."
-    );
-  }
-  if (!(process.env.SETUP_TOKEN || "").trim() && process.env.SUPERADMIN_BOOTSTRAP !== "1") {
-    console.error(
-      "[trivia-live] WARNING: SETUP_TOKEN is not set. First-time /admin setup " +
-        "will fail until you set SETUP_TOKEN (or SUPERADMIN_BOOTSTRAP=1)."
-    );
-  }
-}
+export { assertProductionSecrets } from "@/lib/production-secrets";
 
 function sessionSecret(): string {
   const fromEnv = process.env.SESSION_SECRET?.trim() || "";
@@ -149,6 +127,9 @@ function toSessionUser(user: User): SessionUser {
 
 export async function getSessionUser(): Promise<SessionUser | null> {
   try {
+    // Lazy import — top-level `next/headers` breaks the custom Node server
+    // (AsyncLocalStorage invariant before/outside a Next request).
+    const { cookies } = await import("next/headers");
     const jar = await cookies();
     const userId = parseSessionToken(jar.get(SESSION_COOKIE)?.value);
     if (!userId) return null;

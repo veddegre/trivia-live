@@ -55,13 +55,17 @@ App: [http://localhost:3000](http://localhost:3000)
 
 ## Accounts
 
-- **First install** — open `/admin` and create the first super-admin (name, email, password).
-- **Production** — set a strong `SETUP_TOKEN` and enter it on the setup form (required when `NODE_ENV=production` or when `SETUP_TOKEN` is set). Set a strong `SESSION_SECRET` (24+ chars). If `SESSION_SECRET` is missing the app still starts with an ephemeral secret (sessions reset on restart) and logs a warning.
+Login is **email + password** (not a shared single password).
+
+- **Docker Compose (local default)** — first boot bootstraps a super-admin:
+  - Email: `admin@localhost`
+  - Password: `trivia-admin`
+  - Override with `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD`, or set `SUPERADMIN_BOOTSTRAP=0` and use the setup form instead.
+- **First install (no bootstrap)** — open `/admin` and create the first super-admin (name, email, password).
+- **Production** — set a strong `SETUP_TOKEN` and enter it on the setup form (required when `NODE_ENV=production` unless bootstrap is on). Set a strong `SESSION_SECRET` (24+ chars). If `SESSION_SECRET` is missing/weak the app still starts with an ephemeral secret (sessions reset on restart) and logs a warning.
 - **Account** — any signed-in user can change their own name, email, and password.
 - **Super-admins** — manage other super-admins (can’t delete the last one).
 - **Hosts** — create accounts that only see their own games.
-
-Optional headless bootstrap: `SUPERADMIN_BOOTSTRAP=1` plus `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD`.
 
 ## How a game works
 

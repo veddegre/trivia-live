@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { createServer } from "http";
 import next from "next";
-import { assertProductionSecrets } from "../src/lib/auth";
+import { assertProductionSecrets } from "../src/lib/production-secrets";
 import { createSocketServer } from "./socket";
 
 const dev = process.env.NODE_ENV !== "production";

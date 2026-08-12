@@ -27,9 +27,10 @@ services:
       SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-admin@localhost}
       SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-trivia-admin}
       SUPERADMIN_NAME: ${SUPERADMIN_NAME:-Super Admin}
-      SESSION_SECRET: ${SESSION_SECRET:-}
+      SESSION_SECRET: ${SESSION_SECRET:-trivia-local-session-secret-change-me}
       SETUP_TOKEN: ${SETUP_TOKEN:-}
-      SUPERADMIN_BOOTSTRAP: ${SUPERADMIN_BOOTSTRAP:-}
+      # Default on for Compose so first boot has a known admin; set to 0 in prod after setup
+      SUPERADMIN_BOOTSTRAP: ${SUPERADMIN_BOOTSTRAP:-1}
       HOST: 0.0.0.0
       PORT: 3000
       NODE_ENV: production
