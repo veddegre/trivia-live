@@ -196,6 +196,25 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now trivia-live
 ```
 
+### Updating
+
+On the server, from the repo directory:
+
+```bash
+git pull
+docker compose up --build -d
+```
+
+Migrations run automatically on container start (`prisma migrate deploy` in the entrypoint). Game data in Postgres and any uploads volume are kept across rebuilds.
+
+If you use the systemd unit above:
+
+```bash
+cd /opt/trivia-live   # or your install path
+git pull
+sudo systemctl restart trivia-live
+```
+
 ## Capacity notes
 
 - ~200 WebSocket connections is light for a single Node process

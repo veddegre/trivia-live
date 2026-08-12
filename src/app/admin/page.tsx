@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   FormEvent,
   Suspense,
@@ -19,6 +19,8 @@ import {
 } from "@/components/QuestionEditor";
 
 type AdminTab = "create" | "games" | "winners";
+
+const LIVE_STATUSES = new Set(["QUESTION", "REVEAL", "BETWEEN"]);
 
 type GameListItem = {
   id: string;
@@ -92,6 +94,7 @@ function NavButton({
 const ADMIN_TABS: AdminTab[] = ["create", "games", "winners"];
 
 function AdminInner() {
+  const router = useRouter();
   const search = useSearchParams();
   const tabParam = search.get("tab");
   const initialTab =
@@ -111,6 +114,19 @@ function AdminInner() {
   const [allowLateJoin, setAllowLateJoin] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"good" | "bad">("good");
+
+  const goTab = useCallback(
+    (next: AdminTab) => {
+      setTab(next);
+      const params = new URLSearchParams(search.toString());
+      if (next === "create") params.delete("tab");
+      else params.set("tab", next);
+      const qs = params.toString();
+      router.replace(qs ? `/admin?${qs}` : "/admin", { scroll: false });
+    },
+    [router, search]
+  );
 
   const loadGames = useCallback(async () => {
     const res = await fetch("/api/games");
@@ -130,10 +146,11 @@ function AdminInner() {
     setResults(data.results || []);
   }, []);
 
-
   useEffect(() => {
     if (tabParam && ADMIN_TABS.includes(tabParam as AdminTab)) {
       setTab(tabParam as AdminTab);
+    } else if (!tabParam) {
+      setTab("create");
     }
   }, [tabParam]);
 
@@ -155,6 +172,11 @@ function AdminInner() {
     setTitle("");
     setQuestions([emptyQuestion()]);
     setAllowLateJoin(true);
+  }
+
+  function showMessage(text: string, tone: "good" | "bad" = "good") {
+    setMessageTone(tone);
+    setMessage(text);
   }
 
   async function login(e: FormEvent) {
@@ -183,16 +205,35 @@ function AdminInner() {
 
 
   async function startEdit(id: string) {
+    const listed = games.find((g) => g.id === id);
+    if (listed && LIVE_STATUSES.has(listed.status)) {
+      showMessage(
+        "Can’t edit while a round is in progress. Finish on the host screen, or use Play again first.",
+        "bad"
+      );
+      return;
+    }
+
     setBusy(true);
     setMessage("");
     try {
       const res = await fetch(`/api/games/${id}`);
       const data = await res.json();
       if (!res.ok) {
-        setMessage(typeof data.error === "string" ? data.error : "Could not load game");
+        showMessage(
+          typeof data.error === "string" ? data.error : "Could not load game",
+          "bad"
+        );
         return;
       }
       const g = data.game;
+      if (LIVE_STATUSES.has(g.status)) {
+        showMessage(
+          "Can’t edit while a round is in progress. Finish on the host screen, or use Play again first.",
+          "bad"
+        );
+        return;
+      }
       setEditingId(g.id);
       setTitle(g.title || "");
       setAllowLateJoin(g.allowLateJoin !== false);
@@ -207,7 +248,7 @@ function AdminInner() {
             timeBonus: number;
           }) => ({
             prompt: q.prompt,
-            options: [...q.options],
+            options: Array.isArray(q.options) ? [...q.options] : ["", ""],
             correctIndex: q.correctIndex,
             timeLimitSec: q.timeLimitSec,
             basePoints: q.basePoints,
@@ -215,7 +256,7 @@ function AdminInner() {
           })
         )
       );
-      setTab("create");
+      goTab("create");
     } finally {
       setBusy(false);
     }
@@ -239,19 +280,22 @@ function AdminInner() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setMessage(typeof data.error === "string" ? data.error : "Could not save game");
+        showMessage(
+          typeof data.error === "string" ? data.error : "Could not save game",
+          "bad"
+        );
         return;
       }
       const savedTitle = data.game?.title || title;
       const code = data.game?.code as string | undefined;
-      setMessage(
+      showMessage(
         editingId
           ? `Updated “${savedTitle}”`
           : `Created “${savedTitle}” — code ${code}`
       );
       resetForm();
       await Promise.all([loadGames(), loadResults()]);
-      setTab("games");
+      goTab("games");
     } finally {
       setBusy(false);
     }
@@ -284,11 +328,14 @@ function AdminInner() {
     const res = await fetch(`/api/games/${id}/reset`, { method: "POST" });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setMessage(typeof data.error === "string" ? data.error : "Could not reset game");
+      showMessage(
+        typeof data.error === "string" ? data.error : "Could not reset game",
+        "bad"
+      );
       return;
     }
     const nextCode = data.game?.code as string | undefined;
-    setMessage(
+    showMessage(
       nextCode
         ? `“${gameTitle}” reset — new code ${nextCode}. Click Host screen so the QR updates.`
         : `“${gameTitle}” reset — click Host screen so the QR updates.`
@@ -354,17 +401,17 @@ function AdminInner() {
           <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
             Games
           </div>
-          <NavButton active={tab === "create"} onClick={() => setTab("create")}>
+          <NavButton active={tab === "create"} onClick={() => goTab("create")}>
             Create game
           </NavButton>
-          <NavButton active={tab === "games"} onClick={() => setTab("games")}>
+          <NavButton active={tab === "games"} onClick={() => goTab("games")}>
             All games
           </NavButton>
 
           <div className="mt-5 px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
             History
           </div>
-          <NavButton active={tab === "winners"} onClick={() => setTab("winners")}>
+          <NavButton active={tab === "winners"} onClick={() => goTab("winners")}>
             Past winners
           </NavButton>
 
@@ -467,7 +514,11 @@ function AdminInner() {
                     {busy ? "Saving…" : editingId ? "Update game" : "Save game"}
                   </button>
                 </div>
-                {message && <p className="text-sm text-good">{message}</p>}
+                {message && (
+                  <p className={`text-sm ${messageTone === "bad" ? "text-bad" : "text-good"}`}>
+                    {message}
+                  </p>
+                )}
               </form>
             </section>
           )}
@@ -486,13 +537,19 @@ function AdminInner() {
                   className="btn btn-primary"
                   onClick={() => {
                     resetForm();
-                    setTab("create");
+                    goTab("create");
                   }}
                 >
                   + New game
                 </button>
               </div>
-              {message && <p className="mt-4 text-sm text-good">{message}</p>}
+              {message && (
+                <p
+                  className={`mt-4 text-sm ${messageTone === "bad" ? "text-bad" : "text-good"}`}
+                >
+                  {message}
+                </p>
+              )}
               <div className="mt-6 space-y-3">
                 {games.length === 0 && (
                   <p className="text-muted">No games yet — create one.</p>
@@ -515,10 +572,10 @@ function AdminInner() {
                       <button
                         className="btn btn-ghost"
                         onClick={() => void startEdit(g.id)}
-                        disabled={
-                          g.status === "QUESTION" ||
-                          g.status === "REVEAL" ||
-                          g.status === "BETWEEN"
+                        title={
+                          LIVE_STATUSES.has(g.status)
+                            ? "Finish the round or use Play again before editing"
+                            : "Edit game"
                         }
                       >
                         Edit
