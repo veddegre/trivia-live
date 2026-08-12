@@ -332,7 +332,7 @@ function PlayInner({ code }: { code: string }) {
                 className="w-full rounded-xl py-4 text-base font-extrabold uppercase tracking-[0.12em]"
                 style={{
                   background: "linear-gradient(180deg, var(--amber-hot), var(--amber))",
-                  color: "#ffffff",
+                  color: "#1a1200",
                 }}
                 onClick={() => router.push("/join")}
               >
@@ -363,7 +363,7 @@ function PlayInner({ code }: { code: string }) {
                 className="w-full rounded-xl py-4 text-base font-extrabold uppercase tracking-[0.12em] disabled:opacity-50"
                 style={{
                   background: "linear-gradient(180deg, var(--amber-hot), var(--amber))",
-                  color: "#ffffff",
+                  color: "#1a1200",
                 }}
                 disabled={joining || !!gameMissing}
               >
@@ -467,7 +467,7 @@ function PlayInner({ code }: { code: string }) {
                           ? {
                               borderColor: "var(--chalk)",
                               background: "var(--chalk)",
-                              color: "#ffffff",
+                              color: "var(--ink)",
                             }
                           : {
                               borderColor: "var(--line)",
@@ -482,7 +482,7 @@ function PlayInner({ code }: { code: string }) {
                         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-extrabold"
                         style={
                           selected
-                            ? { background: "#ffffff", color: amber }
+                            ? { background: "var(--amber)", color: "#1a1200" }
                             : { background: "color-mix(in srgb, var(--amber) 12%, transparent)", color: amber }
                         }
                       >

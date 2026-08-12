@@ -118,9 +118,10 @@ function JoinInner() {
         {error && <p className="text-sm text-bad">{error}</p>}
         <button
           type="submit"
-          className="mt-2 w-full rounded-xl py-4 text-base font-extrabold uppercase tracking-[0.12em] text-white disabled:opacity-50"
+          className="mt-2 w-full rounded-xl py-4 text-base font-extrabold uppercase tracking-[0.12em] disabled:opacity-50"
           style={{
             background: "linear-gradient(180deg, var(--amber-hot) 0%, var(--amber) 100%)",
+            color: "#1a1200",
           }}
           disabled={checking}
         >

@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
-import { brandOverrideSchema, validateBrandColors } from "@/lib/brand-schema";
-import { brandOverridesFromInput } from "@/lib/branding";
 import { prisma } from "@/lib/db";
 import { assertCorrectIndexes, questionSchema } from "@/lib/question-schema";
 
 type Ctx = { params: Promise<{ id: string }> };
+
+/** Clear any leftover per-game brand columns (custom branding removed). */
+const CLEAR_GAME_BRAND = {
+  brandDisplayName: null,
+  brandTagline: null,
+  brandLogoUrl: null,
+  brandPreset: null,
+  brandMode: null,
+  brandAccent: null,
+  brandBackground: null,
+} as const;
 
 export async function GET(_req: NextRequest, ctx: Ctx) {
   if (!(await requireAdmin())) {
@@ -24,14 +33,12 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   return NextResponse.json({ game });
 }
 
-const patchSchema = z
-  .object({
-    title: z.string().min(1).max(120).optional(),
-    status: z.enum(["DRAFT", "LOBBY"]).optional(),
-    allowLateJoin: z.boolean().optional(),
-    questions: z.array(questionSchema).min(1).max(100).optional(),
-  })
-  .merge(brandOverrideSchema);
+const patchSchema = z.object({
+  title: z.string().min(1).max(120).optional(),
+  status: z.enum(["DRAFT", "LOBBY"]).optional(),
+  allowLateJoin: z.boolean().optional(),
+  questions: z.array(questionSchema).min(1).max(100).optional(),
+});
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   if (!(await requireAdmin())) {
@@ -43,16 +50,10 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const colorErr = validateBrandColors(parsed.data);
-  if (colorErr) {
-    return NextResponse.json({ error: colorErr }, { status: 400 });
-  }
-
   const existing = await prisma.game.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { title, status, allowLateJoin, questions, customize, ...brandFields } =
-    parsed.data;
+  const { title, status, allowLateJoin, questions } = parsed.data;
 
   if (questions) {
     const indexErr = assertCorrectIndexes(questions);
@@ -99,22 +100,10 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     ]);
   }
 
-  const data: Record<string, unknown> = {};
+  const data: Record<string, unknown> = { ...CLEAR_GAME_BRAND };
   if (title !== undefined) data.title = title;
   if (status !== undefined) data.status = status;
   if (allowLateJoin !== undefined) data.allowLateJoin = allowLateJoin;
-
-  if (customize !== undefined || Object.keys(brandFields).length > 0) {
-    Object.assign(
-      data,
-      brandOverridesFromInput({
-        customize,
-        ...brandFields,
-        brandPreset: customize === false ? null : brandFields.brandPreset ?? null,
-        brandMode: customize === false ? null : brandFields.brandMode ?? null,
-      })
-    );
-  }
 
   const game = await prisma.game.update({
     where: { id },

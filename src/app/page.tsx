@@ -51,7 +51,11 @@ export default function HomePage() {
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
           <Link
             href="/join"
-            className="inline-flex items-center justify-center rounded-md bg-chalk px-7 py-3 text-sm font-bold uppercase tracking-[0.12em] text-white transition hover:opacity-90"
+            className="inline-flex items-center justify-center rounded-md px-7 py-3 text-sm font-bold uppercase tracking-[0.12em] transition hover:opacity-90"
+            style={{
+              background: "linear-gradient(180deg, var(--amber-hot), var(--amber))",
+              color: "#1a1200",
+            }}
           >
             Join a game
           </Link>

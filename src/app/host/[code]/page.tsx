@@ -277,7 +277,7 @@ function HostInner({ code }: { code: string }) {
     return (
       <BrandProvider brand={brand}>
         <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-6">
-          <BrandMark href={null} badgeLast />
+          <BrandMark href={null} badgeLast size="lg" />
           {error ? (
             <p className="mt-6 rounded-xl border border-bad/40 bg-bad/10 px-4 py-3 text-sm text-bad">
               {error}
@@ -368,14 +368,14 @@ function HostInner({ code }: { code: string }) {
       <BrandProvider brand={brand}>
         <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-6">
           <header className="flex items-center justify-between gap-4">
-            <BrandMark href={null} badgeLast />
+            <BrandMark href={null} badgeLast size="lg" />
             <div className="text-center">
               <div className="text-amber">★★★</div>
               <h1 className="display text-3xl uppercase tracking-wide text-amber md:text-5xl">
                 Results revealed!
               </h1>
             </div>
-            <div className="w-24" />
+            <div className="w-28" />
           </header>
 
           <div className="mt-8 grid flex-1 gap-6 lg:grid-cols-[1.35fr_1fr]">
@@ -543,7 +543,7 @@ function HostInner({ code }: { code: string }) {
       <BrandProvider brand={brand}>
         <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-6">
           <header className="flex items-center justify-between gap-4">
-            <BrandMark href={null} badgeLast />
+            <BrandMark href={null} badgeLast size="lg" />
             <span className="rounded-lg border border-line px-3 py-2 text-xs font-bold uppercase tracking-[0.14em] text-muted">
               Host controls
             </span>
@@ -642,7 +642,7 @@ function HostInner({ code }: { code: string }) {
               <div className="mt-6 flex justify-center">
                 <button
                   className="rounded-2xl px-7 py-3.5 text-sm font-extrabold uppercase tracking-[0.14em]"
-                  style={{ background: amber, color: "#ffffff" }}
+                  style={{ background: amber, color: "#1a1200" }}
                   onClick={() => emit("host:start")}
                 >
                   Open lobby
@@ -800,7 +800,7 @@ function HostInner({ code }: { code: string }) {
             <div className="mt-auto flex flex-col gap-3.5 pt-8">
               <button
                 className="condensed flex w-full items-center justify-center gap-2.5 rounded-2xl py-[1.05rem] text-[15px] font-bold uppercase tracking-[0.14em] disabled:opacity-40"
-                style={{ background: amber, color: "#ffffff" }}
+                style={{ background: amber, color: "#1a1200" }}
                 onClick={() => emit("host:openQuestion")}
                 disabled={state.status === "DRAFT"}
               >

@@ -2,7 +2,6 @@ import { randomBytes } from "crypto";
 import type { Game, Question, Player } from "@prisma/client";
 import { resolveBrand } from "@/lib/branding";
 import { generateJoinCode } from "@/lib/codes";
-import { getSiteBrand } from "@/lib/site-brand";
 import { prisma } from "@/lib/db";
 import { scoreAnswer } from "@/lib/scoring";
 import type {
@@ -148,8 +147,7 @@ export async function buildPublicState(
     phase === "finished" && leaderboard.length > 0 ? leaderboard[0] : null;
   const leader = leaderboard.length > 0 ? leaderboard[0] : null;
 
-  const site = await getSiteBrand();
-  const brand = resolveBrand(site, game);
+  const brand = resolveBrand();
 
   return {
     code: game.code,
@@ -472,7 +470,7 @@ async function uniqueJoinCode(): Promise<string> {
 
 /**
  * Clear players/answers and return the game to lobby.
- * Issues a new join code + host token; keeps questions and branding.
+ * Issues a new join code + host token; keeps questions.
  */
 export async function resetGame(gameId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId } });

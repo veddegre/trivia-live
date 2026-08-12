@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: trivia
       POSTGRES_PASSWORD: trivia
@@ -17,6 +18,7 @@ services:
 
   app:
     build: .
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveBrand } from "@/lib/branding";
 import { prisma } from "@/lib/db";
-import { getSiteBrand } from "@/lib/site-brand";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -16,8 +15,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const playerCount = await prisma.player.count({ where: { gameId: game.id } });
   const questionCount = await prisma.question.count({ where: { gameId: game.id } });
 
-  const site = await getSiteBrand();
-  const brand = resolveBrand(site, game);
+  const brand = resolveBrand();
 
   const urlHost = _req.nextUrl.searchParams.get("hostToken");
   const includeHost = urlHost && urlHost === game.hostToken;

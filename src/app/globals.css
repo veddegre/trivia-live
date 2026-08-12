@@ -1,19 +1,19 @@
 @import "tailwindcss";
 
-/* Studio daylight — cool stage floor, charcoal type, cobalt accent */
+/* Dark stage — deep ink, warm chalk, gold/orange accent (matches the logo) */
 :root {
-  --ink: #e8ecf1;
-  --ink-2: #dde3eb;
-  --panel: #ffffff;
-  --line: #c5ceda;
-  --chalk: #171c26;
-  --muted: #5a6478;
-  --amber: #1d4ed8;
-  --amber-hot: #3b82f6;
-  --good: #0f9f6e;
-  --bad: #dc2626;
-  --silver: #6b7280;
-  --bronze: #b45309;
+  --ink: #070b14;
+  --ink-2: #0e1524;
+  --panel: #141c2e;
+  --line: #2a3550;
+  --chalk: #f4f0e6;
+  --muted: #9aa6c1;
+  --amber: #f0a820;
+  --amber-hot: #ffc14d;
+  --good: #3ecf8e;
+  --bad: #ff6b6b;
+  --silver: #c5cdd8;
+  --bronze: #c47a4a;
   --background: var(--ink);
   --foreground: var(--chalk);
 }
@@ -57,16 +57,16 @@ body {
   font-family: var(--font-body), system-ui, sans-serif;
   background:
     radial-gradient(
-      900px 480px at 50% 110%,
-      color-mix(in srgb, var(--amber) 12%, transparent),
+      900px 520px at 50% 115%,
+      color-mix(in srgb, var(--amber) 22%, transparent),
       transparent 58%
     ),
     radial-gradient(
-      700px 400px at 100% 0%,
-      color-mix(in srgb, var(--amber) 6%, transparent),
-      transparent 50%
+      1100px 520px at 8% -8%,
+      color-mix(in srgb, var(--amber) 10%, transparent),
+      transparent 55%
     ),
-    linear-gradient(180deg, #f4f6f9 0%, var(--ink) 45%, var(--ink-2) 100%);
+    linear-gradient(180deg, #05080f 0%, var(--ink) 40%, var(--ink-2) 100%);
   background-attachment: fixed;
 }
 
@@ -120,20 +120,20 @@ select {
 
 .btn-primary {
   background: linear-gradient(180deg, var(--amber-hot), var(--amber));
-  color: #ffffff;
+  color: #1a1200;
 }
 
 .btn-primary:hover {
-  filter: brightness(1.05);
+  filter: brightness(1.06);
 }
 
 .btn-solid {
   background: var(--chalk);
-  color: #ffffff;
+  color: var(--ink);
 }
 
 .btn-solid:hover {
-  filter: brightness(1.08);
+  filter: brightness(0.96);
 }
 
 .btn-ghost {
@@ -160,7 +160,7 @@ select {
 .field {
   width: 100%;
   border: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--ink-2);
   color: var(--chalk);
   border-radius: 0.65rem;
   padding: 0.8rem 0.95rem;
@@ -180,7 +180,7 @@ select {
   justify-content: center;
   border-radius: 999px;
   background: var(--amber);
-  color: #ffffff;
+  color: #1a1200;
   font-weight: 800;
   font-size: 0.95rem;
 }

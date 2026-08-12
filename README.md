@@ -4,7 +4,7 @@ Live trivia for up to **200 players**. Build games ahead of time, open a host sc
 
 ## Features
 
-- **Admin** — create and edit games; 2–6 options (or True/False); per-question timers and scoring; optional late-join lock; site + per-game branding
+- **Admin** — create and edit games; 2–6 options (or True/False); per-question timers and scoring; optional late-join lock
 - **Host screen** — join code, QR → `/join?code=…`, typed join URL, live lobby roster, question control, reveal, between-round standings pause, podium finish
 - **Player phones** — join with code + name (no accounts); remembered display name; reconnect after refresh; rank/points after each round
 - **Scoring** — server timestamps only (phones can’t fake speed); board updates on lock so mid-question standings don’t spoil answers
@@ -74,20 +74,12 @@ Codes use an unambiguous alphabet (no `I`/`J`/`L`/`O`/`Q`/`0`/`1`) so they’re 
 
 By default players can join during the lobby **or** mid-game. Uncheck **Allow late joins** on the game to limit joining to the lobby only.
 
-## Branding
-
-In **`/admin`**, use **Site branding** to set the display name, tagline, logo (URL or upload), color preset (`default`, `ocean`, `forest`, `sunset`, `slate`), light/dark mode, and optional accent/background hex colors. These apply across the app.
-
-When creating or editing a game, check **Customize this game’s look** to override site defaults for that game’s host and player screens.
-
-Uploaded logos are stored in `uploads/` (Docker volume `trivia_uploads`) and served at `/uploads/…`.
-
 ### Routes
 
 | Path | Who | Purpose |
 |------|-----|---------|
 | `/` | Anyone | Landing |
-| `/admin` | Host / organizer | Branding, build/edit games, past winners |
+| `/admin` | Host / organizer | Build/edit games, past winners |
 | `/host/[code]?token=…` | Host display | Control game + live board |
 | `/join` | Players | Enter code + name (`?code=` prefill from QR) |
 | `/play/[code]` | Players | Answer questions |
@@ -145,7 +137,6 @@ src/app/          Next.js pages (admin, host, play, join) + API routes
 src/components/   Brand, QR, countdown, question editor
 src/lib/          DB, scoring, branding, game manager, auth helpers
 prisma/           Schema + migrations
-uploads/          Logo uploads (gitignored; Docker volume)
 scripts/          Smoke test + scoring tests
 docker-compose.yml
 Dockerfile
@@ -166,6 +157,44 @@ docker compose up --build -d
 Put **HTTPS** in front (Caddy, nginx, or a reverse proxy). Enable WebSockets on the proxy. For production, change `ADMIN_PASSWORD` and keep `.env` out of git.
 
 Set `NEXT_PUBLIC_PUBLIC_URL` to your public origin (e.g. `https://trivia.example.com`) so host QR codes and join URLs point at the right place for phones.
+
+### Autostart on Ubuntu
+
+`docker-compose.yml` uses `restart: unless-stopped` so containers come back after a crash or reboot **once Docker itself is running**.
+
+```bash
+# Docker daemon on boot
+sudo systemctl enable --now docker
+
+# Bring the stack up (from the repo directory)
+docker compose up --build -d
+```
+
+Optional — manage the stack as a systemd unit (replace the working directory path):
+
+```bash
+sudo tee /etc/systemd/system/trivia-live.service >/dev/null <<'EOF'
+[Unit]
+Description=Trivia Live
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/trivia-live
+EnvironmentFile=-/opt/trivia-live/.env
+ExecStart=/usr/bin/docker compose up -d --build
+ExecStop=/usr/bin/docker compose down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now trivia-live
+```
 
 ## Capacity notes
 

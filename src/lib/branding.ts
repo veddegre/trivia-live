@@ -99,26 +99,25 @@ type PresetBase = {
 
 const PRESETS: Record<BrandPresetId, PresetBase> = {
   default: {
-    /* Studio daylight — cool floor, charcoal type, cobalt accent */
-    light: {
-      ink: "#e8ecf1",
-      ink2: "#dde3eb",
-      panel: "#ffffff",
-      line: "#c5ceda",
-      chalk: "#171c26",
-      muted: "#5a6478",
-      amber: "#1d4ed8",
-      amberHot: "#3b82f6",
-    },
     dark: {
-      ink: "#12151c",
-      ink2: "#1a1f2a",
-      panel: "#222836",
-      line: "#343b4a",
-      chalk: "#eef1f5",
-      muted: "#8b93a5",
-      amber: "#3b82f6",
-      amberHot: "#60a5fa",
+      ink: "#070b14",
+      ink2: "#0e1524",
+      panel: "#141c2e",
+      line: "#2a3550",
+      chalk: "#f4f0e6",
+      muted: "#9aa6c1",
+      amber: "#f0a820",
+      amberHot: "#ffc14d",
+    },
+    light: {
+      ink: "#f4f0e6",
+      ink2: "#ebe6d8",
+      panel: "#ffffff",
+      line: "#d4cfc0",
+      chalk: "#141b2f",
+      muted: "#5c667a",
+      amber: "#c4840a",
+      amberHot: "#e8a317",
     },
   },
   ocean: {
@@ -259,115 +258,41 @@ export function tokensToCssVars(tokens: BrandTokens): Record<string, string> {
   };
 }
 
-export function resolveBrand(
-  site: SiteBrandFields,
-  game?: BrandOverrides | null
-): BrandConfig {
-  const preset = (game?.brandPreset ?? site.preset) as BrandPresetId;
-  const mode = (game?.brandMode ?? site.mode) as BrandModeId;
-  const accent = game?.brandAccent !== undefined && game?.brandAccent !== null
-    ? game.brandAccent
-    : site.accent;
-  const background =
-    game?.brandBackground !== undefined && game?.brandBackground !== null
-      ? game.brandBackground
-      : site.background;
-
-  // Empty string override means "clear custom color → inherit site/preset"
-  const resolvedAccent =
-    game && "brandAccent" in game && game.brandAccent === ""
-      ? site.accent
-      : accent === ""
-        ? null
-        : accent;
-  const resolvedBackground =
-    game && "brandBackground" in game && game.brandBackground === ""
-      ? site.background
-      : background === ""
-        ? null
-        : background;
-
-  const displayName =
-    (game?.brandDisplayName && game.brandDisplayName.trim()) || site.displayName;
-  const tagline =
-    game?.brandTagline !== undefined && game?.brandTagline !== null
-      ? game.brandTagline.trim() || null
-      : site.tagline;
-  const logoUrl =
-    game?.brandLogoUrl !== undefined && game?.brandLogoUrl !== null
-      ? game.brandLogoUrl.trim() || null
-      : site.logoUrl;
-
-  return {
-    displayName,
-    tagline,
-    logoUrl,
-    preset,
-    mode,
-    accent: resolvedAccent ?? null,
-    background: resolvedBackground ?? null,
-    tokens: buildTokens(preset, mode, resolvedAccent, resolvedBackground),
-  };
-}
-
-const DEFAULT_SITE: SiteBrandInput = {
+const DEFAULT_SITE: SiteBrandFields = {
   displayName: "Trivia Live",
   tagline: null,
   logoUrl: null,
   preset: "default",
-  mode: "light",
+  mode: "dark",
   accent: null,
   background: null,
 };
 
-export function siteToConfig(site: SiteBrandFields): BrandConfig {
-  return resolveBrand(site);
-}
+function configFromSite(site: SiteBrandFields): BrandConfig {
+  const preset = site.preset as BrandPresetId;
+  const mode = site.mode as BrandModeId;
+  const accent = site.accent === "" ? null : site.accent;
+  const background = site.background === "" ? null : site.background;
 
-export function brandOverridesFromInput(input: {
-  brandDisplayName?: string | null;
-  brandTagline?: string | null;
-  brandLogoUrl?: string | null;
-  brandPreset?: BrandPresetId | null;
-  brandMode?: BrandModeId | null;
-  brandAccent?: string | null;
-  brandBackground?: string | null;
-  customize?: boolean;
-}): BrandOverrides {
-  if (input.customize === false) {
-    return {
-      brandDisplayName: null,
-      brandTagline: null,
-      brandLogoUrl: null,
-      brandPreset: null,
-      brandMode: null,
-      brandAccent: null,
-      brandBackground: null,
-    };
-  }
-  const preset =
-    input.brandPreset && (BRAND_PRESETS as readonly string[]).includes(input.brandPreset)
-      ? input.brandPreset
-      : null;
-  const mode =
-    input.brandMode && (BRAND_MODES as readonly string[]).includes(input.brandMode)
-      ? input.brandMode
-      : null;
   return {
-    brandDisplayName: emptyToNull(input.brandDisplayName),
-    brandTagline: emptyToNull(input.brandTagline),
-    brandLogoUrl: emptyToNull(input.brandLogoUrl),
-    brandPreset: preset,
-    brandMode: mode,
-    brandAccent: emptyToNull(input.brandAccent),
-    brandBackground: emptyToNull(input.brandBackground),
+    displayName: site.displayName,
+    tagline: site.tagline,
+    logoUrl: site.logoUrl,
+    preset,
+    mode,
+    accent: accent ?? null,
+    background: background ?? null,
+    tokens: buildTokens(preset, mode, accent, background),
   };
 }
 
-function emptyToNull(v: string | null | undefined): string | null {
-  if (v == null) return null;
-  const t = v.trim();
-  return t.length ? t : null;
+/** Custom / per-game branding removed — fixed Trivia Live look. */
+export function resolveBrand(): BrandConfig {
+  return configFromSite(DEFAULT_SITE);
+}
+
+export function siteToConfig(): BrandConfig {
+  return resolveBrand();
 }
 
 export { DEFAULT_SITE };

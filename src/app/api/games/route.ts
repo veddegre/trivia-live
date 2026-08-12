@@ -1,19 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
-import { brandOverrideSchema, validateBrandColors } from "@/lib/brand-schema";
-import { brandOverridesFromInput } from "@/lib/branding";
 import { generateJoinCode } from "@/lib/codes";
 import { prisma } from "@/lib/db";
 import { assertCorrectIndexes, questionSchema } from "@/lib/question-schema";
 
-const createSchema = z
-  .object({
-    title: z.string().min(1).max(120),
-    allowLateJoin: z.boolean().optional().default(true),
-    questions: z.array(questionSchema).min(1).max(100),
-  })
-  .merge(brandOverrideSchema);
+const createSchema = z.object({
+  title: z.string().min(1).max(120),
+  allowLateJoin: z.boolean().optional().default(true),
+  questions: z.array(questionSchema).min(1).max(100),
+});
+
+/** Clear any leftover per-game brand columns (custom branding removed). */
+const CLEAR_GAME_BRAND = {
+  brandDisplayName: null,
+  brandTagline: null,
+  brandLogoUrl: null,
+  brandPreset: null,
+  brandMode: null,
+  brandAccent: null,
+  brandBackground: null,
+} as const;
 
 export async function GET() {
   if (!(await requireAdmin())) {
@@ -38,11 +45,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const colorErr = validateBrandColors(parsed.data);
-  if (colorErr) {
-    return NextResponse.json({ error: colorErr }, { status: 400 });
-  }
-
   const indexErr = assertCorrectIndexes(parsed.data.questions);
   if (indexErr) {
     return NextResponse.json({ error: indexErr }, { status: 400 });
@@ -55,24 +57,13 @@ export async function POST(req: NextRequest) {
     code = generateJoinCode();
   }
 
-  const branding = brandOverridesFromInput({
-    customize: parsed.data.customize,
-    brandDisplayName: parsed.data.brandDisplayName,
-    brandTagline: parsed.data.brandTagline,
-    brandLogoUrl: parsed.data.brandLogoUrl,
-    brandPreset: parsed.data.customize ? parsed.data.brandPreset ?? null : null,
-    brandMode: parsed.data.customize ? parsed.data.brandMode ?? null : null,
-    brandAccent: parsed.data.brandAccent,
-    brandBackground: parsed.data.brandBackground,
-  });
-
   const game = await prisma.game.create({
     data: {
       title: parsed.data.title,
       code,
       status: "DRAFT",
       allowLateJoin: parsed.data.allowLateJoin,
-      ...branding,
+      ...CLEAR_GAME_BRAND,
       questions: {
         create: parsed.data.questions.map((q, order) => ({
           order,
