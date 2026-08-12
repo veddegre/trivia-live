@@ -86,7 +86,7 @@ You can **Edit** a game in admin to fix questions or settings before answers exi
 
 ### Join codes
 
-Codes use an unambiguous alphabet (no `I`/`J`/`L`/`O`/`Q`/`0`/`1`) so they’re easy to read off a TV.
+Codes use an unambiguous alphabet (no `I`/`J`/`L`/`O`/`Q`/`0`/`1`) so they’re easy to read off a big screen.
 
 ### Late joins
 

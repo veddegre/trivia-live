@@ -1,5 +1,5 @@
 /**
- * Host TV headline while status is BETWEEN.
+ * Host big-screen headline while status is BETWEEN.
  * `nextIndex` is the 0-based index of the upcoming question
  * (already advanced when entering BETWEEN).
  */

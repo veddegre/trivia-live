@@ -296,7 +296,7 @@ function HostInner({ code }: { code: string }) {
     );
   }
 
-  // ── QUESTION (TV mock) ──
+  // ── QUESTION (big-screen layout) ──
   if (state.phase === "question" && state.question) {
     return (
       <BrandProvider brand={brand}>
@@ -368,7 +368,7 @@ function HostInner({ code }: { code: string }) {
     );
   }
 
-  // ── REVEAL (TV mock) ──
+  // ── REVEAL (big-screen layout) ──
   if (state.phase === "reveal" && state.question) {
     return (
       <BrandProvider brand={brand}>
@@ -458,7 +458,7 @@ function HostInner({ code }: { code: string }) {
     );
   }
 
-  // ── BETWEEN (TV mock, no host photo) ──
+  // ── BETWEEN (big-screen layout) ──
   if (state.phase === "between") {
     return (
       <BrandProvider brand={brand}>
@@ -599,7 +599,7 @@ function HostInner({ code }: { code: string }) {
     );
   }
 
-  // ── LOBBY / DRAFT (TV mock) ──
+  // ── LOBBY / DRAFT (big-screen layout) ──
   const amber = "var(--amber)";
   const line = "var(--line)";
   const nextQ = Math.max(1, (state.questionIndex ?? 0) + 1);

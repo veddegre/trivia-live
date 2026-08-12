@@ -1,7 +1,7 @@
 import { randomInt } from "crypto";
 
 /**
- * Unambiguous alphabet — no I/l/1, O/0, J, L, Q (easy to misread aloud or on a TV).
+ * Unambiguous alphabet — no I/l/1, O/0, J, L, Q (easy to misread aloud or on a big screen).
  */
 const ALPHABET = "ABCDEFGHKMNPRSTUVWXYZ23456789";
 

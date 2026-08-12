@@ -97,7 +97,7 @@ export default function HomePage() {
         <ol className="mt-10 space-y-8">
           {[
             ["Create a game", "Build questions in Admin — timers, scoring, True/False or multiple choice."],
-            ["Open the lobby", "Put the host screen on the TV. Players scan the QR or type the join code."],
+            ["Open the lobby", "Put the host screen on a big display. Players scan the QR or type the join code."],
             ["Play live", "Everyone answers on their phones. Fastest correct answers earn more points."],
             ["Crown a winner", "Reveal, standings between rounds, then the podium finish."],
           ].map(([title, body], i) => (
@@ -120,7 +120,7 @@ export default function HomePage() {
         <h2 className="text-center text-2xl font-bold md:text-3xl">Built for game night</h2>
         <div className="mt-10 grid gap-6 sm:grid-cols-3">
           {[
-            ["Host on any screen", "Lobby QR, live roster, and TV-ready question boards."],
+            ["Host on any screen", "Lobby QR, live roster, and big-screen question boards."],
             ["Phones as buzzers", "Players join in seconds — no app install."],
             ["Pace the room", "Reveal, between-round standings pause, then the next question."],
           ].map(([title, body]) => (
