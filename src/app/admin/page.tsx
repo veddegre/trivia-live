@@ -185,7 +185,13 @@ function AdminInner() {
       ) {
         return;
       }
-      setTab(next);
+      setTab((prev) => {
+        if (prev !== next) {
+          setMessage("");
+          setMessageTone("good");
+        }
+        return next;
+      });
       const params = new URLSearchParams(search.toString());
       if (next === "create") params.delete("tab");
       else params.set("tab", next);
@@ -309,6 +315,14 @@ function AdminInner() {
     setMessageTone(tone);
     setMessage(text);
   }
+
+  // Auto-clear flash messages so they don’t linger across the admin UI
+  useEffect(() => {
+    if (!message) return;
+    const ms = messageTone === "bad" ? 8000 : 4000;
+    const t = window.setTimeout(() => setMessage(""), ms);
+    return () => window.clearTimeout(t);
+  }, [message, messageTone]);
 
   async function completeSetup(e: FormEvent) {
     e.preventDefault();
@@ -481,14 +495,15 @@ function AdminInner() {
       }
       const savedTitle = data.game?.title || title;
       const code = data.game?.code as string | undefined;
-      showMessage(
-        editingId
-          ? `Updated “${savedTitle}”`
-          : `Created “${savedTitle}” — code ${code}`
-      );
+      const wasEdit = !!editingId;
       resetForm();
       await Promise.all([loadGames(), loadResults()]);
       goTab("games");
+      showMessage(
+        wasEdit
+          ? `Updated “${savedTitle}”`
+          : `Created “${savedTitle}” — code ${code}`
+      );
     } finally {
       setBusy(false);
     }
