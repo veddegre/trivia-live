@@ -11,7 +11,18 @@ import { prisma } from "@/lib/db";
 import { ensureSuperAdmin } from "@/lib/seed-admin";
 
 export async function POST(req: NextRequest) {
-  await ensureSuperAdmin();
+  try {
+    await ensureSuperAdmin();
+  } catch (e) {
+    console.error("ensureSuperAdmin failed", e);
+    return NextResponse.json(
+      {
+        error:
+          "Database not ready for accounts. Run migrations / db push, then restart the app.",
+      },
+      { status: 503 }
+    );
+  }
 
   const body = (await req.json().catch(() => ({}))) as {
     email?: string;
@@ -26,7 +37,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  let user;
+  try {
+    user = await prisma.user.findUnique({ where: { email } });
+  } catch (e) {
+    console.error("user lookup failed", e);
+    return NextResponse.json(
+      {
+        error:
+          "Database not ready for accounts. Run migrations / db push, then restart the app.",
+      },
+      { status: 503 }
+    );
+  }
+
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
@@ -53,17 +77,24 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  await ensureSuperAdmin();
-  const user = await getSessionUser();
-  if (user) {
-    return NextResponse.json({ authenticated: true, user });
-  }
-  // Also accept a raw cookie parse if getSessionUser missed (edge case)
-  const token = req.cookies.get(SESSION_COOKIE)?.value;
-  if (parseSessionToken(token)) {
+  try {
+    // Don't block the login screen on seeding — seed happens on POST / startup.
+    const user = await getSessionUser();
+    if (user) {
+      return NextResponse.json({ authenticated: true, user });
+    }
+    const token = req.cookies.get(SESSION_COOKIE)?.value;
+    if (parseSessionToken(token)) {
+      return NextResponse.json({ authenticated: false });
+    }
     return NextResponse.json({ authenticated: false });
+  } catch (e) {
+    console.error("admin session check failed", e);
+    return NextResponse.json(
+      { authenticated: false, error: "Session check failed" },
+      { status: 200 }
+    );
   }
-  return NextResponse.json({ authenticated: false });
 }
 
 export async function DELETE() {

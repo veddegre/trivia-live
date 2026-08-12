@@ -20,51 +20,57 @@ export async function ensureSuperAdmin() {
     "trivia-admin";
   const name = process.env.SUPERADMIN_NAME || "Super Admin";
 
-  const existing = await prisma.user.findFirst({
-    where: { role: "SUPERADMIN" },
-  });
-  if (existing) {
-    ensured = true;
-    // Claim orphan games / results for the first super-admin
+  try {
+    const existing = await prisma.user.findFirst({
+      where: { role: "SUPERADMIN" },
+    });
+    if (existing) {
+      ensured = true;
+      // Claim orphan games / results for the first super-admin
+      await prisma.game.updateMany({
+        where: { ownerId: null },
+        data: { ownerId: existing.id },
+      });
+      await prisma.gameResult.updateMany({
+        where: { ownerId: null },
+        data: { ownerId: existing.id },
+      });
+      return;
+    }
+
+    const byEmail = await prisma.user.findUnique({ where: { email } });
+    if (byEmail) {
+      await prisma.user.update({
+        where: { id: byEmail.id },
+        data: { role: "SUPERADMIN" },
+      });
+      ensured = true;
+      return;
+    }
+
+    const passwordHash = await hashPassword(password);
+    const user = await prisma.user.create({
+      data: {
+        email,
+        name,
+        passwordHash,
+        role: "SUPERADMIN",
+      },
+    });
+
     await prisma.game.updateMany({
       where: { ownerId: null },
-      data: { ownerId: existing.id },
+      data: { ownerId: user.id },
     });
     await prisma.gameResult.updateMany({
       where: { ownerId: null },
-      data: { ownerId: existing.id },
+      data: { ownerId: user.id },
     });
-    return;
-  }
 
-  const byEmail = await prisma.user.findUnique({ where: { email } });
-  if (byEmail) {
-    await prisma.user.update({
-      where: { id: byEmail.id },
-      data: { role: "SUPERADMIN" },
-    });
     ensured = true;
-    return;
+  } catch (e) {
+    // Reset so the next request can retry after migrations land
+    ensured = false;
+    throw e;
   }
-
-  const passwordHash = await hashPassword(password);
-  const user = await prisma.user.create({
-    data: {
-      email,
-      name,
-      passwordHash,
-      role: "SUPERADMIN",
-    },
-  });
-
-  await prisma.game.updateMany({
-    where: { ownerId: null },
-    data: { ownerId: user.id },
-  });
-  await prisma.gameResult.updateMany({
-    where: { ownerId: null },
-    data: { ownerId: user.id },
-  });
-
-  ensured = true;
 }

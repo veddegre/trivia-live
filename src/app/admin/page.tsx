@@ -194,16 +194,28 @@ function AdminInner() {
 
   useEffect(() => {
     void (async () => {
-      const res = await fetch("/api/admin/login");
-      const data = await res.json();
-      if (data.authenticated && data.user) {
-        setUser(data.user);
-        setAuthed(true);
-        await Promise.all([loadGames(), loadResults()]);
-        if (data.user.role === "SUPERADMIN") await loadHosts();
-      } else {
+      try {
+        const res = await fetch("/api/admin/login", { cache: "no-store" });
+        if (!res.ok) {
+          setAuthed(false);
+          setUser(null);
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (data.authenticated && data.user) {
+          setUser(data.user);
+          setAuthed(true);
+          await Promise.all([loadGames(), loadResults()]);
+          if (data.user.role === "SUPERADMIN") await loadHosts();
+        } else {
+          setAuthed(false);
+          setUser(null);
+        }
+      } catch (err) {
+        console.error("session check failed", err);
         setAuthed(false);
         setUser(null);
+        setLoginError("Could not reach the server. Try refreshing.");
       }
     })();
   }, [loadGames, loadResults, loadHosts]);

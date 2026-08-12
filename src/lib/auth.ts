@@ -65,12 +65,17 @@ function toSessionUser(user: User): SessionUser {
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
-  const jar = await cookies();
-  const userId = parseSessionToken(jar.get(SESSION_COOKIE)?.value);
-  if (!userId) return null;
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) return null;
-  return toSessionUser(user);
+  try {
+    const jar = await cookies();
+    const userId = parseSessionToken(jar.get(SESSION_COOKIE)?.value);
+    if (!userId) return null;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return null;
+    return toSessionUser(user);
+  } catch (e) {
+    console.error("getSessionUser failed", e);
+    return null;
+  }
 }
 
 /** Any signed-in host or super-admin. */
