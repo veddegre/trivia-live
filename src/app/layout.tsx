@@ -25,8 +25,11 @@ export const metadata: Metadata = {
   title: "Trivia Live",
   description: "Live trivia for up to 200 players",
   icons: {
-    icon: "/brand/trivia-live-logo.png",
-    apple: "/brand/trivia-live-logo.png",
+    icon: [
+      { url: "/brand/favicon.svg", type: "image/svg+xml" },
+      { url: "/brand/favicon-32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: "/brand/apple-touch-icon.png",
   },
 };
 

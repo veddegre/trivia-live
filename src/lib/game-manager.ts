@@ -395,6 +395,7 @@ export async function recordGameResult(code: string) {
       },
       create: {
         gameId: game.id,
+        ownerId: game.ownerId,
         gameTitle: game.title,
         joinCode: game.code,
         winnerName: winner.name,
@@ -403,6 +404,7 @@ export async function recordGameResult(code: string) {
         podium,
       },
       update: {
+        ownerId: game.ownerId,
         gameTitle: game.title,
         winnerName: winner.name,
         winnerScore: winner.totalScore,

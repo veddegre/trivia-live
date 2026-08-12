@@ -7,7 +7,11 @@ import { io, Socket } from "socket.io-client";
 
 const BASE = process.env.SMOKE_BASE_URL || "http://127.0.0.1:3000";
 const PLAYERS = Number(process.env.SMOKE_PLAYERS || 200);
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "trivia-admin";
+const ADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || "admin@localhost";
+const ADMIN_PASSWORD =
+  process.env.SUPERADMIN_PASSWORD ||
+  process.env.ADMIN_PASSWORD ||
+  "trivia-admin";
 
 async function json(path: string, init?: RequestInit) {
   const res = await fetch(`${BASE}${path}`, {
@@ -57,7 +61,7 @@ async function main() {
   const loginRes = await fetch(`${BASE}/api/admin/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password: ADMIN_PASSWORD }),
+    body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
   });
   if (!loginRes.ok) throw new Error("Admin login failed");
   const cookie = loginRes.headers.getSetCookie?.()?.[0]?.split(";")[0] || "";

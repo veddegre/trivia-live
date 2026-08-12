@@ -18,9 +18,16 @@ import {
   type DraftQuestion,
 } from "@/components/QuestionEditor";
 
-type AdminTab = "create" | "games" | "winners";
+type AdminTab = "create" | "games" | "winners" | "hosts";
 
 const LIVE_STATUSES = new Set(["QUESTION", "REVEAL", "BETWEEN"]);
+
+type SessionUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: "HOST" | "SUPERADMIN";
+};
 
 type GameListItem = {
   id: string;
@@ -29,7 +36,17 @@ type GameListItem = {
   status: string;
   hostToken: string;
   allowLateJoin: boolean;
+  owner?: { id: string; name: string; email: string } | null;
   _count: { questions: number; players: number };
+};
+
+type HostListItem = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  createdAt: string;
+  _count: { games: number };
 };
 
 type GameResultItem = {
@@ -41,6 +58,7 @@ type GameResultItem = {
   playerCount: number;
   podium: { name: string; totalScore: number }[] | null;
   finishedAt: string;
+  owner?: { id: string; name: string; email: string } | null;
 };
 
 function formatFinishedAt(iso: string) {
@@ -91,7 +109,7 @@ function NavButton({
   );
 }
 
-const ADMIN_TABS: AdminTab[] = ["create", "games", "winners"];
+const ADMIN_TABS: AdminTab[] = ["create", "games", "winners", "hosts"];
 
 function AdminInner() {
   const router = useRouter();
@@ -103,11 +121,20 @@ function AdminInner() {
       : "create";
 
   const [authed, setAuthed] = useState<boolean | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [tab, setTab] = useState<AdminTab>(initialTab);
   const [games, setGames] = useState<GameListItem[]>([]);
   const [results, setResults] = useState<GameResultItem[]>([]);
+  const [hosts, setHosts] = useState<HostListItem[]>([]);
+  const [hostForm, setHostForm] = useState({
+    id: null as string | null,
+    name: "",
+    email: "",
+    password: "",
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [questions, setQuestions] = useState<DraftQuestion[]>([emptyQuestion()]);
@@ -116,8 +143,11 @@ function AdminInner() {
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"good" | "bad">("good");
 
+  const isSuper = user?.role === "SUPERADMIN";
+
   const goTab = useCallback(
     (next: AdminTab) => {
+      if (next === "hosts" && user?.role !== "SUPERADMIN") return;
       setTab(next);
       const params = new URLSearchParams(search.toString());
       if (next === "create") params.delete("tab");
@@ -125,13 +155,14 @@ function AdminInner() {
       const qs = params.toString();
       router.replace(qs ? `/admin?${qs}` : "/admin", { scroll: false });
     },
-    [router, search]
+    [router, search, user?.role]
   );
 
   const loadGames = useCallback(async () => {
     const res = await fetch("/api/games");
     if (res.status === 401) {
       setAuthed(false);
+      setUser(null);
       return;
     }
     const data = await res.json();
@@ -146,6 +177,13 @@ function AdminInner() {
     setResults(data.results || []);
   }, []);
 
+  const loadHosts = useCallback(async () => {
+    const res = await fetch("/api/admin/hosts");
+    if (res.status === 401 || res.status === 403) return;
+    const data = await res.json();
+    setHosts(data.hosts || []);
+  }, []);
+
   useEffect(() => {
     if (tabParam && ADMIN_TABS.includes(tabParam as AdminTab)) {
       setTab(tabParam as AdminTab);
@@ -158,20 +196,27 @@ function AdminInner() {
     void (async () => {
       const res = await fetch("/api/admin/login");
       const data = await res.json();
-      if (data.authenticated) {
+      if (data.authenticated && data.user) {
+        setUser(data.user);
         setAuthed(true);
         await Promise.all([loadGames(), loadResults()]);
+        if (data.user.role === "SUPERADMIN") await loadHosts();
       } else {
         setAuthed(false);
+        setUser(null);
       }
     })();
-  }, [loadGames, loadResults]);
+  }, [loadGames, loadResults, loadHosts]);
 
   function resetForm() {
     setEditingId(null);
     setTitle("");
     setQuestions([emptyQuestion()]);
     setAllowLateJoin(true);
+  }
+
+  function resetHostForm() {
+    setHostForm({ id: null, name: "", email: "", password: "" });
   }
 
   function showMessage(text: string, tone: "good" | "bad" = "good") {
@@ -185,21 +230,30 @@ function AdminInner() {
     const res = await fetch("/api/admin/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ email, password }),
     });
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setLoginError("Wrong password");
+      setLoginError(
+        typeof data.error === "string" ? data.error : "Wrong email or password"
+      );
       return;
     }
+    setUser(data.user);
     setAuthed(true);
+    setPassword("");
     await Promise.all([loadGames(), loadResults()]);
+    if (data.user?.role === "SUPERADMIN") await loadHosts();
   }
 
   async function logout() {
     await fetch("/api/admin/login", { method: "DELETE" });
     setAuthed(false);
+    setUser(null);
     setGames([]);
     setResults([]);
+    setHosts([]);
+    resetHostForm();
   }
 
 
@@ -343,6 +397,68 @@ function AdminInner() {
     await loadGames();
   }
 
+  async function saveHost(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMessage("");
+    try {
+      const editing = !!hostForm.id;
+      const payload: { name: string; email: string; password?: string } = {
+        name: hostForm.name.trim(),
+        email: hostForm.email.trim(),
+      };
+      if (hostForm.password.trim()) payload.password = hostForm.password;
+      if (!editing && !payload.password) {
+        showMessage("Password is required for new hosts", "bad");
+        return;
+      }
+
+      const res = await fetch(
+        editing ? `/api/admin/hosts/${hostForm.id}` : "/api/admin/hosts",
+        {
+          method: editing ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showMessage(
+          typeof data.error === "string" ? data.error : "Could not save host",
+          "bad"
+        );
+        return;
+      }
+      showMessage(editing ? `Updated ${payload.name}` : `Created host ${payload.name}`);
+      resetHostForm();
+      await loadHosts();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeHost(id: string, name: string) {
+    if (
+      !confirm(
+        `Delete host “${name}”?\n\nTheir games will be reassigned to you.`
+      )
+    ) {
+      return;
+    }
+    const res = await fetch(`/api/admin/hosts/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      showMessage(
+        typeof data.error === "string" ? data.error : "Could not delete host",
+        "bad"
+      );
+      return;
+    }
+    if (hostForm.id === id) resetHostForm();
+    showMessage(`Deleted host ${name}`);
+    await Promise.all([loadHosts(), loadGames(), loadResults()]);
+  }
+
   const canSubmit = useMemo(() => {
     if (!title.trim()) return false;
     return questions.every((q) => {
@@ -370,6 +486,20 @@ function AdminInner() {
         >
           <label className="block space-y-2">
             <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+              Email
+            </span>
+            <input
+              type="email"
+              className="field"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              autoFocus
+              required
+            />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
               Password
             </span>
             <input
@@ -377,7 +507,8 @@ function AdminInner() {
               className="field"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoFocus
+              autoComplete="current-password"
+              required
             />
           </label>
           {loginError && <p className="text-sm text-bad">{loginError}</p>}
@@ -405,7 +536,7 @@ function AdminInner() {
             Create game
           </NavButton>
           <NavButton active={tab === "games"} onClick={() => goTab("games")}>
-            All games
+            {isSuper ? "All games" : "My games"}
           </NavButton>
 
           <div className="mt-5 px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
@@ -415,6 +546,16 @@ function AdminInner() {
             Past winners
           </NavButton>
 
+          {isSuper && (
+            <>
+              <div className="mt-5 px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
+                Access
+              </div>
+              <NavButton active={tab === "hosts"} onClick={() => goTab("hosts")}>
+                Hosts
+              </NavButton>
+            </>
+          )}
         </nav>
 
         <button
@@ -434,9 +575,14 @@ function AdminInner() {
               className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
               style={{ background: "var(--amber)", color: "#1a1200" }}
             >
-              A
+              {(user?.name || "A").slice(0, 1).toUpperCase()}
             </span>
-            Admin
+            <span className="max-w-[10rem] truncate">{user?.name || "Admin"}</span>
+            {isSuper && (
+              <span className="rounded bg-ink-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber">
+                Super
+              </span>
+            )}
           </div>
         </header>
 
@@ -527,7 +673,9 @@ function AdminInner() {
             <section className="mx-auto max-w-4xl">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <h1 className="text-3xl font-bold md:text-4xl">All games</h1>
+                  <h1 className="text-3xl font-bold md:text-4xl">
+                    {isSuper ? "All games" : "My games"}
+                  </h1>
                   <p className="mt-1 text-sm text-muted">
                     Open a lobby, host a night, or edit questions
                   </p>
@@ -566,6 +714,9 @@ function AdminInner() {
                         {g._count.questions} questions · {g._count.players} players ·{" "}
                         {g.status}
                         {g.allowLateJoin === false ? " · no late joins" : ""}
+                        {isSuper && g.owner
+                          ? ` · ${g.owner.name}`
+                          : ""}
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -638,6 +789,7 @@ function AdminInner() {
                       <div className="mt-1 text-sm text-muted">
                         {r.gameTitle} · {r.winnerScore} pts · {r.playerCount} players · code{" "}
                         {r.joinCode}
+                        {isSuper && r.owner ? ` · ${r.owner.name}` : ""}
                       </div>
                       {Array.isArray(r.podium) && r.podium.length > 1 && (
                         <div className="mt-1 text-xs text-muted">
@@ -650,6 +802,127 @@ function AdminInner() {
                     </div>
                     <div className="shrink-0 text-sm tabular-nums text-muted">
                       {formatFinishedAt(r.finishedAt)}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {tab === "hosts" && isSuper && (
+            <section className="mx-auto max-w-4xl">
+              <h1 className="text-3xl font-bold md:text-4xl">Hosts</h1>
+              <p className="mt-1 text-sm text-muted">
+                Create accounts for people who run their own games.
+              </p>
+
+              <form
+                onSubmit={saveHost}
+                className="mt-8 space-y-4 rounded-2xl border border-line bg-panel p-5"
+              >
+                <div className="text-sm font-bold text-chalk">
+                  {hostForm.id ? "Edit host" : "Add host"}
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block space-y-2">
+                    <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                      Name
+                    </span>
+                    <input
+                      className="field"
+                      value={hostForm.name}
+                      onChange={(e) =>
+                        setHostForm((h) => ({ ...h, name: e.target.value }))
+                      }
+                      required
+                    />
+                  </label>
+                  <label className="block space-y-2">
+                    <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                      Email
+                    </span>
+                    <input
+                      type="email"
+                      className="field"
+                      value={hostForm.email}
+                      onChange={(e) =>
+                        setHostForm((h) => ({ ...h, email: e.target.value }))
+                      }
+                      required
+                    />
+                  </label>
+                </div>
+                <label className="block space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                    {hostForm.id ? "New password (optional)" : "Password"}
+                  </span>
+                  <input
+                    type="password"
+                    className="field"
+                    value={hostForm.password}
+                    onChange={(e) =>
+                      setHostForm((h) => ({ ...h, password: e.target.value }))
+                    }
+                    minLength={hostForm.id ? undefined : 6}
+                    required={!hostForm.id}
+                  />
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  {hostForm.id && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={resetHostForm}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button type="submit" className="btn btn-primary" disabled={busy}>
+                    {busy ? "Saving…" : hostForm.id ? "Update host" : "Add host"}
+                  </button>
+                </div>
+                {message && tab === "hosts" && (
+                  <p className={`text-sm ${messageTone === "bad" ? "text-bad" : "text-good"}`}>
+                    {message}
+                  </p>
+                )}
+              </form>
+
+              <div className="mt-8 space-y-3">
+                {hosts.length === 0 && (
+                  <p className="text-muted">No hosts yet — add one above.</p>
+                )}
+                {hosts.map((h) => (
+                  <article
+                    key={h.id}
+                    className="flex flex-col gap-3 rounded-2xl border border-line bg-panel p-4 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div>
+                      <div className="text-xl font-bold">{h.name}</div>
+                      <div className="mt-1 text-sm text-muted">
+                        {h.email} · {h._count.games} games
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="btn btn-ghost"
+                        onClick={() =>
+                          setHostForm({
+                            id: h.id,
+                            name: h.name,
+                            email: h.email,
+                            password: "",
+                          })
+                        }
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        onClick={() => void removeHost(h.id, h.name)}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </article>
                 ))}

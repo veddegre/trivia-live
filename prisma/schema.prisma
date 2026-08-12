@@ -29,6 +29,23 @@ enum BrandMode {
   light
 }
 
+enum UserRole {
+  HOST
+  SUPERADMIN
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String
+  passwordHash String
+  role         UserRole     @default(HOST)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  games        Game[]
+  results      GameResult[]
+}
+
 model SiteBrand {
   id          String      @id @default("default")
   displayName String      @default("Trivia Live")
@@ -51,6 +68,8 @@ model Game {
   hostToken            String       @unique @default(cuid())
   /** When false, players can only join while status is LOBBY */
   allowLateJoin        Boolean      @default(true)
+  ownerId              String?
+  owner                User?        @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   brandDisplayName     String?
   brandTagline         String?
   brandLogoUrl         String?
@@ -63,6 +82,8 @@ model Game {
   questions            Question[]
   players              Player[]
   results              GameResult[]
+
+  @@index([ownerId])
 }
 
 /** Survives Play again / player wipe — hall of fame for past nights. */
@@ -70,6 +91,8 @@ model GameResult {
   id          String   @id @default(cuid())
   gameId      String?
   game        Game?    @relation(fields: [gameId], references: [id], onDelete: SetNull)
+  ownerId     String?
+  owner       User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   gameTitle   String
   joinCode    String
   winnerName  String
@@ -81,6 +104,7 @@ model GameResult {
 
   @@unique([gameId, joinCode])
   @@index([finishedAt])
+  @@index([ownerId])
 }
 
 model Question {

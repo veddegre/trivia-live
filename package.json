@@ -10,6 +10,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
+    "db:seed": "tsx scripts/seed-superadmin.ts",
     "smoke": "tsx scripts/smoke-test.ts",
     "test:scoring": "tsx scripts/test-scoring.ts"
   },

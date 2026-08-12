@@ -29,8 +29,8 @@ docker compose up --build
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Default admin password: `trivia-admin`  
-Override with `ADMIN_PASSWORD=your-secret docker compose up --build`.
+Default super-admin: `admin@localhost` / `trivia-admin`  
+Override with `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` (see `.env.example`).
 
 ## Local development
 
@@ -40,7 +40,7 @@ docker compose up -d db
 
 # 2. Env
 cp .env.example .env
-# edit DATABASE_URL / ADMIN_PASSWORD if needed
+# edit DATABASE_URL / SUPERADMIN_* if needed
 
 # 3. Install + schema
 npm install
@@ -53,9 +53,16 @@ npm run dev
 
 App: [http://localhost:3000](http://localhost:3000)
 
+## Accounts
+
+- **Super-admin** — sees all games, manages host accounts (`/admin` → Hosts)
+- **Host** — sees only their own games and winners
+
+Bootstrap super-admin comes from `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` (defaults: `admin@localhost` / `trivia-admin`).
+
 ## How a game works
 
-1. Sign in at **`/admin`** and create a game (title + questions). Mark the correct option with the radio next to each choice. Optionally set base points, speed bonus, timer, and **Allow late joins**.
+1. Sign in at **`/admin`** with a host or super-admin account and create a game (title + questions). Mark the correct option with the radio next to each choice. Optionally set base points, speed bonus, timer, and **Allow late joins**.
 2. Click **Open lobby**, then **Host screen** (opens on a big display).
 3. Players scan the **QR** (opens `/join` with the code filled in) or open the join URL shown on the host and enter the code, then pick a name.
 4. Host presses **Start question 1** → players answer against the countdown → auto-lock at 0 (or **Lock now**) → reveal correct answer + standings.
@@ -79,7 +86,7 @@ By default players can join during the lobby **or** mid-game. Uncheck **Allow la
 | Path | Who | Purpose |
 |------|-----|---------|
 | `/` | Anyone | Landing |
-| `/admin` | Host / organizer | Build/edit games, past winners |
+| `/admin` | Host / super-admin | Build/edit games, past winners; super-admin also manages hosts |
 | `/host/[code]?token=…` | Host display | Control game + live board |
 | `/join` | Players | Enter code + name (`?code=` prefill from QR) |
 | `/play/[code]` | Players | Answer questions |
@@ -105,7 +112,11 @@ Copy from `.env.example`:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATABASE_URL` | Postgres connection string | `postgresql://trivia:trivia@localhost:5432/trivia_live` |
-| `ADMIN_PASSWORD` | Password for `/admin` | `trivia-admin` / `change-me` in example |
+| `SUPERADMIN_EMAIL` | Bootstrap super-admin email | `admin@localhost` |
+| `SUPERADMIN_PASSWORD` | Bootstrap super-admin password | `trivia-admin` / `change-me` |
+| `SUPERADMIN_NAME` | Display name for bootstrap admin | `Super Admin` |
+| `SESSION_SECRET` | Signs login cookies | falls back to `SUPERADMIN_PASSWORD` |
+| `ADMIN_PASSWORD` | Legacy fallback for super-admin password | `change-me` |
 | `PORT` | HTTP + WebSocket port | `3000` |
 | `HOST` | Bind address | `0.0.0.0` |
 | `NEXT_PUBLIC_SOCKET_URL` | Leave empty when UI and sockets share the same origin | _(empty)_ |
@@ -150,11 +161,11 @@ A **1–2 vCPU / 1–2 GB RAM** box is enough for ~200 concurrent phones.
 # on the VPS
 git clone <this-repo>
 cd trivia-live
-export ADMIN_PASSWORD='a-strong-password'
+export SUPERADMIN_PASSWORD='a-strong-password'
 docker compose up --build -d
 ```
 
-Put **HTTPS** in front (Caddy, nginx, or a reverse proxy). Enable WebSockets on the proxy. For production, change `ADMIN_PASSWORD` and keep `.env` out of git.
+Put **HTTPS** in front (Caddy, nginx, or a reverse proxy). Enable WebSockets on the proxy. For production, change `SUPERADMIN_PASSWORD` / `SESSION_SECRET` and keep `.env` out of git.
 
 Set `NEXT_PUBLIC_PUBLIC_URL` to your public origin (e.g. `https://trivia.example.com`) so host QR codes and join URLs point at the right place for phones.
 

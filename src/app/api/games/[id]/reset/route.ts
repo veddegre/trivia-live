@@ -1,16 +1,23 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { canManageGame, requireUser } from "@/lib/auth";
 import { buildPublicState, resetGame } from "@/lib/game-manager";
 import { getSocketServer } from "@/lib/realtime";
+import { prisma } from "@/lib/db";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(_req: Request, ctx: Ctx) {
-  if (!(await requireAdmin())) {
+  const user = await requireUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id } = await ctx.params;
+  const existing = await prisma.game.findUnique({ where: { id } });
+  if (!existing || !canManageGame(user, existing)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   try {
     const { game, previousCode } = await resetGame(id);
     if (!game) {

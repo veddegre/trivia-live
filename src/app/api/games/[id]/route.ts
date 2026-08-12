@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/auth";
+import { canManageGame, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { assertCorrectIndexes, questionSchema } from "@/lib/question-schema";
 
@@ -18,7 +18,8 @@ const CLEAR_GAME_BRAND = {
 } as const;
 
 export async function GET(_req: NextRequest, ctx: Ctx) {
-  if (!(await requireAdmin())) {
+  const user = await requireUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = await ctx.params;
@@ -27,9 +28,12 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     include: {
       questions: { orderBy: { order: "asc" } },
       players: { orderBy: { totalScore: "desc" } },
+      owner: { select: { id: true, name: true, email: true } },
     },
   });
-  if (!game) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!game || !canManageGame(user, game)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   return NextResponse.json({ game });
 }
 
@@ -41,7 +45,8 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  if (!(await requireAdmin())) {
+  const user = await requireUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = await ctx.params;
@@ -51,7 +56,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   }
 
   const existing = await prisma.game.findUnique({ where: { id } });
-  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!existing || !canManageGame(user, existing)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const { title, status, allowLateJoin, questions } = parsed.data;
 
@@ -114,10 +121,15 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
-  if (!(await requireAdmin())) {
+  const user = await requireUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = await ctx.params;
+  const existing = await prisma.game.findUnique({ where: { id } });
+  if (!existing || !canManageGame(user, existing)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   await prisma.game.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

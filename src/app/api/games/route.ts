@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/auth";
+import { gamesOwnedBy, requireUser } from "@/lib/auth";
 import { generateJoinCode } from "@/lib/codes";
 import { prisma } from "@/lib/db";
 import { assertCorrectIndexes, questionSchema } from "@/lib/question-schema";
@@ -23,12 +23,15 @@ const CLEAR_GAME_BRAND = {
 } as const;
 
 export async function GET() {
-  if (!(await requireAdmin())) {
+  const user = await requireUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const games = await prisma.game.findMany({
+    where: gamesOwnedBy(user),
     orderBy: { createdAt: "desc" },
     include: {
+      owner: { select: { id: true, name: true, email: true } },
       _count: { select: { questions: true, players: true } },
     },
   });
@@ -36,7 +39,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await requireAdmin())) {
+  const user = await requireUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -63,6 +67,7 @@ export async function POST(req: NextRequest) {
       code,
       status: "DRAFT",
       allowLateJoin: parsed.data.allowLateJoin,
+      ownerId: user.id,
       ...CLEAR_GAME_BRAND,
       questions: {
         create: parsed.data.questions.map((q, order) => ({
@@ -76,7 +81,10 @@ export async function POST(req: NextRequest) {
         })),
       },
     },
-    include: { questions: { orderBy: { order: "asc" } } },
+    include: {
+      questions: { orderBy: { order: "asc" } },
+      owner: { select: { id: true, name: true, email: true } },
+    },
   });
 
   return NextResponse.json({ game }, { status: 201 });
