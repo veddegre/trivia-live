@@ -22,10 +22,9 @@ assert.equal(
 );
 
 const mid = zoomScale({ startZoom: 10, elapsedMs: 15000, timeLimitSec: 30 });
-// Ease-in t² at halfway: 10 + (1-10)*0.25 = 7.75
-assert.equal(mid, 7.75);
+assert.ok(Math.abs(mid - Math.sqrt(10)) < 1e-9, `expected ~3.16 at halfway, got ${mid}`);
 
 const late = zoomScale({ startZoom: 10, elapsedMs: 29000, timeLimitSec: 30 });
-assert.ok(late > 1 && late < 2, `expected near-full at the end, got ${late}`);
+assert.ok(late > 1 && late < 1.2, `expected a gentle finish, got ${late}`);
 
 console.log("zoom tests passed");

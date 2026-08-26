@@ -321,8 +321,8 @@ export function QuestionEditor({
                 Starting zoom
               </div>
               <p className="mt-1 text-xs text-muted">
-                How tight the crop is when the timer starts. It eases out to the
-                full image.
+                How tight the crop is when the timer starts. It zooms out
+                steadily as time runs down.
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {[
