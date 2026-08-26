@@ -363,7 +363,7 @@ function HostInner({ code }: { code: string }) {
               startZoom={state.question.startZoom}
               openedAt={state.questionOpenedAt}
               timeLimitSec={state.timeLimitSec}
-              className="mx-auto mt-4 h-[min(56vh,38rem)] w-full max-w-4xl shrink-0 rounded-2xl border border-line md:h-[min(60vh,40rem)]"
+              className="mx-auto mt-4 h-[min(36vh,22rem)] w-full max-w-3xl shrink-0 rounded-2xl border border-line md:h-[min(40vh,26rem)]"
               alt=""
             />
           )}
@@ -438,7 +438,7 @@ function HostInner({ code }: { code: string }) {
                   src={state.question.imageUrl!}
                   startZoom={state.question.startZoom}
                   revealed
-                  className="mt-3 aspect-video max-h-[min(42vh,28rem)] w-full shrink-0 rounded-xl border border-line"
+                  className="mt-3 aspect-video max-h-56 w-full shrink-0 rounded-xl border border-line lg:max-h-64"
                   alt=""
                 />
               )}
