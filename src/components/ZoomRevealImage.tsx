@@ -61,7 +61,7 @@ export function ZoomRevealImage({
         ref={imgRef}
         src={src}
         alt={alt}
-        className="h-full w-full object-cover"
+        className={`h-full w-full ${revealed ? "object-contain" : "object-cover"}`}
         style={{
           transformOrigin: "center center",
           transform: `scale(${revealed ? 1 : startZoom})`,
