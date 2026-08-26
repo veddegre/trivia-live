@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { hashPassword, requireSuperAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@/lib/password";
 import { countSuperAdmins } from "@/lib/seed-admin";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -9,7 +10,7 @@ type Ctx = { params: Promise<{ id: string }> };
 const patchSchema = z.object({
   email: z.string().email().max(200).optional(),
   name: z.string().min(1).max(80).optional(),
-  password: z.string().min(6).max(200).optional(),
+  password: z.string().min(MIN_PASSWORD_LENGTH).max(MAX_PASSWORD_LENGTH).optional(),
 });
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {

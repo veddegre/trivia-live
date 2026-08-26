@@ -1,5 +1,6 @@
 import type { Server as HttpServer } from "http";
 import { Server, Socket } from "socket.io";
+import { safeEqualString } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
   buildPlayerView,
@@ -33,6 +34,45 @@ type SocketData = {
 
 function room(code: string) {
   return `game:${code.toUpperCase()}`;
+}
+
+/** Origins allowed for browser Socket.io (Cloudflare hostname + local dev). */
+function socketCorsOrigin():
+  | boolean
+  | ((
+      origin: string | undefined,
+      cb: (err: Error | null, allow?: boolean) => void
+    ) => void) {
+  const allowed = new Set<string>();
+  const pub = process.env.NEXT_PUBLIC_PUBLIC_URL?.trim();
+  if (pub) {
+    try {
+      const u = new URL(pub);
+      allowed.add(u.origin);
+      if (u.hostname.startsWith("www.")) {
+        allowed.add(`${u.protocol}//${u.hostname.slice(4)}`);
+      } else if (u.hostname.includes(".")) {
+        allowed.add(`${u.protocol}//www.${u.hostname}`);
+      }
+    } catch {
+      /* ignore bad URL */
+    }
+  }
+  if (process.env.NODE_ENV !== "production") {
+    allowed.add("http://localhost:3000");
+    allowed.add("http://127.0.0.1:3000");
+  }
+
+  // Misconfigured prod with no PUBLIC_URL: keep working rather than lock everyone out
+  if (allowed.size === 0) return true;
+
+  return (origin, cb) => {
+    if (!origin) {
+      cb(null, true);
+      return;
+    }
+    cb(null, allowed.has(origin));
+  };
 }
 
 async function broadcastState(io: Server, code: string, force = false) {
@@ -90,7 +130,7 @@ function armQuestionTimer(
 export function createSocketServer(httpServer: HttpServer) {
   const io = new Server(httpServer, {
     path: "/socket.io",
-    cors: { origin: true, credentials: true },
+    cors: { origin: socketCorsOrigin(), credentials: true },
   });
   setSocketServer(io);
 
@@ -101,7 +141,8 @@ export function createSocketServer(httpServer: HttpServer) {
       try {
         const code = payload.code?.toUpperCase();
         const game = await prisma.game.findUnique({ where: { code } });
-        if (!game || game.hostToken !== payload.hostToken) {
+        const token = (payload.hostToken || "").trim();
+        if (!game || !token || !safeEqualString(token, game.hostToken)) {
           throw new Error(
             "This host link is outdated (the game may have been reset). Open Host screen again from Admin."
           );

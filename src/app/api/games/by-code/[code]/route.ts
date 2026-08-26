@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { safeEqualString } from "@/lib/auth";
 import { resolveBrand } from "@/lib/branding";
 import { prisma } from "@/lib/db";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
@@ -32,8 +33,9 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 
   const brand = resolveBrand();
 
-  const urlHost = _req.nextUrl.searchParams.get("hostToken");
-  const includeHost = urlHost && urlHost === game.hostToken;
+  const urlHost = _req.nextUrl.searchParams.get("hostToken")?.trim() || "";
+  const includeHost =
+    !!urlHost && safeEqualString(urlHost, game.hostToken);
 
   return NextResponse.json(
     {

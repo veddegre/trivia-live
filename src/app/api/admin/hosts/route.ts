@@ -5,11 +5,12 @@ import {
   requireSuperAdmin,
 } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@/lib/password";
 
 const createSchema = z.object({
   email: z.string().email().max(200),
   name: z.string().min(1).max(80),
-  password: z.string().min(6).max(200),
+  password: z.string().min(MIN_PASSWORD_LENGTH).max(MAX_PASSWORD_LENGTH),
 });
 
 export async function GET() {

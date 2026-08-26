@@ -5,6 +5,10 @@ import { prisma } from "@/lib/db";
 
 export const SESSION_COOKIE = "trivia_session";
 
+/** Absolute session lifetime (must match cookie maxAge). */
+export const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 14;
+export const SESSION_MAX_AGE_MS = SESSION_MAX_AGE_SEC * 1000;
+
 export type SessionUser = {
   id: string;
   email: string;
@@ -71,8 +75,12 @@ export function parseSessionToken(token: string | undefined): string | null {
   } catch {
     return null;
   }
-  const [userId] = payload.split(":");
-  return userId || null;
+  const [userId, tsRaw] = payload.split(":");
+  if (!userId || !tsRaw) return null;
+  const issuedAt = Number(tsRaw);
+  if (!Number.isFinite(issuedAt)) return null;
+  if (Date.now() - issuedAt > SESSION_MAX_AGE_MS) return null;
+  return userId;
 }
 
 export function sessionCookieOptions() {
@@ -84,7 +92,7 @@ export function sessionCookieOptions() {
     httpOnly: true,
     sameSite: "lax" as const,
     path: "/",
-    maxAge: 60 * 60 * 24 * 14,
+    maxAge: SESSION_MAX_AGE_SEC,
     secure,
   };
 }

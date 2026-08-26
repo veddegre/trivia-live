@@ -8,6 +8,7 @@ import {
   sessionCookieOptions,
 } from "@/lib/auth";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH } from "@/lib/password";
 import {
   createFirstSuperAdmin,
   needsSetup,
@@ -17,7 +18,7 @@ import {
 const setupSchema = z.object({
   name: z.string().min(1).max(80),
   email: z.string().email().max(200),
-  password: z.string().min(6).max(200),
+  password: z.string().min(MIN_PASSWORD_LENGTH).max(MAX_PASSWORD_LENGTH),
   setupToken: z.string().max(200).optional(),
 });
 

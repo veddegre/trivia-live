@@ -28,15 +28,16 @@ export function rateLimit(
 
 /** Best-effort client IP behind Cloudflare / reverse proxies. */
 export function clientIp(req: Request): string {
+  // Prefer Cloudflare's header when present (not spoofable at the edge).
+  const cf = req.headers.get("cf-connecting-ip")?.trim();
+  if (cf) return cf;
+  const real = req.headers.get("x-real-ip")?.trim();
+  if (real) return real;
   const xf = req.headers.get("x-forwarded-for");
   if (xf) {
     const first = xf.split(",")[0]?.trim();
     if (first) return first;
   }
-  const real = req.headers.get("x-real-ip")?.trim();
-  if (real) return real;
-  const cf = req.headers.get("cf-connecting-ip")?.trim();
-  if (cf) return cf;
   return "unknown";
 }
 

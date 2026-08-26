@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
+import { MIN_PASSWORD_LENGTH } from "@/lib/password";
 
 const SETUP_LOCK_KEY = 88112233;
 
@@ -41,8 +42,10 @@ export async function createFirstSuperAdmin(opts: {
 }) {
   const email = opts.email.trim().toLowerCase();
   const name = opts.name.trim();
-  if (!email || !name || opts.password.length < 6) {
-    throw new Error("Name, email, and a password (6+ chars) are required");
+  if (!email || !name || opts.password.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(
+      `Name, email, and a password (${MIN_PASSWORD_LENGTH}+ chars) are required`
+    );
   }
 
   // Serialize first-admin creation (Postgres advisory lock)

@@ -17,6 +17,7 @@ import {
   QuestionEditor,
   type DraftQuestion,
 } from "@/components/QuestionEditor";
+import { MIN_PASSWORD_LENGTH } from "@/lib/password";
 import { GAME_TYPE_LABEL, type GameType } from "@/lib/types";
 
 type AdminTab = "create" | "games" | "winners" | "hosts" | "admins" | "account";
@@ -841,7 +842,7 @@ function AdminInner() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
-              minLength={6}
+              minLength={MIN_PASSWORD_LENGTH}
               required
             />
           </label>
@@ -1332,7 +1333,7 @@ function AdminInner() {
                     onChange={(e) =>
                       setHostForm((h) => ({ ...h, password: e.target.value }))
                     }
-                    minLength={hostForm.id ? undefined : 6}
+                    minLength={hostForm.id ? undefined : MIN_PASSWORD_LENGTH}
                     required={!hostForm.id}
                   />
                 </label>
@@ -1454,7 +1455,7 @@ function AdminInner() {
                     onChange={(e) =>
                       setAdminForm((a) => ({ ...a, password: e.target.value }))
                     }
-                    minLength={adminForm.id ? undefined : 6}
+                    minLength={adminForm.id ? undefined : MIN_PASSWORD_LENGTH}
                     required={!adminForm.id}
                   />
                 </label>
@@ -1602,7 +1603,7 @@ function AdminInner() {
                       setAccountForm((a) => ({ ...a, password: e.target.value }))
                     }
                     autoComplete="new-password"
-                    minLength={6}
+                    minLength={MIN_PASSWORD_LENGTH}
                     placeholder="Leave blank to keep current"
                   />
                 </label>

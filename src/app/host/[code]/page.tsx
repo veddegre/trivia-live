@@ -11,6 +11,7 @@ import { ZoomRevealImage } from "@/components/ZoomRevealImage";
 import { useQuestionCountdown } from "@/hooks/useQuestionCountdown";
 import { betweenHeadline } from "@/lib/between-copy";
 import type { BrandConfig } from "@/lib/branding";
+import { clearHostToken, readHostToken, storeHostToken } from "@/lib/host-token";
 import { getSocket } from "@/lib/socket-client";
 import type { GamePublicState, LeaderboardEntry } from "@/lib/types";
 
@@ -152,7 +153,14 @@ function StandingsList({
 function HostInner({ code }: { code: string }) {
   const router = useRouter();
   const search = useSearchParams();
-  const hostToken = search.get("token") || "";
+  const [hostToken] = useState(() => {
+    const fromQuery = search.get("token")?.trim() || "";
+    if (fromQuery) {
+      storeHostToken(code, fromQuery);
+      return fromQuery;
+    }
+    return readHostToken(code);
+  });
   const [state, setState] = useState<GamePublicState | null>(null);
   const [brand, setBrand] = useState<BrandConfig | null>(null);
   const [error, setError] = useState("");
@@ -161,6 +169,13 @@ function HostInner({ code }: { code: string }) {
   const [manualJoinUrl, setManualJoinUrl] = useState("");
 
   const liveCode = (state?.code || code).toUpperCase();
+
+  useEffect(() => {
+    // Drop ?token= from the address bar so it isn’t leaked via Referer / history / screenshots
+    if (search.get("token")) {
+      router.replace(`/host/${encodeURIComponent(code)}`, { scroll: false });
+    }
+  }, [code, router, search]);
 
   useEffect(() => {
     const base = (
@@ -207,9 +222,9 @@ function HostInner({ code }: { code: string }) {
     const onReset = (payload: { code: string; hostToken?: string }) => {
       setError("");
       if (payload.hostToken && payload.code) {
-        router.replace(
-          `/host/${payload.code}?token=${encodeURIComponent(payload.hostToken)}`
-        );
+        clearHostToken(code);
+        storeHostToken(payload.code, payload.hostToken);
+        router.replace(`/host/${encodeURIComponent(payload.code)}`);
         return;
       }
       if (payload.code) {
@@ -272,9 +287,9 @@ function HostInner({ code }: { code: string }) {
           return;
         }
         if (res?.code && res.hostToken) {
-          router.replace(
-            `/host/${res.code}?token=${encodeURIComponent(res.hostToken)}`
-          );
+          clearHostToken(code);
+          storeHostToken(res.code, res.hostToken);
+          router.replace(`/host/${encodeURIComponent(res.code)}`);
         }
       }
     );
