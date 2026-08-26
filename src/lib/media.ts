@@ -1,8 +1,11 @@
 import { randomBytes } from "crypto";
 import fs from "fs";
 import path from "path";
+import sharp from "sharp";
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+/** Longest edge after server normalize (matches editor crop export). */
+export const MAX_IMAGE_EDGE = 1600;
 
 const MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -65,19 +68,39 @@ export function mediaFileExists(key: string): boolean {
   }
 }
 
+/**
+ * Normalize uploads: honor EXIF orientation, fit inside MAX_IMAGE_EDGE,
+ * encode as JPEG. Always stores a `.jpg` key.
+ */
 export async function saveImageUpload(opts: {
   buffer: Buffer;
   mime: string;
 }): Promise<{ key: string }> {
-  const ext = MIME_TO_EXT[opts.mime];
-  if (!ext) throw new Error("Unsupported image type");
+  if (!MIME_TO_EXT[opts.mime]) throw new Error("Unsupported image type");
   if (opts.buffer.length === 0) throw new Error("Empty file");
   if (opts.buffer.length > MAX_IMAGE_BYTES) throw new Error("Image is too large");
 
-  const key = `${randomBytes(16).toString("hex")}.${ext}`;
+  let out: Buffer;
+  try {
+    out = await sharp(opts.buffer)
+      .rotate()
+      .resize(MAX_IMAGE_EDGE, MAX_IMAGE_EDGE, {
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 85, mozjpeg: true })
+      .toBuffer();
+  } catch {
+    throw new Error("Could not process image");
+  }
+
+  if (out.length === 0) throw new Error("Could not process image");
+  if (out.length > MAX_IMAGE_BYTES) throw new Error("Image is too large");
+
+  const key = `${randomBytes(16).toString("hex")}.jpg`;
   const dir = ensureUploadDir();
   const full = path.join(dir, key);
-  await fs.promises.writeFile(full, opts.buffer, { flag: "wx" });
+  await fs.promises.writeFile(full, out, { flag: "wx" });
   return { key };
 }
 

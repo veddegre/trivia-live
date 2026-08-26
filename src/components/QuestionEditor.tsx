@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { ImageCropModal } from "@/components/ImageCropModal";
 import {
   SCORE_BASE_DEFAULT,
   SCORE_TIME_BONUS_DEFAULT,
@@ -57,29 +58,65 @@ export function QuestionEditor({
 }: Props) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropObjectUrl, setCropObjectUrl] = useState<string | null>(null);
   const isZoom = gameType === "IMAGE_ZOOM";
   const previewUrl = mediaPublicUrl(q.imageKey);
 
-  async function onPickFile(file: File | undefined) {
+  useEffect(() => {
+    return () => {
+      if (cropObjectUrl) URL.revokeObjectURL(cropObjectUrl);
+    };
+  }, [cropObjectUrl]);
+
+  function closeCrop() {
+    if (cropObjectUrl) {
+      URL.revokeObjectURL(cropObjectUrl);
+      setCropObjectUrl(null);
+    }
+    setCropSrc(null);
+  }
+
+  function onPickFile(file: File | undefined) {
     if (!file) return;
     setUploadError("");
+    if (cropObjectUrl) URL.revokeObjectURL(cropObjectUrl);
+    const url = URL.createObjectURL(file);
+    setCropObjectUrl(url);
+    setCropSrc(url);
+  }
+
+  function onAdjustCrop() {
+    if (!previewUrl) return;
+    setUploadError("");
+    if (cropObjectUrl) {
+      URL.revokeObjectURL(cropObjectUrl);
+      setCropObjectUrl(null);
+    }
+    setCropSrc(previewUrl);
+  }
+
+  async function uploadCropped(blob: Blob) {
     setUploading(true);
+    setUploadError("");
     try {
       const body = new FormData();
-      body.append("file", file);
+      body.append("file", blob, "crop.jpg");
       const res = await fetch("/api/uploads", { method: "POST", body });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setUploadError(
-          typeof data.error === "string" ? data.error : "Upload failed"
-        );
-        return;
+      if (!res.ok || typeof data.key !== "string") {
+        const message =
+          typeof data.error === "string" ? data.error : "Upload failed";
+        setUploadError(message);
+        throw new Error(message);
       }
-      if (typeof data.key === "string") {
-        onChange({ ...q, imageKey: data.key });
-      }
-    } catch {
-      setUploadError("Upload failed");
+      onChange({ ...q, imageKey: data.key });
+      closeCrop();
+    } catch (e) {
+      setUploadError(
+        e instanceof Error && e.message ? e.message : "Upload failed"
+      );
+      throw e;
     } finally {
       setUploading(false);
     }
@@ -155,44 +192,83 @@ export function QuestionEditor({
               <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
                 Image
               </span>
-              <label className="flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-line bg-ink-2/50">
-                {previewUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
+              <p className="text-xs text-muted">
+                Square crop with a centered subject works best for Image Zoom.
+              </p>
+              {previewUrl ? (
+                <div className="overflow-hidden rounded-xl border border-line bg-ink-2/50">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={previewUrl}
                     alt="Question preview"
-                    className="max-h-56 w-full object-contain"
+                    className="mx-auto aspect-square max-h-56 w-full max-w-56 object-cover"
                   />
-                ) : (
+                </div>
+              ) : (
+                <label className="flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-line bg-ink-2/50">
                   <div className="px-4 py-10 text-center text-sm text-muted">
                     {uploading
                       ? "Uploading…"
                       : "Click to upload a JPEG, PNG, WebP, or GIF (5 MB max)"}
                   </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  className="sr-only"
-                  disabled={uploading}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
-                    void onPickFile(file);
-                  }}
-                />
-              </label>
-              {previewUrl && (
-                <button
-                  type="button"
-                  className="text-sm font-semibold text-amber"
-                  onClick={() => onChange({ ...q, imageKey: null })}
-                >
-                  Remove image
-                </button>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="sr-only"
+                    disabled={uploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      onPickFile(file);
+                    }}
+                  />
+                </label>
               )}
+              <div className="flex flex-wrap gap-4">
+                {previewUrl && (
+                  <>
+                    <button
+                      type="button"
+                      className="text-sm font-semibold text-amber"
+                      disabled={uploading}
+                      onClick={onAdjustCrop}
+                    >
+                      Adjust crop
+                    </button>
+                    <label className="cursor-pointer text-sm font-semibold text-amber">
+                      Replace image
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="sr-only"
+                        disabled={uploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          onPickFile(file);
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="text-sm font-semibold text-amber"
+                      onClick={() => onChange({ ...q, imageKey: null })}
+                    >
+                      Remove image
+                    </button>
+                  </>
+                )}
+              </div>
               {uploadError && <p className="text-sm text-bad">{uploadError}</p>}
             </div>
+          )}
+
+          {cropSrc && (
+            <ImageCropModal
+              src={cropSrc}
+              onCancel={closeCrop}
+              onConfirm={uploadCropped}
+            />
           )}
 
           <label className="block space-y-2">
