@@ -301,8 +301,8 @@ function HostInner({ code }: { code: string }) {
   if (state.phase === "question" && state.question) {
     return (
       <BrandProvider brand={brand}>
-        <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-5 py-6 md:py-8">
-          <header className="flex items-start justify-between gap-4">
+        <main className="mx-auto flex h-dvh w-full max-w-5xl flex-col overflow-hidden px-5 py-4 md:py-6">
+          <header className="flex shrink-0 items-start justify-between gap-4">
             <BrandMark href={null} badgeLast size="lg" />
             <div className="text-right">
               <div className="text-xs font-bold uppercase tracking-[0.18em] text-chalk">
@@ -314,7 +314,7 @@ function HostInner({ code }: { code: string }) {
             </div>
           </header>
 
-          <div className="mt-8 grid items-center gap-4 border-y border-line/60 py-5 md:grid-cols-3">
+          <div className="mt-4 grid shrink-0 items-center gap-4 border-y border-line/60 py-3 md:grid-cols-3 md:py-4">
             <div className="flex items-center justify-center gap-2 text-sm md:justify-start">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber text-sm font-extrabold text-ink">
                 ?
@@ -338,7 +338,7 @@ function HostInner({ code }: { code: string }) {
             </div>
           </div>
 
-          <h2 className="display mx-auto mt-8 max-w-4xl text-center text-3xl leading-tight md:mt-10 md:text-5xl">
+          <h2 className="display mx-auto mt-4 max-w-4xl shrink-0 text-center text-2xl leading-tight md:mt-6 md:text-4xl">
             {state.question.prompt}
           </h2>
 
@@ -348,14 +348,14 @@ function HostInner({ code }: { code: string }) {
               startZoom={state.question.startZoom}
               openedAt={state.questionOpenedAt}
               timeLimitSec={state.timeLimitSec}
-              className="mx-auto mt-6 h-[min(52vh,36rem)] w-full max-w-3xl rounded-2xl border border-line"
+              className="mx-auto mt-4 min-h-0 w-full max-w-3xl flex-1 rounded-2xl border border-line"
               alt=""
             />
           )}
 
           <ol
-            className={`mx-auto grid w-full max-w-4xl gap-4 md:grid-cols-2 ${
-              state.question.imageUrl ? "mt-6" : "mt-10"
+            className={`mx-auto grid w-full max-w-4xl shrink-0 gap-3 md:grid-cols-2 ${
+              state.question.imageUrl ? "mt-4" : "mt-8"
             }`}
           >
             {state.question.options.map((opt, i) => (
@@ -375,7 +375,7 @@ function HostInner({ code }: { code: string }) {
             ))}
           </ol>
 
-          <div className="mt-auto flex justify-center pt-8">
+          <div className="mt-auto flex shrink-0 justify-center py-4">
             <button
               className="btn btn-ghost uppercase tracking-wide"
               onClick={() => emit("host:lock")}
@@ -390,23 +390,24 @@ function HostInner({ code }: { code: string }) {
 
   // ── REVEAL (big-screen layout) ──
   if (state.phase === "reveal" && state.question) {
+    const hasImage = !!state.question.imageUrl;
     return (
       <BrandProvider brand={brand}>
-        <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-6">
-          <header className="flex items-center justify-between gap-4">
+        <main className="mx-auto flex h-dvh w-full max-w-6xl flex-col overflow-hidden px-5 py-4 md:py-5">
+          <header className="flex shrink-0 items-center justify-between gap-4">
             <BrandMark href={null} badgeLast size="lg" />
             <div className="text-center">
               <div className="text-amber">★★★</div>
-              <h1 className="display text-3xl uppercase tracking-wide text-amber md:text-5xl">
+              <h1 className="display text-3xl uppercase tracking-wide text-amber md:text-4xl">
                 Results revealed!
               </h1>
             </div>
             <div className="w-28" />
           </header>
 
-          <div className="mt-8 grid flex-1 gap-6 lg:grid-cols-[1.35fr_1fr]">
-            <section className="panel rounded-2xl p-6 md:p-8">
-              <div className="flex items-center gap-2 text-amber">
+          <div className="mt-4 grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[1.35fr_1fr]">
+            <section className="panel flex min-h-0 flex-col overflow-hidden rounded-2xl p-4 md:p-6">
+              <div className="flex shrink-0 items-center gap-2 text-amber">
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber text-xs font-extrabold text-ink">
                   ?
                 </span>
@@ -414,32 +415,32 @@ function HostInner({ code }: { code: string }) {
                   Question {state.questionIndex + 1}
                 </span>
               </div>
-              <h2 className="mt-4 text-xl font-semibold md:text-2xl">
+              <h2 className="mt-3 shrink-0 text-lg font-semibold md:text-xl">
                 {state.question.prompt}
               </h2>
-              {state.question.imageUrl && (
+              {hasImage && (
                 <ZoomRevealImage
-                  src={state.question.imageUrl}
+                  src={state.question.imageUrl!}
                   startZoom={state.question.startZoom}
                   revealed
-                  className="mt-5 aspect-video max-h-64 w-full rounded-xl border border-line"
+                  className="mt-3 h-32 w-full shrink-0 rounded-xl border border-line sm:h-40 lg:h-44"
                   alt=""
                 />
               )}
-              <ol className="mt-6 space-y-3">
+              <ol className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto">
                 {state.question.options.map((opt, i) => {
                   const correct = state.question?.correctIndex === i;
                   return (
                     <li
                       key={i}
-                      className={`flex items-center gap-3 rounded-xl border px-4 py-3.5 ${
+                      className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 ${
                         correct
                           ? "border-good bg-good/10"
                           : "border-line bg-ink-2/40"
                       }`}
                     >
                       <span
-                        className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-extrabold ${
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${
                           correct
                             ? "bg-good text-ink"
                             : "border border-line text-muted"
@@ -447,9 +448,7 @@ function HostInner({ code }: { code: string }) {
                       >
                         {correct ? "✓" : String.fromCharCode(65 + i)}
                       </span>
-                      <span className="flex-1 font-semibold">
-                        {String.fromCharCode(65 + i)}. {opt}
-                      </span>
+                      <span className="flex-1 font-semibold">{opt}</span>
                       {correct && (
                         <span className="text-sm font-bold uppercase tracking-wide text-good">
                           Correct
@@ -459,20 +458,20 @@ function HostInner({ code }: { code: string }) {
                   );
                 })}
               </ol>
-              <p className="mt-6 text-sm font-semibold text-good">
+              <p className="mt-3 shrink-0 text-sm font-semibold text-good">
                 {correctPct}% of players answered correctly
               </p>
             </section>
 
-            <aside className="panel rounded-2xl p-6">
+            <aside className="panel min-h-0 overflow-y-auto rounded-2xl p-4 md:p-6">
               <StandingsList rows={top} showDeltas title="In the lead" />
-              <p className="mt-6 text-xs font-bold uppercase tracking-[0.14em] text-amber">
+              <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-amber">
                 Points earned this round
               </p>
             </aside>
           </div>
 
-          <div className="mt-8 flex justify-center pb-4">
+          <div className="flex shrink-0 justify-center py-4">
             <button
               className="btn border-2 border-amber bg-transparent px-14 text-base uppercase tracking-[0.16em] text-amber hover:bg-amber/10"
               onClick={() => emit("host:next")}
