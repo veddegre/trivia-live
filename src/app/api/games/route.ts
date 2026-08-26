@@ -3,10 +3,16 @@ import { z } from "zod";
 import { gamesOwnedBy, requireUser } from "@/lib/auth";
 import { generateJoinCode } from "@/lib/codes";
 import { prisma } from "@/lib/db";
-import { assertCorrectIndexes, questionSchema } from "@/lib/question-schema";
+import {
+  assertQuestionsForGameType,
+  gameTypeSchema,
+  questionCreateData,
+  questionSchema,
+} from "@/lib/question-schema";
 
 const createSchema = z.object({
   title: z.string().min(1).max(120),
+  gameType: gameTypeSchema.optional().default("TRIVIA"),
   allowLateJoin: z.boolean().optional().default(true),
   questions: z.array(questionSchema).min(1).max(100),
 });
@@ -38,7 +44,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const indexErr = assertCorrectIndexes(parsed.data.questions);
+  const indexErr = assertQuestionsForGameType(
+    parsed.data.gameType,
+    parsed.data.questions
+  );
   if (indexErr) {
     return NextResponse.json({ error: indexErr }, { status: 400 });
   }
@@ -55,18 +64,13 @@ export async function POST(req: NextRequest) {
       title: parsed.data.title,
       code,
       status: "DRAFT",
+      gameType: parsed.data.gameType,
       allowLateJoin: parsed.data.allowLateJoin,
       ownerId: user.id,
       questions: {
-        create: parsed.data.questions.map((q, order) => ({
-          order,
-          prompt: q.prompt,
-          options: q.options,
-          correctIndex: q.correctIndex,
-          timeLimitSec: q.timeLimitSec,
-          basePoints: q.basePoints,
-          timeBonus: q.timeBonus,
-        })),
+        create: parsed.data.questions.map((q, order) =>
+          questionCreateData(q, order, parsed.data.gameType)
+        ),
       },
     },
     include: {

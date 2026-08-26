@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { canManageGame, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { assertCorrectIndexes, questionSchema } from "@/lib/question-schema";
+import { deleteMediaFiles } from "@/lib/media";
+import {
+  assertQuestionsForGameType,
+  gameTypeSchema,
+  questionCreateData,
+  questionSchema,
+} from "@/lib/question-schema";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -28,6 +34,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 
 const patchSchema = z.object({
   title: z.string().min(1).max(120).optional(),
+  gameType: gameTypeSchema.optional(),
   status: z.enum(["DRAFT", "LOBBY"]).optional(),
   allowLateJoin: z.boolean().optional(),
   questions: z.array(questionSchema).min(1).max(100).optional(),
@@ -49,10 +56,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const { title, status, allowLateJoin, questions } = parsed.data;
+  const { title, status, allowLateJoin, questions, gameType } = parsed.data;
+  const nextType = gameType ?? existing.gameType;
+
+  if (gameType && gameType !== existing.gameType && !questions) {
+    return NextResponse.json(
+      { error: "Include questions when changing game type" },
+      { status: 400 }
+    );
+  }
 
   if (questions) {
-    const indexErr = assertCorrectIndexes(questions);
+    const indexErr = assertQuestionsForGameType(nextType, questions);
     if (indexErr) {
       return NextResponse.json({ error: indexErr }, { status: 400 });
     }
@@ -79,27 +94,37 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       );
     }
 
+    const previous = await prisma.question.findMany({
+      where: { gameId: id },
+      select: { imageKey: true },
+    });
+    const previousKeys = previous
+      .map((q) => q.imageKey)
+      .filter((k): k is string => !!k);
+    const nextKeys = new Set(
+      nextType === "IMAGE_ZOOM"
+        ? questions.map((q) => q.imageKey).filter((k): k is string => !!k)
+        : []
+    );
+    const orphaned = previousKeys.filter((k) => !nextKeys.has(k));
+
     await prisma.$transaction([
       prisma.question.deleteMany({ where: { gameId: id } }),
       prisma.question.createMany({
         data: questions.map((q, order) => ({
           gameId: id,
-          order,
-          prompt: q.prompt,
-          options: q.options,
-          correctIndex: q.correctIndex,
-          timeLimitSec: q.timeLimitSec,
-          basePoints: q.basePoints,
-          timeBonus: q.timeBonus,
+          ...questionCreateData(q, order, nextType),
         })),
       }),
     ]);
+    await deleteMediaFiles(orphaned);
   }
 
   const data: Record<string, unknown> = {};
   if (title !== undefined) data.title = title;
   if (status !== undefined) data.status = status;
   if (allowLateJoin !== undefined) data.allowLateJoin = allowLateJoin;
+  if (gameType !== undefined) data.gameType = gameType;
 
   const game = await prisma.game.update({
     where: { id },
@@ -119,6 +144,13 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
   if (!existing || !canManageGame(user, existing)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  const images = await prisma.question.findMany({
+    where: { gameId: id },
+    select: { imageKey: true },
+  });
   await prisma.game.delete({ where: { id } });
+  await deleteMediaFiles(
+    images.map((q) => q.imageKey).filter((k): k is string => !!k)
+  );
   return NextResponse.json({ ok: true });
 }

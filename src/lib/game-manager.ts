@@ -4,6 +4,7 @@ import { resolveBrand } from "@/lib/branding";
 import { generateJoinCode } from "@/lib/codes";
 import { prisma } from "@/lib/db";
 import { scoreAnswer } from "@/lib/scoring";
+import { mediaPublicUrl } from "@/lib/zoom";
 import type {
   GamePhase,
   GamePublicState,
@@ -117,6 +118,8 @@ export async function buildPublicState(
       prompt: q.prompt,
       options: q.options,
       timeLimitSec: q.timeLimitSec,
+      imageUrl: mediaPublicUrl(q.imageKey),
+      startZoom: q.startZoom,
       ...(reveal ? { correctIndex: q.correctIndex } : {}),
     };
   }
@@ -152,6 +155,7 @@ export async function buildPublicState(
   return {
     code: game.code,
     title: game.title,
+    gameType: game.gameType,
     phase,
     status: game.status,
     playerCount: game.players.length,
@@ -169,6 +173,22 @@ export async function buildPublicState(
     winner,
     allowLateJoin: game.allowLateJoin,
     brand,
+  };
+}
+
+/** Player phones never get image URLs — the photo lives on the host screen. */
+export function withoutQuestionMedia(state: GamePublicState): GamePublicState {
+  if (!state.question) return state;
+  if (!state.question.imageUrl && state.question.startZoom == null) {
+    return state;
+  }
+  return {
+    ...state,
+    question: {
+      ...state.question,
+      imageUrl: null,
+      startZoom: undefined,
+    },
   };
 }
 

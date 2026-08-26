@@ -17,6 +17,7 @@ import {
   QuestionEditor,
   type DraftQuestion,
 } from "@/components/QuestionEditor";
+import { GAME_TYPE_LABEL, type GameType } from "@/lib/types";
 
 type AdminTab = "create" | "games" | "winners" | "hosts" | "admins" | "account";
 
@@ -34,6 +35,7 @@ type GameListItem = {
   title: string;
   code: string;
   status: string;
+  gameType?: GameType;
   hostToken: string;
   allowLateJoin: boolean;
   owner?: { id: string; name: string; email: string } | null;
@@ -169,7 +171,10 @@ function AdminInner() {
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
-  const [questions, setQuestions] = useState<DraftQuestion[]>([emptyQuestion()]);
+  const [gameType, setGameType] = useState<GameType>("TRIVIA");
+  const [questions, setQuestions] = useState<DraftQuestion[]>([
+    emptyQuestion("TRIVIA"),
+  ]);
   const [allowLateJoin, setAllowLateJoin] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -299,8 +304,27 @@ function AdminInner() {
   function resetForm() {
     setEditingId(null);
     setTitle("");
-    setQuestions([emptyQuestion()]);
+    setGameType("TRIVIA");
+    setQuestions([emptyQuestion("TRIVIA")]);
     setAllowLateJoin(true);
+  }
+
+  function chooseGameType(next: GameType) {
+    if (next === gameType) return;
+    const hasContent = questions.some(
+      (q) =>
+        (q.prompt.trim() && q.prompt.trim() !== "What is this?") ||
+        q.imageKey ||
+        q.options.some((o) => o.trim())
+    );
+    if (
+      hasContent &&
+      !confirm("Switching game type clears the current questions. Continue?")
+    ) {
+      return;
+    }
+    setGameType(next);
+    setQuestions([emptyQuestion(next)]);
   }
 
   function resetHostForm() {
@@ -444,6 +468,9 @@ function AdminInner() {
       setEditingId(g.id);
       setTitle(g.title || "");
       setAllowLateJoin(g.allowLateJoin !== false);
+      const loadedType: GameType =
+        g.gameType === "IMAGE_ZOOM" ? "IMAGE_ZOOM" : "TRIVIA";
+      setGameType(loadedType);
       setQuestions(
         (g.questions || []).map(
           (q: {
@@ -453,6 +480,8 @@ function AdminInner() {
             timeLimitSec: number;
             basePoints: number;
             timeBonus: number;
+            imageKey?: string | null;
+            startZoom?: number;
           }) => ({
             prompt: q.prompt,
             options: Array.isArray(q.options) ? [...q.options] : ["", ""],
@@ -460,6 +489,8 @@ function AdminInner() {
             timeLimitSec: q.timeLimitSec,
             basePoints: q.basePoints,
             timeBonus: q.timeBonus,
+            imageKey: q.imageKey ?? null,
+            startZoom: q.startZoom ?? 10,
           })
         )
       );
@@ -476,6 +507,7 @@ function AdminInner() {
     try {
       const payload = {
         title,
+        gameType,
         allowLateJoin,
         questions: serializeQuestions(questions),
       };
@@ -744,9 +776,13 @@ function AdminInner() {
     if (!title.trim()) return false;
     return questions.every((q) => {
       const opts = q.options.map((o) => o.trim()).filter(Boolean);
-      return q.prompt.trim() && opts.length >= 2 && q.correctIndex < opts.length;
+      const basics =
+        q.prompt.trim() && opts.length >= 2 && q.correctIndex < opts.length;
+      if (!basics) return false;
+      if (gameType === "IMAGE_ZOOM" && !q.imageKey) return false;
+      return true;
     });
-  }, [title, questions]);
+  }, [title, questions, gameType]);
 
   if (authed === null) {
     return (
@@ -965,7 +1001,9 @@ function AdminInner() {
                 {editingId ? "Edit game" : "Create a game"}
               </h1>
               <p className="mt-1 text-sm text-muted">
-                Build your Trivia Live game
+                {gameType === "IMAGE_ZOOM"
+                  ? "Upload photos that start zoomed in and slowly reveal as the timer runs down"
+                  : "Build your Trivia Live game"}
               </p>
 
               <form onSubmit={saveGame} className="mt-8 space-y-5">
@@ -982,11 +1020,61 @@ function AdminInner() {
                   />
                 </label>
 
+                <fieldset className="space-y-2">
+                  <legend className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                    Game type
+                  </legend>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {(
+                      [
+                        {
+                          id: "TRIVIA" as const,
+                          title: "Trivia",
+                          blurb: "Classic multiple-choice questions",
+                        },
+                        {
+                          id: "IMAGE_ZOOM" as const,
+                          title: "Image Zoom",
+                          blurb: "A photo starts cropped in tight, then slowly opens",
+                        },
+                      ] as const
+                    ).map((opt) => {
+                      const on = gameType === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => chooseGameType(opt.id)}
+                          className="rounded-2xl border px-4 py-4 text-left transition"
+                          style={
+                            on
+                              ? {
+                                  borderColor: "var(--amber)",
+                                  background:
+                                    "color-mix(in srgb, var(--amber) 12%, var(--panel))",
+                                }
+                              : {
+                                  borderColor: "var(--line)",
+                                  background: "var(--panel)",
+                                }
+                          }
+                        >
+                          <div className="text-sm font-bold text-chalk">
+                            {opt.title}
+                          </div>
+                          <div className="mt-1 text-xs text-muted">{opt.blurb}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
                 {questions.map((q, qi) => (
                   <QuestionEditor
                     key={qi}
                     question={q}
                     index={qi}
+                    gameType={gameType}
                     canRemove={questions.length > 1}
                     onChange={(next) =>
                       setQuestions((prev) =>
@@ -1008,7 +1096,9 @@ function AdminInner() {
                     borderColor: "color-mix(in srgb, var(--amber) 50%, var(--line))",
                     color: "var(--amber)",
                   }}
-                  onClick={() => setQuestions((prev) => [...prev, emptyQuestion()])}
+                  onClick={() =>
+                    setQuestions((prev) => [...prev, emptyQuestion(gameType)])
+                  }
                 >
                   + Add question
                 </button>
@@ -1080,7 +1170,14 @@ function AdminInner() {
                     className="flex flex-col gap-3 rounded-2xl border border-line bg-panel p-4 md:flex-row md:items-center md:justify-between"
                   >
                     <div>
-                      <div className="text-xl font-bold">{g.title}</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-xl font-bold">{g.title}</div>
+                        {g.gameType === "IMAGE_ZOOM" && (
+                          <span className="rounded bg-ink-2 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber">
+                            {GAME_TYPE_LABEL.IMAGE_ZOOM}
+                          </span>
+                        )}
+                      </div>
                       <div className="mt-1 text-sm text-muted">
                         Code <span className="text-amber">{g.code}</span> ·{" "}
                         {g._count.questions} questions · {g._count.players} players ·{" "}

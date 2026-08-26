@@ -12,7 +12,8 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx scripts/seed-superadmin.ts",
     "smoke": "tsx scripts/smoke-test.ts",
-    "test:scoring": "tsx scripts/test-scoring.ts"
+    "test:scoring": "tsx scripts/test-scoring.ts",
+    "test:zoom": "tsx scripts/test-zoom.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

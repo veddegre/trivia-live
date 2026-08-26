@@ -2,6 +2,8 @@ import type { BrandConfig } from "@/lib/branding";
 
 export type GamePhase = "lobby" | "question" | "reveal" | "between" | "finished";
 
+export type GameType = "TRIVIA" | "IMAGE_ZOOM";
+
 export type PublicQuestion = {
   id: string;
   order: number;
@@ -10,6 +12,8 @@ export type PublicQuestion = {
   timeLimitSec: number;
   // correctIndex only included after reveal / for host
   correctIndex?: number;
+  imageUrl?: string | null;
+  startZoom?: number;
 };
 
 export type LeaderboardEntry = {
@@ -22,6 +26,7 @@ export type LeaderboardEntry = {
 export type GamePublicState = {
   code: string;
   title: string;
+  gameType: GameType;
   phase: GamePhase;
   status: string;
   playerCount: number;
@@ -51,5 +56,14 @@ export type PlayerView = {
 
 export const SCORE_BASE_DEFAULT = 500;
 export const SCORE_TIME_BONUS_DEFAULT = 500;
+
+export const START_ZOOM_DEFAULT = 10;
+export const START_ZOOM_MIN = 4;
+export const START_ZOOM_MAX = 20;
+
+export const GAME_TYPE_LABEL: Record<GameType, string> = {
+  TRIVIA: "Trivia",
+  IMAGE_ZOOM: "Image Zoom",
+};
 
 export const DISPLAY_NAME_KEY = "trivia-display-name";

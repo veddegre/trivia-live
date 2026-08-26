@@ -30,5 +30,6 @@ COPY --from=builder /app/next.config.ts ./
 COPY --from=builder /app/tsconfig.json ./
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
+RUN mkdir -p /app/data/uploads
 EXPOSE 3000
 ENTRYPOINT ["./docker-entrypoint.sh"]

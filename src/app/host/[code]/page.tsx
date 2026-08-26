@@ -7,6 +7,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { BrandProvider } from "@/components/BrandProvider";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import { JoinQr } from "@/components/JoinQr";
+import { ZoomRevealImage } from "@/components/ZoomRevealImage";
 import { useQuestionCountdown } from "@/hooks/useQuestionCountdown";
 import { betweenHeadline } from "@/lib/between-copy";
 import type { BrandConfig } from "@/lib/branding";
@@ -337,15 +338,34 @@ function HostInner({ code }: { code: string }) {
             </div>
           </div>
 
-          <h2 className="display mx-auto mt-10 max-w-4xl text-center text-3xl leading-tight md:text-5xl">
+          <h2 className="display mx-auto mt-8 max-w-4xl text-center text-3xl leading-tight md:mt-10 md:text-5xl">
             {state.question.prompt}
           </h2>
 
-          <ol className="mx-auto mt-10 grid w-full max-w-4xl gap-4 md:grid-cols-2">
+          {state.question.imageUrl && (
+            <ZoomRevealImage
+              src={state.question.imageUrl}
+              startZoom={state.question.startZoom}
+              openedAt={state.questionOpenedAt}
+              timeLimitSec={state.timeLimitSec}
+              className="mx-auto mt-6 h-[min(52vh,36rem)] w-full max-w-3xl rounded-2xl border border-line"
+              alt=""
+            />
+          )}
+
+          <ol
+            className={`mx-auto grid w-full max-w-4xl gap-4 md:grid-cols-2 ${
+              state.question.imageUrl ? "mt-6" : "mt-10"
+            }`}
+          >
             {state.question.options.map((opt, i) => (
               <li
                 key={i}
-                className="flex items-center gap-4 rounded-2xl border border-line bg-ink-2/70 px-5 py-5 text-xl md:text-2xl"
+                className={`flex items-center gap-4 rounded-2xl border border-line bg-ink-2/70 px-5 ${
+                  state.question?.imageUrl
+                    ? "py-3 text-lg md:text-xl"
+                    : "py-5 text-xl md:text-2xl"
+                }`}
               >
                 <span className="choice-letter choice-letter-lg">
                   {String.fromCharCode(65 + i)}
@@ -397,6 +417,15 @@ function HostInner({ code }: { code: string }) {
               <h2 className="mt-4 text-xl font-semibold md:text-2xl">
                 {state.question.prompt}
               </h2>
+              {state.question.imageUrl && (
+                <ZoomRevealImage
+                  src={state.question.imageUrl}
+                  startZoom={state.question.startZoom}
+                  revealed
+                  className="mt-5 aspect-video max-h-64 w-full rounded-xl border border-line"
+                  alt=""
+                />
+              )}
               <ol className="mt-6 space-y-3">
                 {state.question.options.map((opt, i) => {
                   const correct = state.question?.correctIndex === i;
@@ -643,6 +672,14 @@ function HostInner({ code }: { code: string }) {
                 aria-hidden
               />
             </div>
+            {state.gameType === "IMAGE_ZOOM" && (
+              <p
+                className="mt-3 text-center text-xs font-bold uppercase tracking-[0.2em] md:text-sm"
+                style={{ color: amber }}
+              >
+                Image Zoom
+              </p>
+            )}
 
             {state.status === "DRAFT" && (
               <div className="mt-6 flex justify-center">

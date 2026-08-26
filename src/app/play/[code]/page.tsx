@@ -454,6 +454,11 @@ function PlayInner({ code }: { code: string }) {
               <h2 className="display mt-6 text-center text-[1.65rem] leading-snug text-chalk md:text-2xl">
                 {state.question.prompt}
               </h2>
+              {state.gameType === "IMAGE_ZOOM" && (
+                <p className="mt-2 text-center text-sm text-muted">
+                  Watch the host screen
+                </p>
+              )}
               <div className="mt-7 grid gap-3">
                 {state.question.options.map((opt, i) => {
                   const selected = player.selectedChoice === i;

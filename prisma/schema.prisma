@@ -16,6 +16,11 @@ enum GameStatus {
   FINISHED
 }
 
+enum GameType {
+  TRIVIA
+  IMAGE_ZOOM
+}
+
 enum UserRole {
   HOST
   SUPERADMIN
@@ -38,6 +43,7 @@ model Game {
   title                String
   code                 String       @unique
   status               GameStatus   @default(DRAFT)
+  gameType             GameType     @default(TRIVIA)
   currentQuestionIndex Int          @default(0)
   questionOpenedAt     DateTime?
   hostToken            String       @unique @default(cuid())
@@ -86,6 +92,10 @@ model Question {
   timeLimitSec  Int      @default(30)
   basePoints    Int      @default(500)
   timeBonus     Int      @default(500)
+  /** Stored filename in UPLOAD_DIR; public URL is /api/media/{imageKey} */
+  imageKey      String?
+  /** Starting CSS scale for IMAGE_ZOOM (eases to 1 as the timer runs down) */
+  startZoom     Int      @default(10)
   answers       Answer[]
 
   @@unique([gameId, order])

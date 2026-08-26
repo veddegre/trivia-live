@@ -1,9 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import {
   SCORE_BASE_DEFAULT,
   SCORE_TIME_BONUS_DEFAULT,
+  START_ZOOM_DEFAULT,
+  type GameType,
 } from "@/lib/types";
+import { mediaPublicUrl } from "@/lib/zoom";
 
 export type DraftQuestion = {
   prompt: string;
@@ -12,22 +16,27 @@ export type DraftQuestion = {
   timeLimitSec: number;
   basePoints: number;
   timeBonus: number;
+  imageKey: string | null;
+  startZoom: number;
 };
 
-export function emptyQuestion(): DraftQuestion {
+export function emptyQuestion(gameType: GameType = "TRIVIA"): DraftQuestion {
   return {
-    prompt: "",
+    prompt: gameType === "IMAGE_ZOOM" ? "What is this?" : "",
     options: ["", "", "", ""],
     correctIndex: 0,
-    timeLimitSec: 30,
+    timeLimitSec: gameType === "IMAGE_ZOOM" ? 45 : 30,
     basePoints: SCORE_BASE_DEFAULT,
     timeBonus: SCORE_TIME_BONUS_DEFAULT,
+    imageKey: null,
+    startZoom: START_ZOOM_DEFAULT,
   };
 }
 
 type Props = {
   question: DraftQuestion;
   index: number;
+  gameType?: GameType;
   canRemove: boolean;
   onChange: (next: DraftQuestion) => void;
   onRemove: () => void;
@@ -39,12 +48,43 @@ type Props = {
 export function QuestionEditor({
   question: q,
   index: qi,
+  gameType = "TRIVIA",
   canRemove,
   onChange,
   onRemove,
   allowLateJoin,
   onAllowLateJoinChange,
 }: Props) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const isZoom = gameType === "IMAGE_ZOOM";
+  const previewUrl = mediaPublicUrl(q.imageKey);
+
+  async function onPickFile(file: File | undefined) {
+    if (!file) return;
+    setUploadError("");
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/uploads", { method: "POST", body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUploadError(
+          typeof data.error === "string" ? data.error : "Upload failed"
+        );
+        return;
+      }
+      if (typeof data.key === "string") {
+        onChange({ ...q, imageKey: data.key });
+      }
+    } catch {
+      setUploadError("Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function setOption(oi: number, value: string) {
     const options = [...q.options];
     options[oi] = value;
@@ -87,13 +127,15 @@ export function QuestionEditor({
           Question {qi + 1}
         </div>
         <div className="flex flex-wrap gap-4">
-          <button
-            type="button"
-            className="text-sm font-semibold text-amber"
-            onClick={makeTrueFalse}
-          >
-            True / False
-          </button>
+          {!isZoom && (
+            <button
+              type="button"
+              className="text-sm font-semibold text-amber"
+              onClick={makeTrueFalse}
+            >
+              True / False
+            </button>
+          )}
           {canRemove && (
             <button
               type="button"
@@ -108,13 +150,60 @@ export function QuestionEditor({
 
       <div className="mt-5 grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
         <div className="space-y-4">
+          {isZoom && (
+            <div className="space-y-2">
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                Image
+              </span>
+              <label className="flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-line bg-ink-2/50">
+                {previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewUrl}
+                    alt="Question preview"
+                    className="max-h-56 w-full object-contain"
+                  />
+                ) : (
+                  <div className="px-4 py-10 text-center text-sm text-muted">
+                    {uploading
+                      ? "Uploading…"
+                      : "Click to upload a JPEG, PNG, WebP, or GIF (5 MB max)"}
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="sr-only"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    void onPickFile(file);
+                  }}
+                />
+              </label>
+              {previewUrl && (
+                <button
+                  type="button"
+                  className="text-sm font-semibold text-amber"
+                  onClick={() => onChange({ ...q, imageKey: null })}
+                >
+                  Remove image
+                </button>
+              )}
+              {uploadError && <p className="text-sm text-bad">{uploadError}</p>}
+            </div>
+          )}
+
           <label className="block space-y-2">
             <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
-              Question prompt
+              {isZoom ? "Prompt (shown with the image)" : "Question prompt"}
             </span>
             <textarea
               className="field min-h-[96px] resize-y"
-              placeholder="Enter your question…"
+              placeholder={
+                isZoom ? "What is this?" : "Enter your question…"
+              }
               value={q.prompt}
               onChange={(e) => onChange({ ...q, prompt: e.target.value })}
             />
@@ -175,7 +264,7 @@ export function QuestionEditor({
               Timer
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
-              {[15, 30, 60].map((sec) => {
+              {[...(isZoom ? [15, 30, 45, 60] : [15, 30, 60])].map((sec) => {
                 const on = q.timeLimitSec === sec;
                 return (
                   <button
@@ -225,6 +314,47 @@ export function QuestionEditor({
               }
             />
           </label>
+
+          {isZoom && (
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                Starting zoom
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                How tight the crop is when the timer starts. It eases out to the
+                full image.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[
+                  { label: "Close", value: 6 },
+                  { label: "Tight", value: 10 },
+                  { label: "Extreme", value: 16 },
+                ].map((opt) => {
+                  const on = q.startZoom === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className="rounded-full px-3 py-1.5 text-sm font-bold"
+                      style={
+                        on
+                          ? { background: "var(--amber)", color: "#1a1200" }
+                          : {
+                              background: "transparent",
+                              color: "var(--amber)",
+                              border:
+                                "1px solid color-mix(in srgb, var(--amber) 45%, var(--line))",
+                            }
+                      }
+                      onClick={() => onChange({ ...q, startZoom: opt.value })}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <label className="block space-y-2">
             <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">

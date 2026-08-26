@@ -15,6 +15,7 @@ import {
   scheduleQuestionAutoLock,
   shouldThrottleBroadcast,
   submitAnswer,
+  withoutQuestionMedia,
 } from "@/lib/game-manager";
 import { setSocketServer, emitGameReset } from "@/lib/realtime";
 
@@ -39,7 +40,12 @@ async function broadcastState(io: Server, code: string, force = false) {
   markBroadcast(code);
   const state = await buildPublicState(code);
   if (!state) return;
-  io.to(room(code)).emit("game:state", state);
+  const playerState = withoutQuestionMedia(state);
+  const sockets = await io.in(room(code)).fetchSockets();
+  for (const s of sockets) {
+    const d = s.data as SocketData;
+    s.emit("game:state", d.role === "host" ? state : playerState);
+  }
 }
 
 async function emitPlayer(socket: Socket, code: string, playerId: string) {
@@ -154,11 +160,13 @@ export function createSocketServer(httpServer: HttpServer) {
         data.playerToken = player.token;
         await socket.join(room(code));
 
-        const state = await buildPublicState(code);
+        const full = await buildPublicState(code);
+        if (!full) throw new Error("Game not found");
+        const state = withoutQuestionMedia(full);
         const view = await buildPlayerView(code, player.id);
         ack?.({ ok: true, player: view, state });
         socket.emit("player:state", view);
-        io.to(room(code)).emit("game:state", state);
+        await broadcastState(io, code, true);
       } catch (e) {
         const message = e instanceof Error ? e.message : "Join failed";
         ack?.({ ok: false, message });
@@ -180,7 +188,9 @@ export function createSocketServer(httpServer: HttpServer) {
         data.playerToken = player.token;
         await socket.join(room(code));
 
-        const state = await buildPublicState(code);
+        const full = await buildPublicState(code);
+        if (!full) throw new Error("Game not found");
+        const state = withoutQuestionMedia(full);
         const view = await buildPlayerView(code, player.id);
         ack?.({ ok: true, player: view, state });
         socket.emit("player:state", view);
@@ -323,7 +333,10 @@ export function createSocketServer(httpServer: HttpServer) {
     socket.on("game:sync", async (ack?: (r: unknown) => void) => {
       try {
         if (!data.code) throw new Error("Not in a game");
-        const state = await buildPublicState(data.code);
+        const full = await buildPublicState(data.code);
+        if (!full) throw new Error("Game not found");
+        const state =
+          data.role === "host" ? full : withoutQuestionMedia(full);
         socket.emit("game:state", state);
         if (data.playerId) await emitPlayer(socket, data.code, data.playerId);
         ack?.({ ok: true, state });
