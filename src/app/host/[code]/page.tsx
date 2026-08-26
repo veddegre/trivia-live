@@ -353,7 +353,13 @@ function HostInner({ code }: { code: string }) {
             </div>
           </div>
 
-          <h2 className="display mx-auto mt-4 max-w-4xl shrink-0 text-center text-2xl leading-tight md:mt-6 md:text-4xl">
+          <h2
+            className={`display mx-auto max-w-4xl shrink-0 text-center leading-tight ${
+              state.question.imageUrl
+                ? "mt-3 text-xl md:mt-4 md:text-3xl"
+                : "mt-4 text-2xl md:mt-6 md:text-4xl"
+            }`}
+          >
             {state.question.prompt}
           </h2>
 
@@ -363,14 +369,14 @@ function HostInner({ code }: { code: string }) {
               startZoom={state.question.startZoom}
               openedAt={state.questionOpenedAt}
               timeLimitSec={state.timeLimitSec}
-              className="mx-auto mt-4 h-[min(36vh,22rem)] w-full max-w-3xl shrink-0 rounded-2xl border border-line md:h-[min(40vh,26rem)]"
+              className="mx-auto mt-3 min-h-0 w-full max-w-3xl flex-1 rounded-2xl border border-line"
               alt=""
             />
           )}
 
           <ol
             className={`mx-auto grid w-full max-w-4xl shrink-0 gap-3 md:grid-cols-2 ${
-              state.question.imageUrl ? "mt-4" : "mt-8"
+              state.question.imageUrl ? "mt-3" : "mt-8"
             }`}
           >
             {state.question.options.map((opt, i) => (
@@ -438,11 +444,15 @@ function HostInner({ code }: { code: string }) {
                   src={state.question.imageUrl!}
                   startZoom={state.question.startZoom}
                   revealed
-                  className="mt-3 aspect-video max-h-56 w-full shrink-0 rounded-xl border border-line lg:max-h-64"
+                  className="mt-3 min-h-0 w-full flex-1 rounded-xl border border-line"
                   alt=""
                 />
               )}
-              <ol className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto">
+              <ol
+                className={`mt-4 space-y-2 ${
+                  hasImage ? "shrink-0" : "min-h-0 flex-1 overflow-y-auto"
+                }`}
+              >
                 {state.question.options.map((opt, i) => {
                   const correct = state.question?.correctIndex === i;
                   return (
