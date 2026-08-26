@@ -314,6 +314,7 @@ function HostInner({ code }: { code: string }) {
 
   // ── QUESTION (big-screen layout) ──
   if (state.phase === "question" && state.question) {
+    const hasImage = !!state.question.imageUrl;
     return (
       <BrandProvider brand={brand}>
         <main className="mx-auto flex h-dvh w-full max-w-5xl flex-col overflow-hidden px-5 py-4 md:py-6">
@@ -329,7 +330,11 @@ function HostInner({ code }: { code: string }) {
             </div>
           </header>
 
-          <div className="mt-4 grid shrink-0 items-center gap-4 border-y border-line/60 py-3 md:grid-cols-3 md:py-4">
+          <div
+            className={`mt-3 grid shrink-0 items-center gap-3 border-y border-line/60 md:grid-cols-3 ${
+              hasImage ? "py-2 md:py-2.5" : "py-3 md:py-4"
+            }`}
+          >
             <div className="flex items-center justify-center gap-2 text-sm md:justify-start">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber text-sm font-extrabold text-ink">
                 ?
@@ -341,7 +346,7 @@ function HostInner({ code }: { code: string }) {
             <CountdownTimer
               remainingSec={remaining}
               totalSec={state.timeLimitSec}
-              size="lg"
+              size={hasImage ? "md" : "lg"}
             />
             <div className="flex items-center justify-center gap-2 text-sm md:justify-end">
               <span className="text-amber" aria-hidden>
@@ -353,50 +358,56 @@ function HostInner({ code }: { code: string }) {
             </div>
           </div>
 
-          <h2
-            className={`display mx-auto max-w-4xl shrink-0 text-center leading-tight ${
-              state.question.imageUrl
-                ? "mt-3 text-xl md:mt-4 md:text-3xl"
-                : "mt-4 text-2xl md:mt-6 md:text-4xl"
+          <div
+            className={`flex min-h-0 flex-1 flex-col ${
+              hasImage ? "justify-center" : ""
             }`}
           >
-            {state.question.prompt}
-          </h2>
+            <h2
+              className={`display mx-auto max-w-4xl shrink-0 text-center leading-tight ${
+                hasImage
+                  ? "text-xl md:text-3xl"
+                  : "mt-4 text-2xl md:mt-6 md:text-4xl"
+              }`}
+            >
+              {state.question.prompt}
+            </h2>
 
-          {state.question.imageUrl && (
-            <ZoomRevealImage
-              src={state.question.imageUrl}
-              startZoom={state.question.startZoom}
-              openedAt={state.questionOpenedAt}
-              timeLimitSec={state.timeLimitSec}
-              className="mx-auto mt-3 min-h-0 w-full max-w-3xl flex-1 rounded-2xl border border-line"
-              alt=""
-            />
-          )}
+            {hasImage && (
+              <ZoomRevealImage
+                src={state.question.imageUrl!}
+                startZoom={state.question.startZoom}
+                openedAt={state.questionOpenedAt}
+                timeLimitSec={state.timeLimitSec}
+                className="mx-auto mt-3 aspect-square w-full max-w-[min(42vh,22rem)] shrink-0 rounded-2xl border border-line"
+                alt=""
+              />
+            )}
 
-          <ol
-            className={`mx-auto grid w-full max-w-4xl shrink-0 gap-3 md:grid-cols-2 ${
-              state.question.imageUrl ? "mt-3" : "mt-8"
-            }`}
-          >
-            {state.question.options.map((opt, i) => (
-              <li
-                key={i}
-                className={`flex items-center gap-4 rounded-2xl border border-line bg-ink-2/70 px-5 ${
-                  state.question?.imageUrl
-                    ? "py-3 text-lg md:text-xl"
-                    : "py-5 text-xl md:text-2xl"
-                }`}
-              >
-                <span className="choice-letter choice-letter-lg">
-                  {String.fromCharCode(65 + i)}
-                </span>
-                <span className="font-semibold">{opt}</span>
-              </li>
-            ))}
-          </ol>
+            <ol
+              className={`mx-auto grid w-full max-w-4xl shrink-0 gap-3 md:grid-cols-2 ${
+                hasImage ? "mt-4" : "mt-8"
+              }`}
+            >
+              {state.question.options.map((opt, i) => (
+                <li
+                  key={i}
+                  className={`flex items-center gap-4 rounded-2xl border border-line bg-ink-2/70 px-5 ${
+                    hasImage
+                      ? "py-3 text-lg md:text-xl"
+                      : "py-5 text-xl md:text-2xl"
+                  }`}
+                >
+                  <span className="choice-letter choice-letter-lg">
+                    {String.fromCharCode(65 + i)}
+                  </span>
+                  <span className="font-semibold">{opt}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
 
-          <div className="mt-auto flex shrink-0 justify-center py-4">
+          <div className="flex shrink-0 justify-center py-3 md:py-4">
             <button
               className="btn btn-ghost uppercase tracking-wide"
               onClick={() => emit("host:lock")}
@@ -444,7 +455,7 @@ function HostInner({ code }: { code: string }) {
                   src={state.question.imageUrl!}
                   startZoom={state.question.startZoom}
                   revealed
-                  className="mt-3 min-h-0 w-full flex-1 rounded-xl border border-line"
+                  className="mx-auto mt-3 aspect-square w-full max-w-[min(36vh,18rem)] shrink-0 rounded-xl border border-line"
                   alt=""
                 />
               )}
