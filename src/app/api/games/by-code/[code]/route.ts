@@ -5,6 +5,8 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 type Ctx = { params: Promise<{ code: string }> };
 
+export const dynamic = "force-dynamic";
+
 /** Public lookup for join pages — no answers/correct keys. */
 export async function GET(_req: NextRequest, ctx: Ctx) {
   const ip = clientIp(_req);
@@ -33,16 +35,23 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const urlHost = _req.nextUrl.searchParams.get("hostToken");
   const includeHost = urlHost && urlHost === game.hostToken;
 
-  return NextResponse.json({
-    game: {
-      title: game.title,
-      code: game.code,
-      status: game.status,
-      allowLateJoin: game.allowLateJoin,
-      questionCount,
-      playerCount,
-      ...(includeHost ? { hostToken: game.hostToken } : {}),
+  return NextResponse.json(
+    {
+      game: {
+        title: game.title,
+        code: game.code,
+        status: game.status,
+        allowLateJoin: game.allowLateJoin,
+        questionCount,
+        playerCount,
+        ...(includeHost ? { hostToken: game.hostToken } : {}),
+      },
+      brand,
     },
-    brand,
-  });
+    {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
+    }
+  );
 }

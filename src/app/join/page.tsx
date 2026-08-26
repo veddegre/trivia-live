@@ -32,7 +32,9 @@ function JoinInner() {
     setChecking(true);
     setError("");
     try {
-      const res = await fetch(`/api/games/by-code/${encodeURIComponent(c)}`);
+      const res = await fetch(`/api/games/by-code/${encodeURIComponent(c)}`, {
+        cache: "no-store",
+      });
       if (!res.ok) {
         setError(
           "Game not found — that code isn’t active. Check the host screen / QR (codes change when a game is recycled)."

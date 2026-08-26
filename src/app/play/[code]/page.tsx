@@ -66,7 +66,9 @@ function PlayInner({ code }: { code: string }) {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch(`/api/games/by-code/${encodeURIComponent(code)}`);
+        const res = await fetch(`/api/games/by-code/${encodeURIComponent(code)}`, {
+          cache: "no-store",
+        });
         if (!res.ok) {
           if (!cancelled) {
             setGameMissing(true);

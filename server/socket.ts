@@ -109,6 +109,9 @@ export function createSocketServer(httpServer: HttpServer) {
         data.role = "host";
         data.code = code;
         await socket.join(room(code));
+        if (game.status === "DRAFT") {
+          await openLobby(code);
+        }
         const state = await buildPublicState(code);
         ack?.({ ok: true, state });
         socket.emit("game:state", state);
