@@ -315,8 +315,10 @@ export function QuestionEditor({
               </span>
               <p className="text-xs text-muted">
                 Upload a short snippet you chopped in Audacity (MP3, M4A, WAV —
-                about 12–20 seconds). Only upload audio you’re allowed to use
-                for this event.
+                about 12–20 seconds). Only use audio you have the right to
+                host: your own recordings, public domain, or a license that
+                allows this use. A venue playlist license is not enough, and a
+                short clip is not automatically fair use.
               </p>
               {audioUrl ? (
                 <div className="rounded-xl border border-line bg-ink-2/50 p-4">

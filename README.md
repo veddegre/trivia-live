@@ -6,10 +6,14 @@
 
 Live trivia for up to **200 players**. Build games ahead of time, open a host screen on a big display, and let people answer from their phones. Scores update live; correct + faster answers rank higher.
 
+Pick a **game type** when you create a night: classic multiple-choice **Trivia**, **Image Zoom** (a photo starts cropped in tight on the host screen and zooms out as the timer runs down), or **Guess the Song** (a short clip starts sped up on the host speakers and eases to normal speed). A game is one type only — types are not mixed in a single night.
+
 ## Features
 
-- **Admin** — create and edit games; 2–6 options (or True/False); per-question timers and scoring; optional late-join lock
-- **Host screen** — join code, QR → `/join?code=…`, typed join URL, live lobby roster, question control, reveal, between-round standings pause, podium finish
+- **Admin** — create and edit games; choose **Trivia**, **Image Zoom**, or **Guess the Song**; 2–6 options (or True/False on trivia); per-question timers and scoring; optional late-join lock
+- **Image Zoom** — upload a JPEG/PNG/WebP/GIF per round (5 MB max); starting crop Close / Tight / Extreme; photo plays only on the **host screen**; phones show the prompt, timer, and answer buttons
+- **Guess the Song** — upload a short clip per round (MP3, M4A, WAV, OGG, or AAC, 10 MB max); starts fast and eases to normal speed; audio plays only on the **host** TV/speakers; phones are the answer pad. Host taps Play to start the clip and the round clock.
+- **Host screen** — join code, QR → `/join?code=…`, typed join URL, live lobby roster, question control, reveal, between-round standings pause, podium finish. Opening the host screen opens the lobby.
 - **Player phones** — join with code + name (no accounts); remembered display name; reconnect after refresh; rank/points after each round
 - **Scoring** — server timestamps only (phones can’t fake speed); board updates on lock so mid-question standings don’t spoil answers
 - **Play again** — clear players/scores, keep questions, issue a new join code
@@ -77,10 +81,10 @@ Login is **email + password** (not a shared single password).
 
 ## How a game works
 
-1. Sign in at **`/admin`** with a host or super-admin account and create a game (title + questions). Mark the correct option with the radio next to each choice. Optionally set base points, speed bonus, timer, and **Allow late joins**.
-2. Click **Open lobby**, then **Host screen** (opens on a big display).
+1. Sign in at **`/admin`** with a host or super-admin account and create a game. Choose **Trivia**, **Image Zoom**, or **Guess the Song**, then add questions. Mark the correct option with the radio next to each choice. Optionally set base points, speed bonus, timer, and **Allow late joins**.
+2. Open **Host screen** (big display). The lobby opens when that page connects; you can also click **Open lobby** from the games list first.
 3. Players scan the **QR** (opens `/join` with the code filled in) or open the join URL shown on the host and enter the code, then pick a name.
-4. Host presses **Start question 1** → players answer against the countdown → auto-lock at 0 (or **Lock now**) → reveal correct answer + standings.
+4. Host presses **Start question 1** → players answer against the countdown → auto-lock at 0 (or **Lock now**) → reveal correct answer + standings. On Image Zoom, the host photo starts zoomed in and opens at a steady rate until lock/reveal. On Guess the Song, the host taps **Play** so the clip starts fast on the room speakers and the round clock starts with it.
 5. Host presses **Continue** → between-round standings pause → **Start question N** for the next prompt (not an immediate jump).
 6. After the last question, the host shows a **top-3 podium** and final standings. Phones show place and score.
 7. **Play again** (admin or finished host screen) clears players/scores, keeps questions, issues a **new join code**, and reopens the lobby. Phones are sent back to `/join`.
@@ -95,6 +99,18 @@ Codes use an unambiguous alphabet (no `I`/`J`/`L`/`O`/`Q`/`0`/`1`) so they’re 
 ### Late joins
 
 By default players can join during the lobby **or** mid-game. Uncheck **Allow late joins** on the game to limit joining to the lobby only.
+
+### Image Zoom
+
+Host uploads one image per question. During the round the host display shows the photo (players do not). It starts tightly cropped and zooms out until time is up or the host locks. Scoring is the same as trivia: correct + faster is better.
+
+### Guess the Song
+
+Host uploads a short snippet per question (chop it first — about 12–20 seconds). Audio plays only on the host system, not on player phones. The clip starts sped up and eases toward normal speed over the timer. The round clock starts when the host taps **Play** (so autoplay restrictions don’t fire before the room is ready).
+
+**Only use audio you have the right to host.** A short clip is not automatically fair use, and a venue’s ASCAP/BMI/SESAC license covers playing music in the room — not copying files into this app. Use clips you created, recordings in the public domain, Creative Commons (or similar) licenses that allow this use, or a library whose license covers hosting and playback at your event. Do not upload commercial tracks from Spotify, YouTube, or a ripped CD unless you have a separate license that allows it.
+
+Uploads (images and audio) are stored on disk (`UPLOAD_DIR`, default `data/uploads` locally or `/app/data/uploads` in Docker). Deleting a game (or replacing a saved file) removes the files that belonged to it.
 
 ### Routes
 
@@ -139,6 +155,7 @@ Copy from `.env.example`:
 | `HOST` | Bind address inside the container | `0.0.0.0` |
 | `NEXT_PUBLIC_SOCKET_URL` | Leave empty when UI and sockets share the same origin | _(empty)_ |
 | `NEXT_PUBLIC_PUBLIC_URL` | Public HTTPS origin for host QR / join URLs | _(browser origin)_ |
+| `UPLOAD_DIR` | Directory for Image Zoom and Guess the Song uploads | `data/uploads` (Compose: `/app/data/uploads`) |
 
 ## Scripts
 
@@ -149,6 +166,8 @@ npm start            # production server
 npm run db:push      # push schema (dev)
 npm run db:migrate   # prisma migrate deploy
 npm run test:scoring # unit checks for the score formula
+npm run test:zoom    # unit checks for Image Zoom scale-over-time
+npm run test:audio-speed # unit checks for Guess the Song playback-rate curve
 npm run smoke        # 200-player join + answer burst (app must be running)
 ```
 
@@ -163,10 +182,10 @@ SMOKE_PLAYERS=200 SMOKE_BASE_URL=http://127.0.0.1:3000 npm run smoke
 ```text
 server/           Custom Node server + Socket.io handlers
 src/app/          Next.js pages (admin, host, play, join) + API routes
-src/components/   Logo, QR, countdown, question editor
-src/lib/          DB, scoring, game manager, auth helpers
+src/components/   Logo, QR, countdown, question editor, zoom image, sped-up audio
+src/lib/          DB, scoring, game manager, auth helpers, media uploads
 prisma/           Schema + migrations
-scripts/          Smoke test + scoring tests + admin bootstrap
+scripts/          Smoke test + scoring/zoom/audio tests + admin bootstrap
 docker-compose.yml
 Dockerfile
 ```
@@ -256,7 +275,7 @@ git pull
 docker compose up --build -d
 ```
 
-Migrations run automatically on container start (`prisma migrate deploy` in the entrypoint). Postgres data in the `trivia_pg` volume is kept across rebuilds.
+Migrations run automatically on container start (`prisma migrate deploy` in the entrypoint). Postgres data in the `trivia_pg` volume and media uploads in `trivia_uploads` are kept across rebuilds.
 
 If you use the systemd unit above:
 
