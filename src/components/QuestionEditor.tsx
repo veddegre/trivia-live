@@ -5,6 +5,7 @@ import { ImageCropModal } from "@/components/ImageCropModal";
 import {
   SCORE_BASE_DEFAULT,
   SCORE_TIME_BONUS_DEFAULT,
+  START_SPEED_DEFAULT,
   START_ZOOM_DEFAULT,
   type GameType,
 } from "@/lib/types";
@@ -19,18 +20,28 @@ export type DraftQuestion = {
   timeBonus: number;
   imageKey: string | null;
   startZoom: number;
+  audioKey: string | null;
+  startSpeed: number;
 };
 
 export function emptyQuestion(gameType: GameType = "TRIVIA"): DraftQuestion {
   return {
-    prompt: gameType === "IMAGE_ZOOM" ? "What is this?" : "",
+    prompt:
+      gameType === "IMAGE_ZOOM"
+        ? "What is this?"
+        : gameType === "AUDIO_SPEED"
+          ? "Name that tune"
+          : "",
     options: ["", "", "", ""],
     correctIndex: 0,
-    timeLimitSec: gameType === "IMAGE_ZOOM" ? 45 : 30,
+    timeLimitSec:
+      gameType === "IMAGE_ZOOM" || gameType === "AUDIO_SPEED" ? 45 : 30,
     basePoints: SCORE_BASE_DEFAULT,
     timeBonus: SCORE_TIME_BONUS_DEFAULT,
     imageKey: null,
     startZoom: START_ZOOM_DEFAULT,
+    audioKey: null,
+    startSpeed: START_SPEED_DEFAULT,
   };
 }
 
@@ -61,7 +72,9 @@ export function QuestionEditor({
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [cropObjectUrl, setCropObjectUrl] = useState<string | null>(null);
   const isZoom = gameType === "IMAGE_ZOOM";
+  const isAudio = gameType === "AUDIO_SPEED";
   const previewUrl = mediaPublicUrl(q.imageKey);
+  const audioUrl = mediaPublicUrl(q.audioKey);
 
   useEffect(() => {
     return () => {
@@ -122,6 +135,30 @@ export function QuestionEditor({
     }
   }
 
+  async function uploadAudio(file: File | undefined) {
+    if (!file) return;
+    setUploadError("");
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      body.append("kind", "audio");
+      const res = await fetch("/api/uploads", { method: "POST", body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.key !== "string") {
+        setUploadError(
+          typeof data.error === "string" ? data.error : "Upload failed"
+        );
+        return;
+      }
+      onChange({ ...q, audioKey: data.key });
+    } catch {
+      setUploadError("Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function setOption(oi: number, value: string) {
     const options = [...q.options];
     options[oi] = value;
@@ -164,7 +201,7 @@ export function QuestionEditor({
           Question {qi + 1}
         </div>
         <div className="flex flex-wrap gap-4">
-          {!isZoom && (
+          {!isZoom && !isAudio && (
             <button
               type="button"
               className="text-sm font-semibold text-amber"
@@ -271,14 +308,87 @@ export function QuestionEditor({
             />
           )}
 
+          {isAudio && (
+            <div className="space-y-2">
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                Audio clip
+              </span>
+              <p className="text-xs text-muted">
+                Upload a short snippet you chopped in Audacity (MP3, M4A, WAV —
+                about 12–20 seconds). Only upload audio you’re allowed to use
+                for this event.
+              </p>
+              {audioUrl ? (
+                <div className="rounded-xl border border-line bg-ink-2/50 p-4">
+                  <audio controls src={audioUrl} className="w-full" />
+                </div>
+              ) : (
+                <label className="flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-line bg-ink-2/50">
+                  <div className="px-4 py-10 text-center text-sm text-muted">
+                    {uploading
+                      ? "Uploading…"
+                      : "Click to upload MP3, M4A, WAV, OGG, or AAC (10 MB max)"}
+                  </div>
+                  <input
+                    type="file"
+                    accept="audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/aac,audio/x-m4a,.mp3,.m4a,.wav,.ogg,.aac"
+                    className="sr-only"
+                    disabled={uploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      void uploadAudio(file);
+                    }}
+                  />
+                </label>
+              )}
+              <div className="flex flex-wrap gap-4">
+                {audioUrl && (
+                  <>
+                    <label className="cursor-pointer text-sm font-semibold text-amber">
+                      Replace clip
+                      <input
+                        type="file"
+                        accept="audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/aac,audio/x-m4a,.mp3,.m4a,.wav,.ogg,.aac"
+                        className="sr-only"
+                        disabled={uploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          void uploadAudio(file);
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="text-sm font-semibold text-amber"
+                      onClick={() => onChange({ ...q, audioKey: null })}
+                    >
+                      Remove clip
+                    </button>
+                  </>
+                )}
+              </div>
+              {uploadError && <p className="text-sm text-bad">{uploadError}</p>}
+            </div>
+          )}
+
           <label className="block space-y-2">
             <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
-              {isZoom ? "Prompt (shown with the image)" : "Question prompt"}
+              {isZoom
+                ? "Prompt (shown with the image)"
+                : isAudio
+                  ? "Prompt (shown with the song)"
+                  : "Question prompt"}
             </span>
             <textarea
               className="field min-h-[96px] resize-y"
               placeholder={
-                isZoom ? "What is this?" : "Enter your question…"
+                isZoom
+                  ? "What is this?"
+                  : isAudio
+                    ? "Name that tune"
+                    : "Enter your question…"
               }
               value={q.prompt}
               onChange={(e) => onChange({ ...q, prompt: e.target.value })}
@@ -340,7 +450,7 @@ export function QuestionEditor({
               Timer
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
-              {[...(isZoom ? [15, 30, 45, 60] : [15, 30, 60])].map((sec) => {
+              {[...(isZoom || isAudio ? [15, 30, 45, 60] : [15, 30, 60])].map((sec) => {
                 const on = q.timeLimitSec === sec;
                 return (
                   <button
@@ -390,6 +500,47 @@ export function QuestionEditor({
               }
             />
           </label>
+
+          {isAudio && (
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                Starting speed
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                How fast the clip starts. It eases down to normal speed as the
+                timer runs.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[
+                  { label: "Easy 1.5×", value: 1.5 },
+                  { label: "Fast 2×", value: 2 },
+                  { label: "Extreme 2.5×", value: 2.5 },
+                ].map((opt) => {
+                  const on = q.startSpeed === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className="rounded-full px-3 py-1.5 text-sm font-bold"
+                      style={
+                        on
+                          ? { background: "var(--amber)", color: "#1a1200" }
+                          : {
+                              background: "transparent",
+                              color: "var(--amber)",
+                              border:
+                                "1px solid color-mix(in srgb, var(--amber) 45%, var(--line))",
+                            }
+                      }
+                      onClick={() => onChange({ ...q, startSpeed: opt.value })}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {isZoom && (
             <div>

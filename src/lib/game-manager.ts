@@ -118,8 +118,12 @@ export async function buildPublicState(
       prompt: q.prompt,
       options: q.options,
       timeLimitSec: q.timeLimitSec,
-      imageUrl: mediaPublicUrl(q.imageKey),
-      startZoom: q.startZoom,
+      imageUrl:
+        game.gameType === "IMAGE_ZOOM" ? mediaPublicUrl(q.imageKey) : null,
+      startZoom: game.gameType === "IMAGE_ZOOM" ? q.startZoom : undefined,
+      audioUrl:
+        game.gameType === "AUDIO_SPEED" ? mediaPublicUrl(q.audioKey) : null,
+      startSpeed: game.gameType === "AUDIO_SPEED" ? q.startSpeed : undefined,
       ...(reveal ? { correctIndex: q.correctIndex } : {}),
     };
   }
@@ -176,10 +180,15 @@ export async function buildPublicState(
   };
 }
 
-/** Player phones never get image URLs — the photo lives on the host screen. */
+/** Player phones never get media URLs — photos/audio live on the host screen. */
 export function withoutQuestionMedia(state: GamePublicState): GamePublicState {
   if (!state.question) return state;
-  if (!state.question.imageUrl && state.question.startZoom == null) {
+  if (
+    !state.question.imageUrl &&
+    state.question.startZoom == null &&
+    !state.question.audioUrl &&
+    state.question.startSpeed == null
+  ) {
     return state;
   }
   return {
@@ -188,6 +197,8 @@ export function withoutQuestionMedia(state: GamePublicState): GamePublicState {
       ...state.question,
       imageUrl: null,
       startZoom: undefined,
+      audioUrl: null,
+      startSpeed: undefined,
     },
   };
 }
@@ -281,7 +292,8 @@ export async function openQuestion(code: string, index?: number) {
   }
 
   const q = game.questions[nextIndex];
-  const openedAt = new Date();
+  const deferClock = game.gameType === "AUDIO_SPEED";
+  const openedAt = deferClock ? null : new Date();
   await prisma.game.update({
     where: { id: game.id },
     data: {
@@ -292,7 +304,41 @@ export async function openQuestion(code: string, index?: number) {
   });
   const rt = getRuntime(game.code);
   rt.answerCount = 0;
-  return { openedAt, timeLimitSec: q.timeLimitSec, questionIndex: nextIndex };
+  return {
+    openedAt,
+    timeLimitSec: q.timeLimitSec,
+    questionIndex: nextIndex,
+    deferClock,
+  };
+}
+
+/** Arm the question timer (used when Guess the Song host taps Play). */
+export async function startQuestionClock(code: string) {
+  const game = await loadGame(code);
+  if (!game) throw new Error("Game not found");
+  if (game.status !== "QUESTION") throw new Error("Question is not open");
+
+  const q = game.questions[game.currentQuestionIndex];
+  if (!q) throw new Error("No active question");
+
+  if (game.questionOpenedAt) {
+    return {
+      openedAt: game.questionOpenedAt,
+      timeLimitSec: q.timeLimitSec,
+      alreadyStarted: true,
+    };
+  }
+
+  const openedAt = new Date();
+  await prisma.game.update({
+    where: { id: game.id },
+    data: { questionOpenedAt: openedAt },
+  });
+  return {
+    openedAt,
+    timeLimitSec: q.timeLimitSec,
+    alreadyStarted: false,
+  };
 }
 
 export async function submitAnswer(opts: {
@@ -303,7 +349,11 @@ export async function submitAnswer(opts: {
   const game = await loadGame(opts.code);
   if (!game) throw new Error("Game not found");
   if (game.status !== "QUESTION" || !game.questionOpenedAt) {
-    throw new Error("Question is not open");
+    throw new Error(
+      game.status === "QUESTION" && !game.questionOpenedAt
+        ? "Wait for the music to start"
+        : "Question is not open"
+    );
   }
 
   const player = game.players.find((p) => p.token === opts.playerToken);

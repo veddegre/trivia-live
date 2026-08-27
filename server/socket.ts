@@ -15,6 +15,7 @@ import {
   resetGame,
   scheduleQuestionAutoLock,
   shouldThrottleBroadcast,
+  startQuestionClock,
   submitAnswer,
   withoutQuestionMedia,
 } from "@/lib/game-manager";
@@ -263,9 +264,32 @@ export function createSocketServer(httpServer: HttpServer) {
       try {
         if (data.role !== "host" || !data.code) throw new Error("Not authorized");
         const opened = await openQuestion(data.code);
-        armQuestionTimer(io, data.code, opened.timeLimitSec);
+        if (!opened.deferClock) {
+          armQuestionTimer(io, data.code, opened.timeLimitSec);
+        }
         await broadcastState(io, data.code, true);
         ack?.({ ok: true });
+        void refreshPlayers(io, data.code);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Failed";
+        ack?.({ ok: false, message });
+        socket.emit("error", { message });
+      }
+    });
+
+    socket.on("host:startClock", async (ack?: (r: unknown) => void) => {
+      try {
+        if (data.role !== "host" || !data.code) throw new Error("Not authorized");
+        const started = await startQuestionClock(data.code);
+        if (!started.alreadyStarted) {
+          armQuestionTimer(io, data.code, started.timeLimitSec);
+        }
+        await broadcastState(io, data.code, true);
+        ack?.({
+          ok: true,
+          openedAt: started.openedAt.toISOString(),
+          alreadyStarted: started.alreadyStarted,
+        });
         void refreshPlayers(io, data.code);
       } catch (e) {
         const message = e instanceof Error ? e.message : "Failed";

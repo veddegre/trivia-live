@@ -2,7 +2,7 @@ import type { BrandConfig } from "@/lib/branding";
 
 export type GamePhase = "lobby" | "question" | "reveal" | "between" | "finished";
 
-export type GameType = "TRIVIA" | "IMAGE_ZOOM";
+export type GameType = "TRIVIA" | "IMAGE_ZOOM" | "AUDIO_SPEED";
 
 export type PublicQuestion = {
   id: string;
@@ -14,6 +14,8 @@ export type PublicQuestion = {
   correctIndex?: number;
   imageUrl?: string | null;
   startZoom?: number;
+  audioUrl?: string | null;
+  startSpeed?: number;
 };
 
 export type LeaderboardEntry = {
@@ -61,9 +63,14 @@ export const START_ZOOM_DEFAULT = 10;
 export const START_ZOOM_MIN = 4;
 export const START_ZOOM_MAX = 20;
 
+export const START_SPEED_DEFAULT = 2;
+export const START_SPEED_MIN = 1.25;
+export const START_SPEED_MAX = 3;
+
 export const GAME_TYPE_LABEL: Record<GameType, string> = {
   TRIVIA: "Trivia",
   IMAGE_ZOOM: "Image Zoom",
+  AUDIO_SPEED: "Guess the Song",
 };
 
 export const DISPLAY_NAME_KEY = "trivia-display-name";

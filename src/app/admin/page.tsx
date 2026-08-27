@@ -314,8 +314,11 @@ function AdminInner() {
     if (next === gameType) return;
     const hasContent = questions.some(
       (q) =>
-        (q.prompt.trim() && q.prompt.trim() !== "What is this?") ||
+        (q.prompt.trim() &&
+          q.prompt.trim() !== "What is this?" &&
+          q.prompt.trim() !== "Name that tune") ||
         q.imageKey ||
+        q.audioKey ||
         q.options.some((o) => o.trim())
     );
     if (
@@ -470,7 +473,11 @@ function AdminInner() {
       setTitle(g.title || "");
       setAllowLateJoin(g.allowLateJoin !== false);
       const loadedType: GameType =
-        g.gameType === "IMAGE_ZOOM" ? "IMAGE_ZOOM" : "TRIVIA";
+        g.gameType === "IMAGE_ZOOM"
+          ? "IMAGE_ZOOM"
+          : g.gameType === "AUDIO_SPEED"
+            ? "AUDIO_SPEED"
+            : "TRIVIA";
       setGameType(loadedType);
       setQuestions(
         (g.questions || []).map(
@@ -483,6 +490,8 @@ function AdminInner() {
             timeBonus: number;
             imageKey?: string | null;
             startZoom?: number;
+            audioKey?: string | null;
+            startSpeed?: number;
           }) => ({
             prompt: q.prompt,
             options: Array.isArray(q.options) ? [...q.options] : ["", ""],
@@ -492,6 +501,8 @@ function AdminInner() {
             timeBonus: q.timeBonus,
             imageKey: q.imageKey ?? null,
             startZoom: q.startZoom ?? 10,
+            audioKey: q.audioKey ?? null,
+            startSpeed: q.startSpeed ?? 2,
           })
         )
       );
@@ -781,6 +792,7 @@ function AdminInner() {
         q.prompt.trim() && opts.length >= 2 && q.correctIndex < opts.length;
       if (!basics) return false;
       if (gameType === "IMAGE_ZOOM" && !q.imageKey) return false;
+      if (gameType === "AUDIO_SPEED" && !q.audioKey) return false;
       return true;
     });
   }, [title, questions, gameType]);
@@ -1004,7 +1016,9 @@ function AdminInner() {
               <p className="mt-1 text-sm text-muted">
                 {gameType === "IMAGE_ZOOM"
                   ? "Upload photos that start zoomed in and slowly reveal as the timer runs down"
-                  : "Build your Trivia Live game"}
+                  : gameType === "AUDIO_SPEED"
+                    ? "Upload short clips that start sped up and ease to normal as the timer runs"
+                    : "Build your Trivia Live game"}
               </p>
 
               <form onSubmit={saveGame} className="mt-8 space-y-5">
@@ -1025,7 +1039,7 @@ function AdminInner() {
                   <legend className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
                     Game type
                   </legend>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     {(
                       [
                         {
@@ -1037,6 +1051,11 @@ function AdminInner() {
                           id: "IMAGE_ZOOM" as const,
                           title: "Image Zoom",
                           blurb: "A photo starts cropped in tight, then slowly opens",
+                        },
+                        {
+                          id: "AUDIO_SPEED" as const,
+                          title: "Guess the Song",
+                          blurb: "A clip starts fast, then eases to normal speed",
                         },
                       ] as const
                     ).map((opt) => {
@@ -1173,9 +1192,10 @@ function AdminInner() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="text-xl font-bold">{g.title}</div>
-                        {g.gameType === "IMAGE_ZOOM" && (
+                        {(g.gameType === "IMAGE_ZOOM" ||
+                          g.gameType === "AUDIO_SPEED") && (
                           <span className="rounded bg-ink-2 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber">
-                            {GAME_TYPE_LABEL.IMAGE_ZOOM}
+                            {GAME_TYPE_LABEL[g.gameType]}
                           </span>
                         )}
                       </div>

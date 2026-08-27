@@ -1,0 +1,6 @@
+-- AlterEnum
+ALTER TYPE "GameType" ADD VALUE 'AUDIO_SPEED';
+
+-- AlterTable
+ALTER TABLE "Question" ADD COLUMN "audioKey" TEXT;
+ALTER TABLE "Question" ADD COLUMN "startSpeed" DOUBLE PRECISION NOT NULL DEFAULT 2;

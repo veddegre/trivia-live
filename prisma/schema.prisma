@@ -19,6 +19,7 @@ enum GameStatus {
 enum GameType {
   TRIVIA
   IMAGE_ZOOM
+  AUDIO_SPEED
 }
 
 enum UserRole {
@@ -96,6 +97,10 @@ model Question {
   imageKey      String?
   /** Starting CSS scale for IMAGE_ZOOM (eases to 1 as the timer runs down) */
   startZoom     Int      @default(10)
+  /** Stored filename in UPLOAD_DIR; public URL is /api/media/{audioKey} */
+  audioKey      String?
+  /** Starting HTMLAudioElement.playbackRate for AUDIO_SPEED (eases to 1) */
+  startSpeed    Float    @default(2)
   answers       Answer[]
 
   @@unique([gameId, order])

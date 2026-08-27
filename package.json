@@ -14,7 +14,8 @@
     "smoke": "tsx scripts/smoke-test.ts",
     "test:scoring": "tsx scripts/test-scoring.ts",
     "test:zoom": "tsx scripts/test-zoom.ts",
-    "test:image-crop": "tsx scripts/test-image-crop.ts"
+    "test:image-crop": "tsx scripts/test-image-crop.ts",
+    "test:audio-speed": "tsx scripts/test-audio-speed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

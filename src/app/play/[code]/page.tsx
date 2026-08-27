@@ -461,10 +461,19 @@ function PlayInner({ code }: { code: string }) {
                   Watch the host screen
                 </p>
               )}
+              {state.gameType === "AUDIO_SPEED" && (
+                <p className="mt-2 text-center text-sm text-muted">
+                  {state.questionOpenedAt
+                    ? "Listen on the host speakers"
+                    : "Wait for the host to play the snippet"}
+                </p>
+              )}
               <div className="mt-7 grid gap-3">
                 {state.question.options.map((opt, i) => {
                   const selected = player.selectedChoice === i;
                   const letter = String.fromCharCode(65 + i);
+                  const waitingForMusic =
+                    state.gameType === "AUDIO_SPEED" && !state.questionOpenedAt;
                   return (
                     <button
                       key={i}
@@ -482,7 +491,7 @@ function PlayInner({ code }: { code: string }) {
                               color: "var(--chalk)",
                             }
                       }
-                      disabled={locked}
+                      disabled={locked || waitingForMusic}
                       onClick={() => answer(i)}
                     >
                       <span

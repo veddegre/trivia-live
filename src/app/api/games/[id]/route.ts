@@ -96,15 +96,18 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
     const previous = await prisma.question.findMany({
       where: { gameId: id },
-      select: { imageKey: true },
+      select: { imageKey: true, audioKey: true },
     });
-    const previousKeys = previous
-      .map((q) => q.imageKey)
-      .filter((k): k is string => !!k);
+    const previousKeys = previous.flatMap((q) =>
+      [q.imageKey, q.audioKey].filter((k): k is string => !!k)
+    );
     const nextKeys = new Set(
-      nextType === "IMAGE_ZOOM"
-        ? questions.map((q) => q.imageKey).filter((k): k is string => !!k)
-        : []
+      questions.flatMap((q) => {
+        const keys: string[] = [];
+        if (nextType === "IMAGE_ZOOM" && q.imageKey) keys.push(q.imageKey);
+        if (nextType === "AUDIO_SPEED" && q.audioKey) keys.push(q.audioKey);
+        return keys;
+      })
     );
     const orphaned = previousKeys.filter((k) => !nextKeys.has(k));
 
@@ -144,13 +147,15 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
   if (!existing || !canManageGame(user, existing)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  const images = await prisma.question.findMany({
+  const media = await prisma.question.findMany({
     where: { gameId: id },
-    select: { imageKey: true },
+    select: { imageKey: true, audioKey: true },
   });
   await prisma.game.delete({ where: { id } });
   await deleteMediaFiles(
-    images.map((q) => q.imageKey).filter((k): k is string => !!k)
+    media.flatMap((q) =>
+      [q.imageKey, q.audioKey].filter((k): k is string => !!k)
+    )
   );
   return NextResponse.json({ ok: true });
 }

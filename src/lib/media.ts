@@ -4,14 +4,29 @@ import path from "path";
 import sharp from "sharp";
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 /** Longest edge after server normalize (matches editor crop export). */
 export const MAX_IMAGE_EDGE = 1600;
 
-const MIME_TO_EXT: Record<string, string> = {
+const IMAGE_MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
+};
+
+/** Map browser MIME → stored extension (normalize aliases). */
+const AUDIO_MIME_TO_EXT: Record<string, string> = {
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+  "audio/mp4": "m4a",
+  "audio/x-m4a": "m4a",
+  "audio/aac": "aac",
+  "audio/wav": "wav",
+  "audio/wave": "wav",
+  "audio/x-wav": "wav",
+  "audio/ogg": "ogg",
+  "audio/webm": "webm",
 };
 
 const EXT_TO_MIME: Record<string, string> = {
@@ -20,12 +35,23 @@ const EXT_TO_MIME: Record<string, string> = {
   png: "image/png",
   webp: "image/webp",
   gif: "image/gif",
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+  aac: "audio/aac",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  webm: "audio/webm",
 };
 
-const KEY_RE = /^[a-f0-9]{32}\.(jpg|jpeg|png|webp|gif)$/i;
+const KEY_RE =
+  /^[a-f0-9]{32}\.(jpg|jpeg|png|webp|gif|mp3|m4a|aac|wav|ogg|webm)$/i;
 
 export function isAllowedImageMime(mime: string): boolean {
-  return mime in MIME_TO_EXT;
+  return mime in IMAGE_MIME_TO_EXT;
+}
+
+export function isAllowedAudioMime(mime: string): boolean {
+  return mime in AUDIO_MIME_TO_EXT;
 }
 
 export function isValidMediaKey(key: string): boolean {
@@ -76,7 +102,7 @@ export async function saveImageUpload(opts: {
   buffer: Buffer;
   mime: string;
 }): Promise<{ key: string }> {
-  if (!MIME_TO_EXT[opts.mime]) throw new Error("Unsupported image type");
+  if (!IMAGE_MIME_TO_EXT[opts.mime]) throw new Error("Unsupported image type");
   if (opts.buffer.length === 0) throw new Error("Empty file");
   if (opts.buffer.length > MAX_IMAGE_BYTES) throw new Error("Image is too large");
 
@@ -101,6 +127,25 @@ export async function saveImageUpload(opts: {
   const dir = ensureUploadDir();
   const full = path.join(dir, key);
   await fs.promises.writeFile(full, out, { flag: "wx" });
+  return { key };
+}
+
+/** Store an audio snippet as-is (already chopped by the host). */
+export async function saveAudioUpload(opts: {
+  buffer: Buffer;
+  mime: string;
+}): Promise<{ key: string }> {
+  const ext = AUDIO_MIME_TO_EXT[opts.mime];
+  if (!ext) throw new Error("Unsupported audio type");
+  if (opts.buffer.length === 0) throw new Error("Empty file");
+  if (opts.buffer.length > MAX_AUDIO_BYTES) {
+    throw new Error("Audio must be 10 MB or smaller");
+  }
+
+  const key = `${randomBytes(16).toString("hex")}.${ext}`;
+  const dir = ensureUploadDir();
+  const full = path.join(dir, key);
+  await fs.promises.writeFile(full, opts.buffer, { flag: "wx" });
   return { key };
 }
 

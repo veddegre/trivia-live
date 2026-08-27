@@ -7,6 +7,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { BrandProvider } from "@/components/BrandProvider";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import { JoinQr } from "@/components/JoinQr";
+import { SpeedRevealAudio } from "@/components/SpeedRevealAudio";
 import { ZoomRevealImage } from "@/components/ZoomRevealImage";
 import { useQuestionCountdown } from "@/hooks/useQuestionCountdown";
 import { betweenHeadline } from "@/lib/between-copy";
@@ -265,6 +266,38 @@ function HostInner({ code }: { code: string }) {
     });
   }
 
+  function startClock(): Promise<void> {
+    const socket = getSocket();
+    return new Promise((resolve, reject) => {
+      socket.emit(
+        "host:startClock",
+        (res: {
+          ok?: boolean;
+          message?: string;
+          openedAt?: string;
+        }) => {
+          if (res && res.ok === false) {
+            const message = res.message || "Could not start timer";
+            setError(message);
+            reject(new Error(message));
+            return;
+          }
+          if (res?.openedAt) {
+            setState((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    questionOpenedAt: res.openedAt!,
+                  }
+                : prev
+            );
+          }
+          resolve();
+        }
+      );
+    });
+  }
+
   function playAgain() {
     if (
       !confirm(
@@ -315,6 +348,11 @@ function HostInner({ code }: { code: string }) {
   // ── QUESTION (big-screen layout) ──
   if (state.phase === "question" && state.question) {
     const hasImage = !!state.question.imageUrl;
+    const hasAudio = !!state.question.audioUrl;
+    const hasMedia = hasImage || hasAudio;
+    const timerSec =
+      remaining ??
+      (hasAudio && !state.questionOpenedAt ? state.timeLimitSec : remaining);
     return (
       <BrandProvider brand={brand}>
         <main className="mx-auto flex h-dvh w-full max-w-5xl flex-col overflow-hidden px-5 py-4 md:py-6">
@@ -332,7 +370,7 @@ function HostInner({ code }: { code: string }) {
 
           <div
             className={`mt-3 grid shrink-0 items-center gap-3 border-y border-line/60 md:grid-cols-3 ${
-              hasImage ? "py-2 md:py-2.5" : "py-3 md:py-4"
+              hasMedia ? "py-2 md:py-2.5" : "py-3 md:py-4"
             }`}
           >
             <div className="flex items-center justify-center gap-2 text-sm md:justify-start">
@@ -344,9 +382,9 @@ function HostInner({ code }: { code: string }) {
               </span>
             </div>
             <CountdownTimer
-              remainingSec={remaining}
+              remainingSec={timerSec}
               totalSec={state.timeLimitSec}
-              size={hasImage ? "md" : "lg"}
+              size={hasMedia ? "md" : "lg"}
             />
             <div className="flex items-center justify-center gap-2 text-sm md:justify-end">
               <span className="text-amber" aria-hidden>
@@ -360,12 +398,12 @@ function HostInner({ code }: { code: string }) {
 
           <div
             className={`flex min-h-0 flex-1 flex-col ${
-              hasImage ? "justify-center" : ""
+              hasMedia ? "justify-center" : ""
             }`}
           >
             <h2
               className={`display mx-auto max-w-4xl shrink-0 text-center leading-tight ${
-                hasImage
+                hasMedia
                   ? "text-xl md:text-3xl"
                   : "mt-4 text-2xl md:mt-6 md:text-4xl"
               }`}
@@ -384,16 +422,27 @@ function HostInner({ code }: { code: string }) {
               />
             )}
 
+            {hasAudio && (
+              <SpeedRevealAudio
+                src={state.question.audioUrl!}
+                startSpeed={state.question.startSpeed}
+                openedAt={state.questionOpenedAt}
+                timeLimitSec={state.timeLimitSec}
+                onPlayRequest={startClock}
+                className="mx-auto mt-4 w-full max-w-xl shrink-0"
+              />
+            )}
+
             <ol
               className={`mx-auto grid w-full max-w-4xl shrink-0 gap-3 md:grid-cols-2 ${
-                hasImage ? "mt-4" : "mt-8"
+                hasMedia ? "mt-4" : "mt-8"
               }`}
             >
               {state.question.options.map((opt, i) => (
                 <li
                   key={i}
                   className={`flex items-center gap-4 rounded-2xl border border-line bg-ink-2/70 px-5 ${
-                    hasImage
+                    hasMedia
                       ? "py-3 text-lg md:text-xl"
                       : "py-5 text-xl md:text-2xl"
                   }`}
@@ -423,6 +472,7 @@ function HostInner({ code }: { code: string }) {
   // ── REVEAL (big-screen layout) ──
   if (state.phase === "reveal" && state.question) {
     const hasImage = !!state.question.imageUrl;
+    const hasAudio = !!state.question.audioUrl;
     return (
       <BrandProvider brand={brand}>
         <main className="mx-auto flex h-dvh w-full max-w-6xl flex-col overflow-hidden px-5 py-4 md:py-5">
@@ -459,9 +509,19 @@ function HostInner({ code }: { code: string }) {
                   alt=""
                 />
               )}
+              {hasAudio && (
+                <SpeedRevealAudio
+                  src={state.question.audioUrl!}
+                  startSpeed={state.question.startSpeed}
+                  revealed
+                  className="mt-3 w-full shrink-0"
+                />
+              )}
               <ol
                 className={`mt-4 space-y-2 ${
-                  hasImage ? "shrink-0" : "min-h-0 flex-1 overflow-y-auto"
+                  hasImage || hasAudio
+                    ? "shrink-0"
+                    : "min-h-0 flex-1 overflow-y-auto"
                 }`}
               >
                 {state.question.options.map((opt, i) => {
@@ -713,6 +773,14 @@ function HostInner({ code }: { code: string }) {
                 style={{ color: amber }}
               >
                 Image Zoom
+              </p>
+            )}
+            {state.gameType === "AUDIO_SPEED" && (
+              <p
+                className="mt-3 text-center text-xs font-bold uppercase tracking-[0.2em] md:text-sm"
+                style={{ color: amber }}
+              >
+                Guess the Song
               </p>
             )}
 
