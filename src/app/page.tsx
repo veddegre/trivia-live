@@ -146,7 +146,7 @@ export default function HomePage() {
             ],
             [
               "Host on any screen",
-              "Lobby QR, live roster, and big-screen boards. Photos and clips stay on the TV.",
+              "Lobby QR, live roster, and big-screen boards. Export a pack or send a copy to another host.",
             ],
             [
               "Phones as buzzers",

@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -58,6 +59,13 @@ type AdminListItem = {
   name: string;
   role: string;
   createdAt: string;
+};
+
+type PeerItem = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
 };
 
 type GameResultItem = {
@@ -180,6 +188,10 @@ function AdminInner() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"good" | "bad">("good");
+  const [peers, setPeers] = useState<PeerItem[]>([]);
+  const [shareGameId, setShareGameId] = useState<string | null>(null);
+  const [shareTargetId, setShareTargetId] = useState("");
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const isSuper = user?.role === "SUPERADMIN";
 
@@ -240,6 +252,13 @@ function AdminInner() {
     setAdmins(data.admins || []);
   }, []);
 
+  const loadPeers = useCallback(async () => {
+    const res = await fetch("/api/admin/peers");
+    if (!res.ok) return;
+    const data = await res.json();
+    setPeers(data.peers || []);
+  }, []);
+
   useEffect(() => {
     if (tabParam && ADMIN_TABS.includes(tabParam as AdminTab)) {
       setTab(tabParam as AdminTab);
@@ -285,7 +304,7 @@ function AdminInner() {
             password: "",
           });
           setAuthed(true);
-          await Promise.all([loadGames(), loadResults()]);
+          await Promise.all([loadGames(), loadResults(), loadPeers()]);
           if (data.user.role === "SUPERADMIN") {
             await Promise.all([loadHosts(), loadAdmins()]);
           }
@@ -300,7 +319,7 @@ function AdminInner() {
         setLoginError("Could not reach the server. Try refreshing.");
       }
     })();
-  }, [loadGames, loadResults, loadHosts, loadAdmins]);
+  }, [loadGames, loadResults, loadHosts, loadAdmins, loadPeers]);
 
   function resetForm() {
     setEditingId(null);
@@ -344,6 +363,11 @@ function AdminInner() {
     setMessage(text);
   }
 
+  useEffect(() => {
+    if (!shareGameId || shareTargetId) return;
+    if (peers[0]) setShareTargetId(peers[0].id);
+  }, [shareGameId, shareTargetId, peers]);
+
   // Auto-clear flash messages so they don’t linger across the admin UI
   useEffect(() => {
     if (!message) return;
@@ -384,7 +408,13 @@ function AdminInner() {
       });
       setAuthed(true);
       setPassword("");
-      await Promise.all([loadGames(), loadResults(), loadHosts(), loadAdmins()]);
+      await Promise.all([
+        loadGames(),
+        loadResults(),
+        loadHosts(),
+        loadAdmins(),
+        loadPeers(),
+      ]);
     } finally {
       setBusy(false);
     }
@@ -419,7 +449,7 @@ function AdminInner() {
     });
     setAuthed(true);
     setPassword("");
-    await Promise.all([loadGames(), loadResults()]);
+    await Promise.all([loadGames(), loadResults(), loadPeers()]);
     if (data.user?.role === "SUPERADMIN") {
       await Promise.all([loadHosts(), loadAdmins()]);
     }
@@ -433,6 +463,8 @@ function AdminInner() {
     setResults([]);
     setHosts([]);
     setAdmins([]);
+    setPeers([]);
+    setShareGameId(null);
     resetHostForm();
     resetAdminForm();
   }
@@ -569,6 +601,127 @@ function AdminInner() {
     await loadGames();
   }
 
+  async function exportGame(id: string, gameTitle: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch(`/api/games/${id}/export`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showMessage(
+          typeof data.error === "string" ? data.error : "Could not export game",
+          "bad"
+        );
+        return;
+      }
+      const blob = await res.blob();
+      const header = res.headers.get("content-disposition") || "";
+      const match = header.match(/filename="([^"]+)"/);
+      const filename = match?.[1] || `${gameTitle}.json`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      showMessage(`Exported “${gameTitle}”`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function duplicateGame(id: string, gameTitle: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch(`/api/games/${id}/clone`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showMessage(
+          typeof data.error === "string" ? data.error : "Could not duplicate game",
+          "bad"
+        );
+        return;
+      }
+      const code = data.game?.code as string | undefined;
+      showMessage(
+        code
+          ? `Duplicated “${gameTitle}” — new code ${code}`
+          : `Duplicated “${gameTitle}”`
+      );
+      await loadGames();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendCopy(sourceId: string, sourceTitle: string) {
+    if (!shareTargetId) {
+      showMessage("Choose a host to send the copy to", "bad");
+      return;
+    }
+    const peer = peers.find((p) => p.id === shareTargetId);
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch(`/api/games/${sourceId}/clone`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toOwnerId: shareTargetId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showMessage(
+          typeof data.error === "string" ? data.error : "Could not send copy",
+          "bad"
+        );
+        return;
+      }
+      setShareGameId(null);
+      setShareTargetId("");
+      showMessage(
+        peer
+          ? `Sent a copy of “${sourceTitle}” to ${peer.name}`
+          : `Sent a copy of “${sourceTitle}”`
+      );
+      await loadGames();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importPack(file: File) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/games/import", { method: "POST", body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showMessage(
+          typeof data.error === "string" ? data.error : "Could not import pack",
+          "bad"
+        );
+        return;
+      }
+      const importedTitle = data.game?.title as string | undefined;
+      const code = data.game?.code as string | undefined;
+      showMessage(
+        importedTitle && code
+          ? `Imported “${importedTitle}” — code ${code}`
+          : "Imported pack"
+      );
+      await loadGames();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function recycleGame(id: string, gameTitle: string) {
     if (
       !confirm(
@@ -629,7 +782,7 @@ function AdminInner() {
       }
       showMessage(editing ? `Updated ${payload.name}` : `Created host ${payload.name}`);
       resetHostForm();
-      await loadHosts();
+      await Promise.all([loadHosts(), loadPeers()]);
     } finally {
       setBusy(false);
     }
@@ -654,7 +807,7 @@ function AdminInner() {
     }
     if (hostForm.id === id) resetHostForm();
     showMessage(`Deleted host ${name}`);
-    await Promise.all([loadHosts(), loadGames(), loadResults()]);
+    await Promise.all([loadHosts(), loadGames(), loadResults(), loadPeers()]);
   }
 
   async function saveAdmin(e: FormEvent) {
@@ -737,7 +890,7 @@ function AdminInner() {
     }
     if (adminForm.id === id) resetAdminForm();
     showMessage(`Deleted admin ${name}`);
-    await Promise.all([loadAdmins(), loadGames(), loadResults()]);
+    await Promise.all([loadAdmins(), loadGames(), loadResults(), loadPeers()]);
   }
 
   async function saveAccount(e: FormEvent) {
@@ -1159,19 +1312,41 @@ function AdminInner() {
                     {isSuper ? "All games" : "My games"}
                   </h1>
                   <p className="mt-1 text-sm text-muted">
-                    Open a lobby, host a night, or edit questions
+                    Open a lobby, host a night, export a pack, or send a copy
+                    to another host
                   </p>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => {
-                    resetForm();
-                    goTab("create");
-                  }}
-                >
-                  + New game
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".json,.zip,application/json,application/zip"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) void importPack(file);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    disabled={busy}
+                    onClick={() => importInputRef.current?.click()}
+                  >
+                    Import pack
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      resetForm();
+                      goTab("create");
+                    }}
+                  >
+                    + New game
+                  </button>
+                </div>
               </div>
               {message && (
                 <p
@@ -1187,70 +1362,145 @@ function AdminInner() {
                 {games.map((g) => (
                   <article
                     key={g.id}
-                    className="flex flex-col gap-3 rounded-2xl border border-line bg-panel p-4 md:flex-row md:items-center md:justify-between"
+                    className="flex flex-col gap-3 rounded-2xl border border-line bg-panel p-4"
                   >
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-xl font-bold">{g.title}</div>
-                        {(g.gameType === "IMAGE_ZOOM" ||
-                          g.gameType === "AUDIO_SPEED") && (
-                          <span className="rounded bg-ink-2 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber">
-                            {GAME_TYPE_LABEL[g.gameType]}
-                          </span>
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-xl font-bold">{g.title}</div>
+                          {(g.gameType === "IMAGE_ZOOM" ||
+                            g.gameType === "AUDIO_SPEED") && (
+                            <span className="rounded bg-ink-2 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber">
+                              {GAME_TYPE_LABEL[g.gameType]}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 text-sm text-muted">
+                          Code <span className="text-amber">{g.code}</span> ·{" "}
+                          {g._count.questions} questions · {g._count.players}{" "}
+                          players · {g.status}
+                          {g.allowLateJoin === false ? " · no late joins" : ""}
+                          {isSuper && g.owner ? ` · ${g.owner.name}` : ""}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          className="btn btn-ghost"
+                          onClick={() => void startEdit(g.id)}
+                          title={
+                            LIVE_STATUSES.has(g.status)
+                              ? "Finish the round or use Play again before editing"
+                              : "Edit game"
+                          }
+                        >
+                          Edit
+                        </button>
+                        {g.status === "DRAFT" && (
+                          <button
+                            className="btn btn-ghost"
+                            onClick={() => void openLobby(g.id)}
+                          >
+                            Open lobby
+                          </button>
                         )}
-                      </div>
-                      <div className="mt-1 text-sm text-muted">
-                        Code <span className="text-amber">{g.code}</span> ·{" "}
-                        {g._count.questions} questions · {g._count.players} players ·{" "}
-                        {g.status}
-                        {g.allowLateJoin === false ? " · no late joins" : ""}
-                        {isSuper && g.owner
-                          ? ` · ${g.owner.name}`
-                          : ""}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        className="btn btn-ghost"
-                        onClick={() => void startEdit(g.id)}
-                        title={
-                          LIVE_STATUSES.has(g.status)
-                            ? "Finish the round or use Play again before editing"
-                            : "Edit game"
-                        }
-                      >
-                        Edit
-                      </button>
-                      {g.status === "DRAFT" && (
+                        {g.status !== "DRAFT" && (
+                          <button
+                            className="btn btn-ghost"
+                            onClick={() => void recycleGame(g.id, g.title)}
+                          >
+                            Play again
+                          </button>
+                        )}
                         <button
                           className="btn btn-ghost"
-                          onClick={() => void openLobby(g.id)}
+                          disabled={busy}
+                          onClick={() => void duplicateGame(g.id, g.title)}
                         >
-                          Open lobby
+                          Duplicate
                         </button>
-                      )}
-                      {g.status !== "DRAFT" && (
                         <button
                           className="btn btn-ghost"
-                          onClick={() => void recycleGame(g.id, g.title)}
+                          disabled={busy}
+                          onClick={() => void exportGame(g.id, g.title)}
                         >
-                          Play again
+                          Export
                         </button>
-                      )}
-                      <Link
-                        className="btn btn-primary"
-                        href={`/host/${g.code}?token=${encodeURIComponent(g.hostToken)}`}
-                        target="_blank"
-                      >
-                        Host screen
-                      </Link>
-                      <button
-                        className="btn btn-danger"
-                        onClick={() => void removeGame(g.id)}
-                      >
-                        Delete
-                      </button>
+                        <button
+                          className="btn btn-ghost"
+                          disabled={busy}
+                          onClick={() => {
+                            if (shareGameId === g.id) {
+                              setShareGameId(null);
+                              setShareTargetId("");
+                              return;
+                            }
+                            setShareGameId(g.id);
+                            void loadPeers();
+                          }}
+                        >
+                          Send a copy
+                        </button>
+                        <Link
+                          className="btn btn-primary"
+                          href={`/host/${g.code}?token=${encodeURIComponent(g.hostToken)}`}
+                          target="_blank"
+                        >
+                          Host screen
+                        </Link>
+                        <button
+                          className="btn btn-danger"
+                          onClick={() => void removeGame(g.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
+                    {shareGameId === g.id && (
+                      <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+                        {peers.length === 0 ? (
+                          <p className="text-sm text-muted">
+                            No other hosts yet. Export a pack to share the
+                            file, or add a host account first.
+                          </p>
+                        ) : (
+                          <>
+                            <label className="sr-only" htmlFor={`share-${g.id}`}>
+                              Send a copy to
+                            </label>
+                            <select
+                              id={`share-${g.id}`}
+                              className="rounded-md border border-line bg-ink px-3 py-2 text-sm text-chalk"
+                              value={shareTargetId}
+                              onChange={(e) => setShareTargetId(e.target.value)}
+                            >
+                              {peers.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} ({p.email})
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              disabled={busy || !shareTargetId}
+                              onClick={() => void sendCopy(g.id, g.title)}
+                            >
+                              Send
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => {
+                            setShareGameId(null);
+                            setShareTargetId("");
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </article>
                 ))}
               </div>

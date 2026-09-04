@@ -17,6 +17,8 @@ Pick a **game type** when you create a night: classic multiple-choice **Trivia**
 - **Player phones** — join with code + name (no accounts); remembered display name; reconnect after refresh; rank/points after each round. Names are filtered for the projector (letters/numbers/spaces; obvious slurs blocked). Hosts can **Remove** a player from the lobby or standings.
 - **Scoring** — server timestamps only (phones can’t fake speed); board updates on lock so mid-question standings don’t spoil answers
 - **Play again** — clear players/scores, keep questions, issue a new join code
+- **Export / import** — download a pack (JSON for Trivia; zip with media for Image Zoom and Guess the Song). Import creates a new draft you own. Packs never include join codes, host tokens, players, or scores.
+- **Duplicate / send a copy** — clone a night for yourself, or send a copy to another host on this instance (they get a new draft; you keep the original)
 - **Past winners** — hall of fame in admin (winner, podium, date/time) survives Play again
 - Built for work, family, or group events on a small VPS or bare-metal box
 
@@ -92,6 +94,8 @@ Login is **email + password** (not a shared single password).
 
 You can **Edit** a game in admin to fix questions or settings before answers exist (or after Play again). Mid-round edits are blocked.
 
+**Duplicate** makes a draft copy for you (new join code). **Send a copy** does the same for another host on this site. **Export** downloads a pack to move a night between machines or email it; **Import pack** on My games turns that file into a new draft. Image Zoom and Guess the Song packs include the uploaded files — only export audio you have the right to share.
+
 ### Join codes
 
 Codes use an unambiguous alphabet (no `I`/`J`/`L`/`O`/`Q`/`0`/`1`) so they’re easy to read off a big screen.
@@ -117,7 +121,7 @@ Uploads (images and audio) are stored on disk (`UPLOAD_DIR`, default `data/uploa
 | Path | Who | Purpose |
 |------|-----|---------|
 | `/` | Anyone | Landing |
-| `/admin` | Host / super-admin | Build/edit games, past winners; super-admin also manages hosts |
+| `/admin` | Host / super-admin | Build/edit games, import/export packs, past winners; super-admin also manages hosts |
 | `/host/[code]?token=…` | Host display | Control game + live board |
 | `/join` | Players | Enter code + name (`?code=` prefill from QR) |
 | `/play/[code]` | Players | Answer questions |
@@ -168,6 +172,8 @@ npm run db:migrate   # prisma migrate deploy
 npm run test:scoring # unit checks for the score formula
 npm run test:zoom    # unit checks for Image Zoom scale-over-time
 npm run test:audio-speed # unit checks for Guess the Song playback-rate curve
+npm run test:display-name # unit checks for projector name filter
+npm run test:game-pack   # unit checks for export/import packs
 npm run smoke        # 200-player join + answer burst (app must be running)
 ```
 

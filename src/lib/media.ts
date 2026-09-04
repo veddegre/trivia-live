@@ -149,6 +149,60 @@ export async function saveAudioUpload(opts: {
   return { key };
 }
 
+/** Copy an on-disk upload to a new key (clone / send-a-copy). */
+export async function copyMediaFile(sourceKey: string): Promise<string> {
+  const src = resolveUploadPath(sourceKey);
+  if (!src || !mediaFileExists(sourceKey)) {
+    throw new Error("A media file is missing — re-upload it and try again");
+  }
+  const ext = sourceKey.split(".").pop()?.toLowerCase() || "";
+  const storedExt = ext === "jpeg" ? "jpg" : ext;
+  if (!EXT_TO_MIME[storedExt]) {
+    throw new Error("Unsupported media type");
+  }
+  const key = `${randomBytes(16).toString("hex")}.${storedExt}`;
+  const dir = ensureUploadDir();
+  await fs.promises.copyFile(src, path.join(dir, key));
+  return key;
+}
+
+/** Persist a file from an imported pack (re-validates type and size). */
+export async function saveImportedMedia(
+  buffer: Buffer,
+  filename: string
+): Promise<{ key: string }> {
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  const imageMime =
+    ext === "jpg" || ext === "jpeg"
+      ? "image/jpeg"
+      : ext === "png"
+        ? "image/png"
+        : ext === "webp"
+          ? "image/webp"
+          : ext === "gif"
+            ? "image/gif"
+            : null;
+  if (imageMime) return saveImageUpload({ buffer, mime: imageMime });
+
+  const audioMime =
+    ext === "mp3"
+      ? "audio/mpeg"
+      : ext === "m4a"
+        ? "audio/mp4"
+        : ext === "aac"
+          ? "audio/aac"
+          : ext === "wav"
+            ? "audio/wav"
+            : ext === "ogg"
+              ? "audio/ogg"
+              : ext === "webm"
+                ? "audio/webm"
+                : null;
+  if (audioMime) return saveAudioUpload({ buffer, mime: audioMime });
+
+  throw new Error("Unsupported media in pack");
+}
+
 export async function deleteMediaFile(key: string): Promise<void> {
   const full = resolveUploadPath(key);
   if (!full) return;

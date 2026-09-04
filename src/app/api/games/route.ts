@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { gamesOwnedBy, requireUser } from "@/lib/auth";
-import { generateJoinCode } from "@/lib/codes";
+import { allocateJoinCode } from "@/lib/create-draft-game";
 import { prisma } from "@/lib/db";
 import {
   assertQuestionsForGameType,
@@ -52,12 +52,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: indexErr }, { status: 400 });
   }
 
-  let code = generateJoinCode();
-  for (let i = 0; i < 8; i++) {
-    const clash = await prisma.game.findUnique({ where: { code } });
-    if (!clash) break;
-    code = generateJoinCode();
-  }
+  const code = await allocateJoinCode();
 
   const game = await prisma.game.create({
     data: {
