@@ -7,6 +7,7 @@ import {
   buildPublicState,
   clearQuestionTimer,
   finishGame,
+  kickPlayer,
   lockQuestion,
   markBroadcast,
   nextQuestion,
@@ -19,6 +20,7 @@ import {
   submitAnswer,
   withoutQuestionMedia,
 } from "@/lib/game-manager";
+import { assertDisplayName } from "@/lib/display-name";
 import { setSocketServer, emitGameReset } from "@/lib/realtime";
 
 type JoinHostPayload = { code: string; hostToken: string };
@@ -167,8 +169,7 @@ export function createSocketServer(httpServer: HttpServer) {
     socket.on("player:join", async (payload: JoinPlayerPayload, ack?: (r: unknown) => void) => {
       try {
         const code = payload.code?.toUpperCase();
-        const name = (payload.name || "").trim().slice(0, 24);
-        if (!name) throw new Error("Name is required");
+        const name = assertDisplayName(payload.name || "");
 
         const game = await prisma.game.findUnique({
           where: { code },
@@ -333,6 +334,34 @@ export function createSocketServer(httpServer: HttpServer) {
         if (data.role !== "host" || !data.code) throw new Error("Not authorized");
         clearQuestionTimer(data.code);
         await finishGame(data.code);
+        await broadcastState(io, data.code, true);
+        ack?.({ ok: true });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Failed";
+        ack?.({ ok: false, message });
+        socket.emit("error", { message });
+      }
+    });
+
+    socket.on("host:kick", async (payload: { playerId?: string }, ack?: (r: unknown) => void) => {
+      try {
+        if (data.role !== "host" || !data.code) throw new Error("Not authorized");
+        const playerId = payload?.playerId?.trim();
+        if (!playerId) throw new Error("Player is required");
+        const kicked = await kickPlayer(data.code, playerId);
+        const sockets = await io.in(room(data.code)).fetchSockets();
+        for (const s of sockets) {
+          const d = s.data as SocketData;
+          if (d.role === "player" && d.playerId === kicked.playerId) {
+            s.emit("player:kicked", {
+              message: "The host removed you from the game.",
+            });
+            d.role = undefined;
+            d.playerId = undefined;
+            d.playerToken = undefined;
+            await s.leave(room(data.code));
+          }
+        }
         await broadcastState(io, data.code, true);
         ack?.({ ok: true });
       } catch (e) {

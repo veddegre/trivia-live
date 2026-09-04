@@ -24,5 +24,6 @@ export type ServerToClientEvents = {
     hostToken?: string;
   }) => void;
   "player:state": (player: PlayerView) => void;
+  "player:kicked": (payload: { message: string }) => void;
   error: (payload: { message: string }) => void;
 };

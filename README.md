@@ -14,7 +14,7 @@ Pick a **game type** when you create a night: classic multiple-choice **Trivia**
 - **Image Zoom** — upload a JPEG/PNG/WebP/GIF per round (5 MB max); starting crop Close / Tight / Extreme; photo plays only on the **host screen**; phones show the prompt, timer, and answer buttons
 - **Guess the Song** — upload a short clip per round (MP3, M4A, WAV, OGG, or AAC, 10 MB max); starts fast and eases to normal speed; audio plays only on the **host** TV/speakers; phones are the answer pad. Host taps Play to start the clip and the round clock.
 - **Host screen** — join code, QR → `/join?code=…`, typed join URL, live lobby roster, question control, reveal, between-round standings pause, podium finish. Opening the host screen opens the lobby.
-- **Player phones** — join with code + name (no accounts); remembered display name; reconnect after refresh; rank/points after each round
+- **Player phones** — join with code + name (no accounts); remembered display name; reconnect after refresh; rank/points after each round. Names are filtered for the projector (letters/numbers/spaces; obvious slurs blocked). Hosts can **Remove** a player from the lobby or standings.
 - **Scoring** — server timestamps only (phones can’t fake speed); board updates on lock so mid-question standings don’t spoil answers
 - **Play again** — clear players/scores, keep questions, issue a new join code
 - **Past winners** — hall of fame in admin (winner, podium, date/time) survives Play again

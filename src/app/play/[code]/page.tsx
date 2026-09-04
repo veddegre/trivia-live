@@ -9,6 +9,7 @@ import { useQuestionCountdown } from "@/hooks/useQuestionCountdown";
 import type { BrandConfig } from "@/lib/branding";
 import { getSocket } from "@/lib/socket-client";
 import type { GamePublicState, PlayerView } from "@/lib/types";
+import { assertDisplayName } from "@/lib/display-name";
 import { DISPLAY_NAME_KEY } from "@/lib/types";
 
 const storageKey = (code: string) => `trivia-player:${code}`;
@@ -133,10 +134,18 @@ function PlayInner({ code }: { code: string }) {
         setSubmitting(false);
         if (payload.code && payload.code !== code) router.replace("/join");
       };
+      const onKicked = () => {
+        localStorage.removeItem(storageKey(code));
+        setPlayer(null);
+        setError("The host removed you from the game.");
+        setSubmitting(false);
+        router.replace("/join");
+      };
       socket.on("connect", reconnect);
       socket.on("game:state", setState);
       socket.on("game:reset", onReset);
       socket.on("player:state", setPlayer);
+      socket.on("player:kicked", onKicked);
       if (socket.connected) reconnect();
       else socket.connect();
       return () => {
@@ -144,6 +153,7 @@ function PlayInner({ code }: { code: string }) {
         socket.off("game:state", setState);
         socket.off("game:reset", onReset);
         socket.off("player:state", setPlayer);
+        socket.off("player:kicked", onKicked);
       };
     } catch {
       localStorage.removeItem(storageKey(code));
@@ -190,21 +200,36 @@ function PlayInner({ code }: { code: string }) {
       setSubmitting(false);
       if (payload.code && payload.code !== code) router.replace("/join");
     };
+    const onKicked = () => {
+      localStorage.removeItem(storageKey(code));
+      setPlayer(null);
+      setError("The host removed you from the game.");
+      setSubmitting(false);
+      router.replace("/join");
+    };
     socket.on("game:state", onState);
     socket.on("player:state", onPlayer);
     socket.on("game:reset", onReset);
     socket.on("error", onErr);
+    socket.on("player:kicked", onKicked);
     return () => {
       socket.off("game:state", onState);
       socket.off("player:state", onPlayer);
       socket.off("game:reset", onReset);
       socket.off("error", onErr);
+      socket.off("player:kicked", onKicked);
     };
   }, [player?.playerId, code, router]);
 
   function doPlayerJoin(displayName: string) {
-    const trimmed = displayName.trim();
-    if (!trimmed || gameMissing) return;
+    let trimmed: string;
+    try {
+      trimmed = assertDisplayName(displayName);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Pick another display name.");
+      return;
+    }
+    if (gameMissing) return;
     setJoining(true);
     setError("");
     try {
@@ -359,6 +384,9 @@ function PlayInner({ code }: { code: string }) {
                   required
                   autoFocus
                 />
+                <span className="block text-xs text-muted">
+                  Letters, numbers, and spaces — keep it friendly for the room.
+                </span>
               </label>
               {error && <p className="text-sm text-bad">{error}</p>}
               <button

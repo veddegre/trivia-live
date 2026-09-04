@@ -540,6 +540,17 @@ async function uniqueJoinCode(): Promise<string> {
   return generateJoinCode(7);
 }
 
+/** Remove one player (and their answers) from a live game. */
+export async function kickPlayer(code: string, playerId: string) {
+  const player = await prisma.player.findFirst({
+    where: { id: playerId, game: { code: code.toUpperCase() } },
+    select: { id: true, name: true },
+  });
+  if (!player) throw new Error("Player not found");
+  await prisma.player.delete({ where: { id: player.id } });
+  return { playerId: player.id, name: player.name };
+}
+
 /**
  * Clear players/answers and return the game to lobby.
  * Issues a new join code + host token; keeps questions.

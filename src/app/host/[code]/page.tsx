@@ -84,10 +84,12 @@ function StandingsList({
   rows,
   showDeltas,
   title = "In the lead",
+  onRemove,
 }: {
   rows: LeaderboardEntry[];
   showDeltas?: boolean;
   title?: string;
+  onRemove?: (row: LeaderboardEntry) => void;
 }) {
   return (
     <>
@@ -131,16 +133,28 @@ function StandingsList({
                   {row.name}
                 </span>
               </span>
-              <span className="flex shrink-0 flex-col items-end leading-tight">
-                <span
-                  className={`font-bold tabular-nums ${i === 0 ? "text-amber" : "text-chalk"}`}
-                >
-                  {row.totalScore.toLocaleString()}
-                </span>
-                {showDeltas && row.lastPoints != null && (
-                  <span className="text-xs font-semibold text-amber">
-                    +{row.lastPoints}
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="flex flex-col items-end leading-tight">
+                  <span
+                    className={`font-bold tabular-nums ${i === 0 ? "text-amber" : "text-chalk"}`}
+                  >
+                    {row.totalScore.toLocaleString()}
                   </span>
+                  {showDeltas && row.lastPoints != null && (
+                    <span className="text-xs font-semibold text-amber">
+                      +{row.lastPoints}
+                    </span>
+                  )}
+                </span>
+                {onRemove && (
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-muted hover:text-bad"
+                    onClick={() => onRemove(row)}
+                    aria-label={`Remove ${row.name}`}
+                  >
+                    Remove
+                  </button>
                 )}
               </span>
             </li>
@@ -264,6 +278,18 @@ function HostInner({ code }: { code: string }) {
     socket.emit(event, (res: { ok?: boolean; message?: string }) => {
       if (res && res.ok === false) setError(res.message || "Action failed");
     });
+  }
+
+  function kickPlayer(row: LeaderboardEntry) {
+    if (!confirm(`Remove “${row.name}” from the game?`)) return;
+    const socket = getSocket();
+    socket.emit(
+      "host:kick",
+      { playerId: row.playerId },
+      (res: { ok?: boolean; message?: string }) => {
+        if (res && res.ok === false) setError(res.message || "Could not remove player");
+      }
+    );
   }
 
   function startClock(): Promise<void> {
@@ -560,7 +586,12 @@ function HostInner({ code }: { code: string }) {
             </section>
 
             <aside className="panel min-h-0 overflow-y-auto rounded-2xl p-4 md:p-6">
-              <StandingsList rows={top} showDeltas title="In the lead" />
+              <StandingsList
+                rows={top}
+                showDeltas
+                title="In the lead"
+                onRemove={kickPlayer}
+              />
               <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-amber">
                 Points earned this round
               </p>
@@ -656,7 +687,11 @@ function HostInner({ code }: { code: string }) {
             </section>
 
             <aside className="panel rounded-2xl p-6">
-              <StandingsList rows={top} title="Leaderboard" />
+              <StandingsList
+                rows={top}
+                title="Leaderboard"
+                onRemove={kickPlayer}
+              />
               <p className="mt-6 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-muted">
                 Points update after each question
               </p>
@@ -935,9 +970,16 @@ function HostInner({ code }: { code: string }) {
                     >
                       <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5Z" />
                     </svg>
-                    <span className="text-base font-semibold text-chalk">
+                    <span className="min-w-0 flex-1 truncate text-base font-semibold text-chalk">
                       {row.name}
                     </span>
+                    <button
+                      type="button"
+                      className="shrink-0 text-xs font-semibold text-muted hover:text-bad"
+                      onClick={() => kickPlayer(row)}
+                    >
+                      Remove
+                    </button>
                   </li>
                 ))}
               </ul>

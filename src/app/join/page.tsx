@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { BrandMark } from "@/components/BrandMark";
+import { assertDisplayName } from "@/lib/display-name";
 import { DISPLAY_NAME_KEY } from "@/lib/types";
 
 function JoinInner() {
@@ -27,10 +28,19 @@ function JoinInner() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     const c = code.trim().toUpperCase();
-    const n = name.trim();
+    let displayName = name.trim();
     if (!c) return;
     setChecking(true);
     setError("");
+    try {
+      if (displayName) {
+        displayName = assertDisplayName(displayName);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Pick another display name.");
+      setChecking(false);
+      return;
+    }
     try {
       const res = await fetch(`/api/games/by-code/${encodeURIComponent(c)}`, {
         cache: "no-store",
@@ -54,14 +64,14 @@ function JoinInner() {
         setError("This game isn’t accepting late joins.");
         return;
       }
-      if (n) {
+      if (displayName) {
         try {
-          localStorage.setItem(DISPLAY_NAME_KEY, n);
+          localStorage.setItem(DISPLAY_NAME_KEY, displayName);
         } catch {
           /* ignore */
         }
       }
-      const q = n ? `?name=${encodeURIComponent(n)}` : "";
+      const q = displayName ? `?name=${encodeURIComponent(displayName)}` : "";
       router.push(`/play/${c}${q}`);
     } catch {
       setError("Could not reach the server. Try again.");
@@ -116,6 +126,9 @@ function JoinInner() {
             placeholder="Your name"
             autoFocus={!!code}
           />
+          <span className="block text-xs text-muted">
+            Letters, numbers, and spaces — keep it friendly for the room.
+          </span>
         </label>
         {error && <p className="text-sm text-bad">{error}</p>}
         <button
