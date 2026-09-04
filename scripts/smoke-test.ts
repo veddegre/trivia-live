@@ -169,7 +169,7 @@ async function main() {
       await waitConnect(s);
       const res = await emitAck<{ ok: boolean; message?: string }>(s, "player:join", {
         code: game.code,
-        name: `P${i}`,
+        name: `Guest${i}`,
       });
       if (!res.ok) throw new Error(res.message || `player ${i} join failed`);
       players.push(s);

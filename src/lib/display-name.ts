@@ -109,9 +109,16 @@ function foldLeet(s: string): string {
   return out;
 }
 
+/** Table cards / smoke names like P155 — leet would turn that into "piss". */
+function isJerseyName(s: string): boolean {
+  const compact = s.normalize("NFKC").toLowerCase().replace(/[\s'\u2019\-]+/g, "");
+  return /^[\p{L}]{0,2}\p{N}+$/u.test(compact);
+}
+
 /** Lowercase, strip marks, map leetspeak, keep letters only. */
 export function normalizeForMatch(name: string): string {
-  const folded = foldLeet(name.normalize("NFKC").toLowerCase());
+  const lower = name.normalize("NFKC").toLowerCase();
+  const folded = isJerseyName(lower) ? lower : foldLeet(lower);
   return folded.replace(/[^\p{L}]+/gu, "");
 }
 
@@ -120,7 +127,11 @@ function tokens(name: string): string[] {
     .normalize("NFKC")
     .toLowerCase()
     .split(/[\s'\u2019\-]+/)
-    .map((t) => foldLeet(t).replace(/[^\p{L}\p{N}]+/gu, ""))
+    .map((t) => {
+      const cleaned = t.replace(/[^\p{L}\p{N}]+/gu, "");
+      if (isJerseyName(cleaned)) return cleaned;
+      return foldLeet(cleaned);
+    })
     .filter(Boolean);
 }
 

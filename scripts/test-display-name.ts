@@ -8,7 +8,9 @@ import {
 assert.equal(assertDisplayName("  José O’Brien  "), "José O’Brien");
 assert.equal(assertDisplayName("Anne-Marie"), "Anne-Marie");
 assert.equal(assertDisplayName("P12"), "P12");
+assert.equal(assertDisplayName("P155"), "P155");
 assert.equal(normalizeForMatch("5h1t"), "shit");
+assert.equal(normalizeForMatch("P155"), "p");
 
 function rejects(name: string) {
   assert.throws(() => assertDisplayName(name), {
