@@ -96,10 +96,22 @@ export default function HomePage() {
         <h2 className="text-center text-2xl font-bold md:text-3xl">How to play</h2>
         <ol className="mt-10 space-y-8">
           {[
-            ["Create a game", "Build questions in Admin — timers, scoring, True/False or multiple choice."],
-            ["Open the lobby", "Put the host screen on a big display. Players scan the QR or type the join code."],
-            ["Play live", "Everyone answers on their phones. Fastest correct answers earn more points."],
-            ["Crown a winner", "Reveal, standings between rounds, then the podium finish."],
+            [
+              "Create a game",
+              "In Admin, pick Trivia, Image Zoom, or Guess the Song. Add questions, timers, and scoring. A night is one type — types are not mixed.",
+            ],
+            [
+              "Open the lobby",
+              "Put the host screen on a big display. Players scan the QR or type the join code, then pick a name.",
+            ],
+            [
+              "Play live",
+              "Everyone answers on their phones. Fastest correct answers earn more points. Photos and song clips play only on the host screen — phones stay the answer pad.",
+            ],
+            [
+              "Crown a winner",
+              "Reveal, standings between rounds, then the podium finish. Hosts can remove a player from the lobby or standings if needed.",
+            ],
           ].map(([title, body], i) => (
             <li key={title} className="flex gap-5">
               <span className="display shrink-0 text-3xl font-extrabold text-amber">
@@ -118,11 +130,32 @@ export default function HomePage() {
 
       <section id="features" className="relative z-10 mx-auto w-full max-w-5xl px-6 pb-24 md:px-10">
         <h2 className="text-center text-2xl font-bold md:text-3xl">Built for game night</h2>
-        <div className="mt-10 grid gap-6 sm:grid-cols-3">
+        <div className="mt-10 grid gap-8 sm:grid-cols-3">
           {[
-            ["Host on any screen", "Lobby QR, live roster, and big-screen question boards."],
-            ["Phones as buzzers", "Players join in seconds — no app install."],
-            ["Pace the room", "Reveal, between-round standings pause, then the next question."],
+            [
+              "Classic trivia",
+              "Multiple choice or True/False. Per-question timers and speed scoring.",
+            ],
+            [
+              "Image Zoom",
+              "A photo starts cropped in tight on the host screen and opens as the clock runs down.",
+            ],
+            [
+              "Guess the Song",
+              "A short clip starts sped up on the room speakers and eases to normal speed.",
+            ],
+            [
+              "Host on any screen",
+              "Lobby QR, live roster, and big-screen boards. Photos and clips stay on the TV.",
+            ],
+            [
+              "Phones as buzzers",
+              "Players join with a code and name — no app install. Names are filtered for the projector.",
+            ],
+            [
+              "Pace the room",
+              "Reveal, between-round standings pause, then the next question.",
+            ],
           ].map(([title, body]) => (
             <div key={title} className="text-center">
               <div className="text-amber" aria-hidden>
