@@ -3,7 +3,13 @@
  * `nextIndex` is the 0-based index of the upcoming question
  * (already advanced when entering BETWEEN).
  */
-export function betweenHeadline(nextIndex: number, total: number): string {
+export function betweenHeadline(
+  nextIndex: number,
+  total: number,
+  endedRoundTitle?: string | null
+): string {
+  if (endedRoundTitle) return `End of ${endedRoundTitle}`;
+
   const completed = Math.max(0, nextIndex);
   const remaining = total - nextIndex;
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ImageCropModal } from "@/components/ImageCropModal";
+import { PlayerPhonePreview } from "@/components/PlayerPhonePreview";
 import {
   SCORE_BASE_DEFAULT,
   SCORE_TIME_BONUS_DEFAULT,
@@ -9,6 +10,7 @@ import {
   START_ZOOM_DEFAULT,
   type GameType,
 } from "@/lib/types";
+import { ROUND_TITLE_MAX } from "@/lib/rounds";
 import { mediaPublicUrl } from "@/lib/zoom";
 
 export type DraftQuestion = {
@@ -22,6 +24,7 @@ export type DraftQuestion = {
   startZoom: number;
   audioKey: string | null;
   startSpeed: number;
+  roundTitle: string;
 };
 
 export function emptyQuestion(gameType: GameType = "TRIVIA"): DraftQuestion {
@@ -29,19 +32,26 @@ export function emptyQuestion(gameType: GameType = "TRIVIA"): DraftQuestion {
     prompt:
       gameType === "IMAGE_ZOOM"
         ? "What is this?"
-        : gameType === "AUDIO_SPEED"
-          ? "Name that tune"
-          : "",
+        : gameType === "PICTURE_FINISH"
+          ? "Who is this?"
+          : gameType === "AUDIO_SPEED"
+            ? "Name that tune"
+            : "",
     options: ["", "", "", ""],
     correctIndex: 0,
     timeLimitSec:
-      gameType === "IMAGE_ZOOM" || gameType === "AUDIO_SPEED" ? 45 : 30,
+      gameType === "IMAGE_ZOOM" ||
+      gameType === "PICTURE_FINISH" ||
+      gameType === "AUDIO_SPEED"
+        ? 45
+        : 30,
     basePoints: SCORE_BASE_DEFAULT,
     timeBonus: SCORE_TIME_BONUS_DEFAULT,
     imageKey: null,
     startZoom: START_ZOOM_DEFAULT,
     audioKey: null,
     startSpeed: START_SPEED_DEFAULT,
+    roundTitle: "",
   };
 }
 
@@ -55,6 +65,9 @@ type Props = {
   /** Optional late-join control shown on the first question (game-level setting) */
   allowLateJoin?: boolean;
   onAllowLateJoinChange?: (next: boolean) => void;
+  allowAnswerChange?: boolean;
+  onAllowAnswerChangeChange?: (next: boolean) => void;
+  previousRoundTitle?: string;
 };
 
 export function QuestionEditor({
@@ -66,12 +79,18 @@ export function QuestionEditor({
   onRemove,
   allowLateJoin,
   onAllowLateJoinChange,
+  allowAnswerChange,
+  onAllowAnswerChangeChange,
+  previousRoundTitle = "",
 }: Props) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [showPlayerPreview, setShowPlayerPreview] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [cropObjectUrl, setCropObjectUrl] = useState<string | null>(null);
   const isZoom = gameType === "IMAGE_ZOOM";
+  const isPictureFinish = gameType === "PICTURE_FINISH";
+  const isImage = isZoom || isPictureFinish;
   const isAudio = gameType === "AUDIO_SPEED";
   const previewUrl = mediaPublicUrl(q.imageKey);
   const audioUrl = mediaPublicUrl(q.audioKey);
@@ -196,12 +215,24 @@ export function QuestionEditor({
     <div
       className="rounded-2xl border border-line bg-panel p-5 md:p-6"
     >
+      {qi > 0 && q.roundTitle.trim() ? (
+        <div className="mb-4 border-b border-line pb-3 text-xs font-bold uppercase tracking-[0.16em] text-amber">
+          New round
+        </div>
+      ) : null}
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
           Question {qi + 1}
         </div>
         <div className="flex flex-wrap gap-4">
-          {!isZoom && !isAudio && (
+          <button
+            type="button"
+            className="text-sm font-semibold text-amber"
+            onClick={() => setShowPlayerPreview(true)}
+          >
+            Preview as player
+          </button>
+          {!isImage && !isAudio && (
             <button
               type="button"
               className="text-sm font-semibold text-amber"
@@ -224,13 +255,36 @@ export function QuestionEditor({
 
       <div className="mt-5 grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
         <div className="space-y-4">
-          {isZoom && (
+          <label className="block space-y-2">
+            <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+              Round name
+            </span>
+            <input
+              className="field"
+              maxLength={ROUND_TITLE_MAX}
+              value={q.roundTitle}
+              placeholder={
+                previousRoundTitle
+                  ? `Same as previous (${previousRoundTitle})`
+                  : "Optional — e.g. Movies"
+              }
+              onChange={(e) =>
+                onChange({ ...q, roundTitle: e.target.value })
+              }
+            />
+            <span className="text-xs text-muted">
+              Leave blank to stay in the previous round. Type a name to start a
+              new section.
+            </span>
+          </label>
+          {isImage && (
             <div className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
                 Image
               </span>
               <p className="text-xs text-muted">
-                Square crop with a centered subject works best for Image Zoom.
+                Square crop with a centered subject works best
+                {isPictureFinish ? " for Picture Finish." : " for Image Zoom."}
               </p>
               {previewUrl ? (
                 <div className="overflow-hidden rounded-xl border border-line bg-ink-2/50">
@@ -377,7 +431,7 @@ export function QuestionEditor({
 
           <label className="block space-y-2">
             <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
-              {isZoom
+              {isImage
                 ? "Prompt (shown with the image)"
                 : isAudio
                   ? "Prompt (shown with the song)"
@@ -386,11 +440,13 @@ export function QuestionEditor({
             <textarea
               className="field min-h-[96px] resize-y"
               placeholder={
-                isZoom
-                  ? "What is this?"
-                  : isAudio
-                    ? "Name that tune"
-                    : "Enter your question…"
+                isPictureFinish
+                  ? "Who is this?"
+                  : isZoom
+                    ? "What is this?"
+                    : isAudio
+                      ? "Name that tune"
+                      : "Enter your question…"
               }
               value={q.prompt}
               onChange={(e) => onChange({ ...q, prompt: e.target.value })}
@@ -452,7 +508,7 @@ export function QuestionEditor({
               Timer
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
-              {[...(isZoom || isAudio ? [15, 30, 45, 60] : [15, 30, 60])].map((sec) => {
+              {[...(isImage || isAudio ? [15, 30, 45, 60] : [15, 30, 60])].map((sec) => {
                 const on = q.timeLimitSec === sec;
                 return (
                   <button
@@ -544,6 +600,47 @@ export function QuestionEditor({
             </div>
           )}
 
+          {isPictureFinish && (
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                Starting mosaic
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                How chunky the photo is when the timer starts. It eases to
+                sharp as time runs down.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[
+                  { label: "Soft", value: 6 },
+                  { label: "Heavy", value: 10 },
+                  { label: "Extreme", value: 16 },
+                ].map((opt) => {
+                  const on = q.startZoom === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className="rounded-full px-3 py-1.5 text-sm font-bold"
+                      style={
+                        on
+                          ? { background: "var(--amber)", color: "#1a1200" }
+                          : {
+                              background: "transparent",
+                              color: "var(--amber)",
+                              border:
+                                "1px solid color-mix(in srgb, var(--amber) 45%, var(--line))",
+                            }
+                      }
+                      onClick={() => onChange({ ...q, startZoom: opt.value })}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {isZoom && (
             <div>
               <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
@@ -619,8 +716,41 @@ export function QuestionEditor({
               </span>
             </label>
           )}
+
+          {qi === 0 && onAllowAnswerChangeChange && (
+            <label className="flex items-start gap-3 pt-1">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 accent-[var(--amber)]"
+                checked={!!allowAnswerChange}
+                onChange={(e) => onAllowAnswerChangeChange(e.target.checked)}
+              />
+              <span>
+                <span className="block text-sm font-semibold text-amber">
+                  Allow changing answers
+                </span>
+                <span className="text-xs text-muted">
+                  Players can switch their pick until time is up. Speed bonus
+                  stays from the first tap.
+                </span>
+              </span>
+            </label>
+          )}
         </div>
       </div>
+      {showPlayerPreview && (
+        <PlayerPhonePreview
+          prompt={q.prompt}
+          options={q.options}
+          timeLimitSec={q.timeLimitSec}
+          gameType={gameType}
+          roundLabel={
+            (q.roundTitle.trim() || previousRoundTitle) || undefined
+          }
+          questionLabel={`Question ${qi + 1}`}
+          onClose={() => setShowPlayerPreview(false)}
+        />
+      )}
     </div>
   );
 }

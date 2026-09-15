@@ -98,19 +98,19 @@ export default function HomePage() {
           {[
             [
               "Create a game",
-              "In Admin, pick Trivia, Image Zoom, or Guess the Song. Add questions, timers, and scoring. A night is one type — types are not mixed.",
+              "In Admin, pick Trivia, Image Zoom, Picture Finish, or Guess the Song. Add questions, timers, and scoring. Optionally group them into named rounds. A night is one type — types are not mixed.",
             ],
             [
               "Open the lobby",
-              "Put the host screen on a big display. Players scan the QR or type the join code, then pick a name.",
+              "Put the host screen on a big display. Players scan the QR or type the join code, then pick a name. Open /watch on a second TV if you want the board without controls.",
             ],
             [
               "Play live",
-              "Everyone answers on their phones. Fastest correct answers earn more points. Photos and song clips play only on the host screen — phones stay the answer pad.",
+              "Everyone answers on their phones. Fastest correct answers earn more points. Photos and song clips play on the host screen and any watch TVs — phones stay the answer pad.",
             ],
             [
               "Crown a winner",
-              "Reveal, standings between rounds, then the podium finish. Hosts can remove a player from the lobby or standings if needed.",
+              "Reveal, standings between rounds, then the podium finish. Hosts can remove a player for the rest of the night if needed.",
             ],
           ].map(([title, body], i) => (
             <li key={title} className="flex gap-5">
@@ -141,12 +141,16 @@ export default function HomePage() {
               "A photo starts cropped in tight on the host screen and opens as the clock runs down.",
             ],
             [
+              "Picture Finish",
+              "A photo starts as a mosaic on the host screen and sharpens as the clock runs down.",
+            ],
+            [
               "Guess the Song",
               "A short clip starts sped up on the room speakers and eases to normal speed.",
             ],
             [
               "Host on any screen",
-              "Lobby QR, live roster, and big-screen boards. Export a pack or send a copy to another host.",
+              "Lobby QR, live roster, and big-screen boards. A second TV can watch without controls. Export a pack or send a copy to another host.",
             ],
             [
               "Phones as buzzers",
@@ -154,7 +158,7 @@ export default function HomePage() {
             ],
             [
               "Pace the room",
-              "Reveal, between-round standings pause, then the next question.",
+              "Reveal, between-question standings, named round mini-podiums, then the next question.",
             ],
           ].map(([title, body]) => (
             <div key={title} className="text-center">

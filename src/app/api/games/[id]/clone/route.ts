@@ -46,6 +46,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     title: game.title,
     gameType: game.gameType,
     allowLateJoin: game.allowLateJoin,
+    allowAnswerChange: game.allowAnswerChange,
     questions: game.questions,
   };
 

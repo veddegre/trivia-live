@@ -14,6 +14,7 @@ const trivia: SourceGame = {
   title: "Friday Night",
   gameType: "TRIVIA",
   allowLateJoin: true,
+  allowAnswerChange: false,
   questions: [
     {
       prompt: "Capital of France?",
@@ -26,6 +27,7 @@ const trivia: SourceGame = {
       startSpeed: 2,
       imageKey: null,
       audioKey: null,
+      roundTitle: "",
     },
   ],
 };
@@ -35,6 +37,8 @@ assert.equal(pack.version, 1);
 assert.equal(pack.gameType, "TRIVIA");
 assert.equal(pack.questions[0].media, undefined);
 assert.deepEqual(parsePackJson(pack), pack);
+
+assert.equal(pack.allowAnswerChange, false);
 
 const withSecrets = {
   ...pack,
@@ -94,6 +98,13 @@ async function main() {
   assert.equal(parsedZip.media.has("q-00.jpg"), true);
   assert.equal(parsedZip.media.has("evil.txt"), false);
   assert.deepEqual([...parsedZip.media.keys()], ["q-00.jpg"]);
+
+  const finishPack = parsePackJson({
+    ...zoomPack,
+    title: "Finish night",
+    gameType: "PICTURE_FINISH",
+  });
+  assert.equal(finishPack.gameType, "PICTURE_FINISH");
 
   assert.equal(copyTitle("Bass"), "Bass (copy)");
 

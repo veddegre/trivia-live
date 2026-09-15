@@ -27,6 +27,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     title: game.title,
     gameType: game.gameType,
     allowLateJoin: game.allowLateJoin,
+    allowAnswerChange: game.allowAnswerChange,
     questions: game.questions,
   };
 

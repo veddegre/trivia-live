@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { HostScreen } from "@/components/HostScreen";
 
-export default function HostPage({
+export default function WatchPage({
   params,
 }: {
   params: Promise<{ code: string }>;
@@ -16,8 +16,8 @@ export default function HostPage({
   if (!code) return <main className="p-10 text-muted">Loading…</main>;
 
   return (
-    <Suspense fallback={<main className="p-10 text-muted">Loading host…</main>}>
-      <HostScreen key={code} code={code} variant="host" />
+    <Suspense fallback={<main className="p-10 text-muted">Loading watch…</main>}>
+      <HostScreen key={code} code={code} variant="watch" />
     </Suspense>
   );
 }

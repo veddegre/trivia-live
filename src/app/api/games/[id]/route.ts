@@ -9,6 +9,7 @@ import {
   questionCreateData,
   questionSchema,
 } from "@/lib/question-schema";
+import { gameTypeUsesAudio, gameTypeUsesImage } from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -37,6 +38,7 @@ const patchSchema = z.object({
   gameType: gameTypeSchema.optional(),
   status: z.enum(["DRAFT", "LOBBY"]).optional(),
   allowLateJoin: z.boolean().optional(),
+  allowAnswerChange: z.boolean().optional(),
   questions: z.array(questionSchema).min(1).max(100).optional(),
 });
 
@@ -56,7 +58,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const { title, status, allowLateJoin, questions, gameType } = parsed.data;
+  const { title, status, allowLateJoin, allowAnswerChange, questions, gameType } =
+    parsed.data;
   const nextType = gameType ?? existing.gameType;
 
   if (gameType && gameType !== existing.gameType && !questions) {
@@ -104,8 +107,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     const nextKeys = new Set(
       questions.flatMap((q) => {
         const keys: string[] = [];
-        if (nextType === "IMAGE_ZOOM" && q.imageKey) keys.push(q.imageKey);
-        if (nextType === "AUDIO_SPEED" && q.audioKey) keys.push(q.audioKey);
+        if (gameTypeUsesImage(nextType) && q.imageKey) keys.push(q.imageKey);
+        if (gameTypeUsesAudio(nextType) && q.audioKey) keys.push(q.audioKey);
         return keys;
       })
     );
@@ -127,6 +130,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   if (title !== undefined) data.title = title;
   if (status !== undefined) data.status = status;
   if (allowLateJoin !== undefined) data.allowLateJoin = allowLateJoin;
+  if (allowAnswerChange !== undefined) data.allowAnswerChange = allowAnswerChange;
   if (gameType !== undefined) data.gameType = gameType;
 
   const game = await prisma.game.update({

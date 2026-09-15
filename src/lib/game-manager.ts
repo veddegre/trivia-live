@@ -4,6 +4,14 @@ import { resolveBrand } from "@/lib/branding";
 import { generateJoinCode } from "@/lib/codes";
 import { prisma } from "@/lib/db";
 import { scoreAnswer } from "@/lib/scoring";
+import { buildNightRecap } from "@/lib/night-recap";
+import { isNameBanned, withBannedName } from "@/lib/bans";
+import {
+  isEndOfNamedRound,
+  roundForQuestion,
+  roundSummaries,
+  roundViewAt,
+} from "@/lib/rounds";
 import { mediaPublicUrl } from "@/lib/zoom";
 import type {
   GamePhase,
@@ -12,6 +20,7 @@ import type {
   PlayerView,
   PublicQuestion,
 } from "@/lib/types";
+import { gameTypeUsesAudio, gameTypeUsesImage } from "@/lib/types";
 
 type GameWithRelations = Game & {
   questions: Question[];
@@ -97,6 +106,32 @@ function toLeaderboard(players: Player[], lastPoints?: Map<string, number>): Lea
     }));
 }
 
+async function roundLeaderboardFor(
+  game: GameWithRelations,
+  startIndex: number,
+  endIndex: number
+): Promise<LeaderboardEntry[]> {
+  const ids = game.questions.slice(startIndex, endIndex + 1).map((q) => q.id);
+  if (ids.length === 0) return [];
+  const answers = await prisma.answer.findMany({
+    where: { questionId: { in: ids } },
+    select: { playerId: true, points: true },
+  });
+  const totals = new Map<string, number>();
+  for (const a of answers) {
+    totals.set(a.playerId, (totals.get(a.playerId) ?? 0) + a.points);
+  }
+  return [...game.players]
+    .map((p) => ({
+      playerId: p.id,
+      name: p.name,
+      totalScore: totals.get(p.id) ?? 0,
+    }))
+    .sort(
+      (a, b) => b.totalScore - a.totalScore || a.name.localeCompare(b.name)
+    );
+}
+
 export async function buildPublicState(
   code: string,
   opts?: { revealCorrect?: boolean }
@@ -118,12 +153,14 @@ export async function buildPublicState(
       prompt: q.prompt,
       options: q.options,
       timeLimitSec: q.timeLimitSec,
-      imageUrl:
-        game.gameType === "IMAGE_ZOOM" ? mediaPublicUrl(q.imageKey) : null,
-      startZoom: game.gameType === "IMAGE_ZOOM" ? q.startZoom : undefined,
-      audioUrl:
-        game.gameType === "AUDIO_SPEED" ? mediaPublicUrl(q.audioKey) : null,
-      startSpeed: game.gameType === "AUDIO_SPEED" ? q.startSpeed : undefined,
+      imageUrl: gameTypeUsesImage(game.gameType)
+        ? mediaPublicUrl(q.imageKey)
+        : null,
+      startZoom: gameTypeUsesImage(game.gameType) ? q.startZoom : undefined,
+      audioUrl: gameTypeUsesAudio(game.gameType)
+        ? mediaPublicUrl(q.audioKey)
+        : null,
+      startSpeed: gameTypeUsesAudio(game.gameType) ? q.startSpeed : undefined,
       ...(reveal ? { correctIndex: q.correctIndex } : {}),
     };
   }
@@ -154,6 +191,26 @@ export async function buildPublicState(
     phase === "finished" && leaderboard.length > 0 ? leaderboard[0] : null;
   const leader = leaderboard.length > 0 ? leaderboard[0] : null;
 
+  const titles = game.questions.map((q) => q.roundTitle);
+  const round = roundViewAt(titles, game.currentQuestionIndex);
+  let endedRound: GamePublicState["endedRound"] = null;
+  if (phase === "between") {
+    const completed = game.currentQuestionIndex - 1;
+    if (isEndOfNamedRound(titles, completed)) {
+      const group = roundForQuestion(titles, completed);
+      if (group) {
+        endedRound = {
+          title: group.title,
+          leaderboard: await roundLeaderboardFor(
+            game,
+            group.startIndex,
+            group.endIndex
+          ),
+        };
+      }
+    }
+  }
+
   const brand = resolveBrand();
 
   return {
@@ -176,6 +233,10 @@ export async function buildPublicState(
         : null,
     winner,
     allowLateJoin: game.allowLateJoin,
+    allowAnswerChange: game.allowAnswerChange,
+    round,
+    rounds: roundSummaries(titles),
+    endedRound,
     brand,
   };
 }
@@ -366,18 +427,46 @@ export async function submitAnswer(opts: {
     throw new Error("Invalid choice");
   }
 
+  const now = new Date();
+  const nowElapsedMs = now.getTime() - game.questionOpenedAt.getTime();
+  if (nowElapsedMs > q.timeLimitSec * 1000) {
+    throw new Error("Time is up");
+  }
+
   const existing = await prisma.answer.findUnique({
     where: {
       playerId_questionId: { playerId: player.id, questionId: q.id },
     },
   });
-  if (existing) throw new Error("Already answered");
-
-  const answeredAt = new Date();
-  const elapsedMs = answeredAt.getTime() - game.questionOpenedAt.getTime();
-  if (elapsedMs > q.timeLimitSec * 1000) {
-    throw new Error("Time is up");
+  if (existing) {
+    if (!game.allowAnswerChange) throw new Error("Already answered");
+    if (existing.choiceIndex === opts.choiceIndex) {
+      return { playerId: player.id };
+    }
+    // Speed bonus stays from the first tap; only the pick can change.
+    const elapsedMs =
+      existing.answeredAt.getTime() - game.questionOpenedAt.getTime();
+    const isCorrect = opts.choiceIndex === q.correctIndex;
+    const points = scoreAnswer({
+      isCorrect,
+      elapsedMs,
+      timeLimitSec: q.timeLimitSec,
+      basePoints: q.basePoints,
+      timeBonus: q.timeBonus,
+    });
+    await prisma.answer.update({
+      where: { id: existing.id },
+      data: {
+        choiceIndex: opts.choiceIndex,
+        isCorrect,
+        points,
+      },
+    });
+    getRuntime(game.code).dirtyLeaderboard = true;
+    return { playerId: player.id };
   }
+
+  const elapsedMs = nowElapsedMs;
   const isCorrect = opts.choiceIndex === q.correctIndex;
   const points = scoreAnswer({
     isCorrect,
@@ -393,7 +482,7 @@ export async function submitAnswer(opts: {
       playerId: player.id,
       questionId: q.id,
       choiceIndex: opts.choiceIndex,
-      answeredAt,
+      answeredAt: now,
       isCorrect,
       points,
     },
@@ -458,6 +547,23 @@ export async function recordGameResult(code: string) {
     totalScore: p.totalScore,
   }));
 
+  const answers = await prisma.answer.findMany({
+    where: { player: { gameId: game.id } },
+    select: {
+      playerId: true,
+      questionId: true,
+      choiceIndex: true,
+      isCorrect: true,
+      points: true,
+    },
+  });
+  const recap = buildNightRecap({
+    gameType: game.gameType,
+    questions: game.questions,
+    players: game.players,
+    answers,
+  });
+
   try {
     return await prisma.gameResult.upsert({
       where: {
@@ -472,6 +578,7 @@ export async function recordGameResult(code: string) {
         winnerScore: winner.totalScore,
         playerCount: game.players.length,
         podium,
+        recap,
       },
       update: {
         ownerId: game.ownerId,
@@ -480,6 +587,7 @@ export async function recordGameResult(code: string) {
         winnerScore: winner.totalScore,
         playerCount: game.players.length,
         podium,
+        recap,
       },
     });
   } catch {
@@ -540,14 +648,26 @@ async function uniqueJoinCode(): Promise<string> {
   return generateJoinCode(7);
 }
 
-/** Remove one player (and their answers) from a live game. */
+/** Remove one player (and their answers) and block that name until Play again. */
 export async function kickPlayer(code: string, playerId: string) {
   const player = await prisma.player.findFirst({
     where: { id: playerId, game: { code: code.toUpperCase() } },
-    select: { id: true, name: true },
+    select: {
+      id: true,
+      name: true,
+      gameId: true,
+      game: { select: { bannedNames: true } },
+    },
   });
   if (!player) throw new Error("Player not found");
-  await prisma.player.delete({ where: { id: player.id } });
+  const bannedNames = withBannedName(player.game.bannedNames, player.name);
+  await prisma.$transaction([
+    prisma.game.update({
+      where: { id: player.gameId },
+      data: { bannedNames },
+    }),
+    prisma.player.delete({ where: { id: player.id } }),
+  ]);
   return { playerId: player.id, name: player.name };
 }
 
@@ -578,6 +698,7 @@ export async function resetGame(gameId: string) {
         status: "LOBBY",
         currentQuestionIndex: 0,
         questionOpenedAt: null,
+        bannedNames: [],
       },
     }),
   ]);

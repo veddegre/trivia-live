@@ -124,11 +124,16 @@ export function SpeedRevealAudio({
           ? "Replay the snippet at normal speed"
           : playing
             ? "Listening…"
-            : "Tap play to start the snippet and the timer"}
+            : onPlayRequest
+              ? "Tap play to start the snippet and the timer"
+              : openedAt
+                ? "Tap play to listen on this screen"
+                : "Waiting for the host to play"}
       </p>
       <button
         type="button"
         className="btn mt-5 px-10 uppercase tracking-wide"
+        disabled={!revealed && !openedAt && !onPlayRequest}
         onClick={() => void (revealed ? handleReplay() : handlePlay())}
       >
         {revealed ? "Replay" : playing ? "Playing…" : "Play snippet"}

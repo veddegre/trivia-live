@@ -14,10 +14,14 @@
     "smoke": "tsx scripts/smoke-test.ts",
     "test:scoring": "tsx scripts/test-scoring.ts",
     "test:zoom": "tsx scripts/test-zoom.ts",
+    "test:picture-finish": "tsx scripts/test-picture-finish.ts",
     "test:image-crop": "tsx scripts/test-image-crop.ts",
     "test:audio-speed": "tsx scripts/test-audio-speed.ts",
     "test:display-name": "tsx scripts/test-display-name.ts",
-    "test:game-pack": "tsx scripts/test-game-pack.ts"
+    "test:game-pack": "tsx scripts/test-game-pack.ts",
+    "test:rounds": "tsx scripts/test-rounds.ts",
+    "test:night-recap": "tsx scripts/test-night-recap.ts",
+    "test:bans": "tsx scripts/test-bans.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

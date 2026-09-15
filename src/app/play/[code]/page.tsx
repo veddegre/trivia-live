@@ -9,6 +9,7 @@ import { useQuestionCountdown } from "@/hooks/useQuestionCountdown";
 import type { BrandConfig } from "@/lib/branding";
 import { getSocket } from "@/lib/socket-client";
 import type { GamePublicState, PlayerView } from "@/lib/types";
+import { gameTypeUsesImage } from "@/lib/types";
 import { assertDisplayName } from "@/lib/display-name";
 import { DISPLAY_NAME_KEY } from "@/lib/types";
 
@@ -50,8 +51,12 @@ function PlayInner({ code }: { code: string }) {
   );
 
   const timeUp = remaining === 0;
+  const canChange = !!state?.allowAnswerChange;
   const locked =
-    !!player?.hasAnswered || timeUp || state?.phase !== "question" || submitting;
+    (!canChange && !!player?.hasAnswered) ||
+    timeUp ||
+    state?.phase !== "question" ||
+    submitting;
 
   useEffect(() => {
     if (presetName) return;
@@ -134,10 +139,13 @@ function PlayInner({ code }: { code: string }) {
         setSubmitting(false);
         if (payload.code && payload.code !== code) router.replace("/join");
       };
-      const onKicked = () => {
+      const onKicked = (payload?: { message?: string }) => {
         localStorage.removeItem(storageKey(code));
         setPlayer(null);
-        setError("The host removed you from the game.");
+        setError(
+          payload?.message ||
+            "The host removed you from the game. You can’t rejoin with that name tonight."
+        );
         setSubmitting(false);
         router.replace("/join");
       };
@@ -200,10 +208,13 @@ function PlayInner({ code }: { code: string }) {
       setSubmitting(false);
       if (payload.code && payload.code !== code) router.replace("/join");
     };
-    const onKicked = () => {
+    const onKicked = (payload?: { message?: string }) => {
       localStorage.removeItem(storageKey(code));
       setPlayer(null);
-      setError("The host removed you from the game.");
+      setError(
+        payload?.message ||
+          "The host removed you from the game. You can’t rejoin with that name tonight."
+      );
       setSubmitting(false);
       router.replace("/join");
     };
@@ -292,7 +303,11 @@ function PlayInner({ code }: { code: string }) {
   }, [player, gameMissing, presetName, code]);
 
   function answer(choiceIndex: number) {
-    if (!player || locked || player.hasAnswered || timeUp) return;
+    if (!player || timeUp || state?.phase !== "question" || submitting) return;
+    if (player.hasAnswered && !canChange) return;
+    if (player.selectedChoice === choiceIndex) return;
+    const previousChoice = player.selectedChoice;
+    const previousAnswered = player.hasAnswered;
     setSubmitting(true);
     setError("");
     setPlayer((prev) =>
@@ -308,7 +323,11 @@ function PlayInner({ code }: { code: string }) {
           setError(res.message || "Answer failed");
           setPlayer((prev) =>
             prev
-              ? { ...prev, hasAnswered: false, selectedChoice: null }
+              ? {
+                  ...prev,
+                  hasAnswered: previousAnswered,
+                  selectedChoice: previousChoice,
+                }
               : prev
           );
         }
@@ -326,6 +345,17 @@ function PlayInner({ code }: { code: string }) {
     if (!player || !state) return null;
     const row = state.leaderboard.find((r) => r.playerId === player.playerId);
     return row?.lastPoints ?? player.lastResult?.points ?? null;
+  }, [player, state]);
+
+  const endedRoundStanding = useMemo(() => {
+    if (!player || !state?.endedRound) return null;
+    const i = state.endedRound.leaderboard.findIndex(
+      (r) => r.playerId === player.playerId
+    );
+    return {
+      rank: i >= 0 ? i + 1 : null,
+      pts: i >= 0 ? state.endedRound.leaderboard[i].totalScore : 0,
+    };
   }, [player, state]);
 
   const leadGap = useMemo(() => {
@@ -472,7 +502,9 @@ function PlayInner({ code }: { code: string }) {
           {state?.phase === "question" && state.question && (
             <div>
               <p className="text-center text-sm text-muted">
-                Question {state.questionIndex + 1}/{state.questionTotal}
+                {state.round
+                  ? `${state.round.title} · ${state.round.questionInRound + 1}/${state.round.questionsInRound}`
+                  : `Question ${state.questionIndex + 1}/${state.questionTotal}`}
               </p>
               <div className="mt-4">
                 <CountdownTimer
@@ -484,7 +516,7 @@ function PlayInner({ code }: { code: string }) {
               <h2 className="display mt-6 text-center text-[1.65rem] leading-snug text-chalk md:text-2xl">
                 {state.question.prompt}
               </h2>
-              {state.gameType === "IMAGE_ZOOM" && (
+              {gameTypeUsesImage(state.gameType) && (
                 <p className="mt-2 text-center text-sm text-muted">
                   Watch the host screen
                 </p>
@@ -519,7 +551,11 @@ function PlayInner({ code }: { code: string }) {
                               color: "var(--chalk)",
                             }
                       }
-                      disabled={locked || waitingForMusic}
+                      disabled={
+                        locked ||
+                        waitingForMusic ||
+                        player.selectedChoice === i
+                      }
                       onClick={() => answer(i)}
                     >
                       <span
@@ -537,7 +573,13 @@ function PlayInner({ code }: { code: string }) {
                   );
                 })}
               </div>
-              {player.hasAnswered && (
+              {player.hasAnswered && canChange && !timeUp && (
+                <p className="mt-8 text-center text-sm text-muted">
+                  Tap another option to change. Speed bonus stays from your
+                  first tap.
+                </p>
+              )}
+              {player.hasAnswered && (!canChange || timeUp) && (
                 <div className="mt-8 text-center" style={{ color: amber }}>
                   <div className="text-lg" aria-hidden>
                     🔒
@@ -643,7 +685,9 @@ function PlayInner({ code }: { code: string }) {
                 className="text-[11px] font-bold uppercase tracking-[0.18em]"
                 style={{ color: amber }}
               >
-                Between rounds
+                {state.endedRound
+                  ? `End of ${state.endedRound.title}`
+                  : "Between questions"}
               </div>
               <h2 className="display mt-3 text-3xl text-chalk">
                 You’re {rank ? ordinal(rank) : "in"}
@@ -651,11 +695,20 @@ function PlayInner({ code }: { code: string }) {
               <p className="mt-2 text-chalk">
                 {player.totalScore.toLocaleString()} pts
                 {roundPoints != null && roundPoints > 0
-                  ? ` · +${roundPoints} last round`
+                  ? ` · +${roundPoints} last question`
                   : ""}
               </p>
+              {state.endedRound && endedRoundStanding && (
+                <p className="mt-3 text-sm text-muted">
+                  {endedRoundStanding.rank
+                    ? `${ordinal(endedRoundStanding.rank)} this round · ${endedRoundStanding.pts.toLocaleString()} pts`
+                    : `${endedRoundStanding.pts.toLocaleString()} pts this round`}
+                </p>
+              )}
               <p className="mt-6 text-muted">
-                Up next: question {state.questionIndex + 1} of {state.questionTotal}
+                {state.round
+                  ? `Up next: ${state.round.title}`
+                  : `Up next: question ${state.questionIndex + 1} of ${state.questionTotal}`}
               </p>
             </div>
           )}

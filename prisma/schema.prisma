@@ -20,6 +20,7 @@ enum GameType {
   TRIVIA
   IMAGE_ZOOM
   AUDIO_SPEED
+  PICTURE_FINISH
 }
 
 enum UserRole {
@@ -50,6 +51,10 @@ model Game {
   hostToken            String       @unique @default(cuid())
   /** When false, players can only join while status is LOBBY */
   allowLateJoin        Boolean      @default(true)
+  /** When true, players may change their pick until lock; speed uses the first tap. */
+  allowAnswerChange    Boolean      @default(false)
+  /** Display names blocked from joining until Play again. */
+  bannedNames          String[]     @default([])
   ownerId              String?
   owner                User?        @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   createdAt            DateTime     @default(now())
@@ -75,6 +80,8 @@ model GameResult {
   playerCount Int
   /** Top 3: [{ name, totalScore }] */
   podium      Json?
+  /** Full night recap (standings + per-question answers). Survives Play again. */
+  recap       Json?
   finishedAt  DateTime @default(now())
 
   @@unique([gameId, joinCode])
@@ -97,6 +104,8 @@ model Question {
   imageKey      String?
   /** Starting CSS scale for IMAGE_ZOOM (eases to 1 as the timer runs down) */
   startZoom     Int      @default(10)
+  /** Named round this question belongs to. Blank inherits the previous title. */
+  roundTitle    String   @default("")
   /** Stored filename in UPLOAD_DIR; public URL is /api/media/{audioKey} */
   audioKey      String?
   /** Starting HTMLAudioElement.playbackRate for AUDIO_SPEED (eases to 1) */

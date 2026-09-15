@@ -19,6 +19,8 @@ import {
   type DraftQuestion,
 } from "@/components/QuestionEditor";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password";
+import type { NightRecap } from "@/lib/night-recap";
+import { resolvedRoundTitles } from "@/lib/rounds";
 import { GAME_TYPE_LABEL, type GameType } from "@/lib/types";
 
 type AdminTab = "create" | "games" | "winners" | "hosts" | "admins" | "account";
@@ -40,6 +42,9 @@ type GameListItem = {
   gameType?: GameType;
   hostToken: string;
   allowLateJoin: boolean;
+  allowAnswerChange?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
   owner?: { id: string; name: string; email: string } | null;
   _count: { questions: number; players: number };
 };
@@ -78,6 +83,17 @@ type GameResultItem = {
   podium: { name: string; totalScore: number }[] | null;
   finishedAt: string;
   owner?: { id: string; name: string; email: string } | null;
+};
+
+type RecapDetail = {
+  id: string;
+  gameTitle: string;
+  joinCode: string;
+  winnerName: string;
+  winnerScore: number;
+  playerCount: number;
+  finishedAt: string;
+  recap: NightRecap | null;
 };
 
 function formatFinishedAt(iso: string) {
@@ -157,6 +173,10 @@ function AdminInner() {
   const [loginError, setLoginError] = useState("");
   const [tab, setTab] = useState<AdminTab>(initialTab);
   const [games, setGames] = useState<GameListItem[]>([]);
+  const [gameQuery, setGameQuery] = useState("");
+  const [gameSort, setGameSort] = useState<
+    "updated" | "created" | "title" | "status"
+  >("updated");
   const [results, setResults] = useState<GameResultItem[]>([]);
   const [hosts, setHosts] = useState<HostListItem[]>([]);
   const [admins, setAdmins] = useState<AdminListItem[]>([]);
@@ -185,12 +205,14 @@ function AdminInner() {
     emptyQuestion("TRIVIA"),
   ]);
   const [allowLateJoin, setAllowLateJoin] = useState(true);
+  const [allowAnswerChange, setAllowAnswerChange] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"good" | "bad">("good");
   const [peers, setPeers] = useState<PeerItem[]>([]);
   const [shareGameId, setShareGameId] = useState<string | null>(null);
   const [shareTargetId, setShareTargetId] = useState("");
+  const [recapDetail, setRecapDetail] = useState<RecapDetail | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const isSuper = user?.role === "SUPERADMIN";
@@ -203,6 +225,7 @@ function AdminInner() {
       ) {
         return;
       }
+      if (next !== "winners") setRecapDetail(null);
       setTab((prev) => {
         if (prev !== next) {
           setMessage("");
@@ -327,6 +350,7 @@ function AdminInner() {
     setGameType("TRIVIA");
     setQuestions([emptyQuestion("TRIVIA")]);
     setAllowLateJoin(true);
+    setAllowAnswerChange(false);
   }
 
   function chooseGameType(next: GameType) {
@@ -335,6 +359,7 @@ function AdminInner() {
       (q) =>
         (q.prompt.trim() &&
           q.prompt.trim() !== "What is this?" &&
+          q.prompt.trim() !== "Who is this?" &&
           q.prompt.trim() !== "Name that tune") ||
         q.imageKey ||
         q.audioKey ||
@@ -465,6 +490,7 @@ function AdminInner() {
     setAdmins([]);
     setPeers([]);
     setShareGameId(null);
+    setRecapDetail(null);
     resetHostForm();
     resetAdminForm();
   }
@@ -504,12 +530,13 @@ function AdminInner() {
       setEditingId(g.id);
       setTitle(g.title || "");
       setAllowLateJoin(g.allowLateJoin !== false);
+      setAllowAnswerChange(g.allowAnswerChange === true);
       const loadedType: GameType =
-        g.gameType === "IMAGE_ZOOM"
-          ? "IMAGE_ZOOM"
-          : g.gameType === "AUDIO_SPEED"
-            ? "AUDIO_SPEED"
-            : "TRIVIA";
+        g.gameType === "IMAGE_ZOOM" ||
+        g.gameType === "AUDIO_SPEED" ||
+        g.gameType === "PICTURE_FINISH"
+          ? g.gameType
+          : "TRIVIA";
       setGameType(loadedType);
       setQuestions(
         (g.questions || []).map(
@@ -524,6 +551,7 @@ function AdminInner() {
             startZoom?: number;
             audioKey?: string | null;
             startSpeed?: number;
+            roundTitle?: string;
           }) => ({
             prompt: q.prompt,
             options: Array.isArray(q.options) ? [...q.options] : ["", ""],
@@ -535,6 +563,7 @@ function AdminInner() {
             startZoom: q.startZoom ?? 10,
             audioKey: q.audioKey ?? null,
             startSpeed: q.startSpeed ?? 2,
+            roundTitle: q.roundTitle ?? "",
           })
         )
       );
@@ -553,6 +582,7 @@ function AdminInner() {
         title,
         gameType,
         allowLateJoin,
+        allowAnswerChange,
         questions: serializeQuestions(questions),
       };
 
@@ -599,6 +629,54 @@ function AdminInner() {
     await fetch(`/api/games/${id}`, { method: "DELETE" });
     if (editingId === id) resetForm();
     await loadGames();
+  }
+
+  async function openRecap(id: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch(`/api/games/results/${id}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showMessage(
+          typeof data.error === "string" ? data.error : "Could not load recap",
+          "bad"
+        );
+        return;
+      }
+      setRecapDetail(data.result);
+      goTab("winners");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadRecapCsv(id: string, title: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch(`/api/games/results/${id}/csv`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showMessage(
+          typeof data.error === "string" ? data.error : "No CSV recap for this night",
+          "bad"
+        );
+        return;
+      }
+      const blob = await res.blob();
+      const header = res.headers.get("content-disposition") || "";
+      const match = header.match(/filename="([^"]+)"/);
+      const filename = match?.[1] || `${title}.csv`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function exportGame(id: string, gameTitle: string) {
@@ -937,6 +1015,56 @@ function AdminInner() {
     }
   }
 
+  const visibleGames = useMemo(() => {
+    const q = gameQuery.trim().toLowerCase();
+    const filtered = q
+      ? games.filter((g) => {
+          const hay = [
+            g.title,
+            g.code,
+            g.status,
+            GAME_TYPE_LABEL[g.gameType ?? "TRIVIA"],
+            g.owner?.name,
+            g.owner?.email,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return hay.includes(q);
+        })
+      : games;
+
+    const statusRank: Record<string, number> = {
+      QUESTION: 0,
+      REVEAL: 1,
+      BETWEEN: 2,
+      LOBBY: 3,
+      DRAFT: 4,
+      FINISHED: 5,
+    };
+    const stamp = (value?: string) => {
+      const n = value ? Date.parse(value) : NaN;
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    return [...filtered].sort((a, b) => {
+      switch (gameSort) {
+        case "title":
+          return a.title.localeCompare(b.title);
+        case "status": {
+          const diff =
+            (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9);
+          return diff !== 0 ? diff : a.title.localeCompare(b.title);
+        }
+        case "created":
+          return stamp(b.createdAt) - stamp(a.createdAt);
+        case "updated":
+        default:
+          return stamp(b.updatedAt || b.createdAt) - stamp(a.updatedAt || a.createdAt);
+      }
+    });
+  }, [games, gameQuery, gameSort]);
+
   const canSubmit = useMemo(() => {
     if (!title.trim()) return false;
     return questions.every((q) => {
@@ -945,6 +1073,7 @@ function AdminInner() {
         q.prompt.trim() && opts.length >= 2 && q.correctIndex < opts.length;
       if (!basics) return false;
       if (gameType === "IMAGE_ZOOM" && !q.imageKey) return false;
+      if (gameType === "PICTURE_FINISH" && !q.imageKey) return false;
       if (gameType === "AUDIO_SPEED" && !q.audioKey) return false;
       return true;
     });
@@ -1169,7 +1298,9 @@ function AdminInner() {
               <p className="mt-1 text-sm text-muted">
                 {gameType === "IMAGE_ZOOM"
                   ? "Upload photos that start zoomed in and slowly reveal as the timer runs down"
-                  : gameType === "AUDIO_SPEED"
+                  : gameType === "PICTURE_FINISH"
+                    ? "Upload photos that start as a mosaic and sharpen as the timer runs down"
+                    : gameType === "AUDIO_SPEED"
                     ? "Upload short clips that start sped up and ease to normal as the timer runs"
                     : "Build your Trivia Live game"}
               </p>
@@ -1192,7 +1323,7 @@ function AdminInner() {
                   <legend className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
                     Game type
                   </legend>
-                  <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     {(
                       [
                         {
@@ -1204,6 +1335,11 @@ function AdminInner() {
                           id: "IMAGE_ZOOM" as const,
                           title: "Image Zoom",
                           blurb: "A photo starts cropped in tight, then slowly opens",
+                        },
+                        {
+                          id: "PICTURE_FINISH" as const,
+                          title: "Picture Finish",
+                          blurb: "A photo starts pixelated, then sharpens",
                         },
                         {
                           id: "AUDIO_SPEED" as const,
@@ -1259,6 +1395,15 @@ function AdminInner() {
                     }
                     allowLateJoin={allowLateJoin}
                     onAllowLateJoinChange={setAllowLateJoin}
+                    allowAnswerChange={allowAnswerChange}
+                    onAllowAnswerChangeChange={setAllowAnswerChange}
+                    previousRoundTitle={
+                      qi === 0
+                        ? ""
+                        : resolvedRoundTitles(
+                            questions.map((item) => item.roundTitle)
+                          )[qi - 1] || ""
+                    }
                   />
                 ))}
 
@@ -1313,7 +1458,7 @@ function AdminInner() {
                   </h1>
                   <p className="mt-1 text-sm text-muted">
                     Open a lobby, host a night, export a pack, or send a copy
-                    to another host
+                    to another host. Search by title, code, or status.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -1355,11 +1500,52 @@ function AdminInner() {
                   {message}
                 </p>
               )}
+              {games.length > 0 && (
+                <div className="mt-6 flex flex-wrap items-end gap-3">
+                  <label className="min-w-[12rem] flex-1 space-y-1">
+                    <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                      Search
+                    </span>
+                    <input
+                      className="field"
+                      value={gameQuery}
+                      onChange={(e) => setGameQuery(e.target.value)}
+                      placeholder="Title, code, status, host…"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                      Sort
+                    </span>
+                    <select
+                      className="field"
+                      value={gameSort}
+                      onChange={(e) =>
+                        setGameSort(
+                          e.target.value as
+                            | "updated"
+                            | "created"
+                            | "title"
+                            | "status"
+                        )
+                      }
+                    >
+                      <option value="updated">Recently updated</option>
+                      <option value="created">Newest created</option>
+                      <option value="title">Title A–Z</option>
+                      <option value="status">Status</option>
+                    </select>
+                  </label>
+                </div>
+              )}
               <div className="mt-6 space-y-3">
                 {games.length === 0 && (
                   <p className="text-muted">No games yet — create one.</p>
                 )}
-                {games.map((g) => (
+                {games.length > 0 && visibleGames.length === 0 && (
+                  <p className="text-muted">No games match that search.</p>
+                )}
+                {visibleGames.map((g) => (
                   <article
                     key={g.id}
                     className="flex flex-col gap-3 rounded-2xl border border-line bg-panel p-4"
@@ -1368,8 +1554,7 @@ function AdminInner() {
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="text-xl font-bold">{g.title}</div>
-                          {(g.gameType === "IMAGE_ZOOM" ||
-                            g.gameType === "AUDIO_SPEED") && (
+                          {(g.gameType && g.gameType !== "TRIVIA") && (
                             <span className="rounded bg-ink-2 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber">
                               {GAME_TYPE_LABEL[g.gameType]}
                             </span>
@@ -1380,6 +1565,7 @@ function AdminInner() {
                           {g._count.questions} questions · {g._count.players}{" "}
                           players · {g.status}
                           {g.allowLateJoin === false ? " · no late joins" : ""}
+                          {g.allowAnswerChange ? " · can change answers" : ""}
                           {isSuper && g.owner ? ` · ${g.owner.name}` : ""}
                         </div>
                       </div>
@@ -1447,6 +1633,13 @@ function AdminInner() {
                         >
                           Host screen
                         </Link>
+                        <Link
+                          className="btn btn-ghost"
+                          href={`/watch/${g.code}`}
+                          target="_blank"
+                        >
+                          Watch
+                        </Link>
                         <button
                           className="btn btn-danger"
                           onClick={() => void removeGame(g.id)}
@@ -1509,43 +1702,179 @@ function AdminInner() {
 
           {tab === "winners" && (
             <section className="mx-auto max-w-4xl">
-              <h1 className="text-3xl font-bold md:text-4xl">Past winners</h1>
-              <p className="mt-1 text-sm text-muted">
-                Saved when a night finishes — kept after Play again.
-              </p>
-              <div className="mt-6 space-y-3">
-                {results.length === 0 && (
-                  <p className="text-muted">No finished games yet.</p>
-                )}
-                {results.map((r) => (
-                  <article
-                    key={r.id}
-                    className="flex flex-col gap-2 rounded-2xl border border-line bg-panel p-4 sm:flex-row sm:items-center sm:justify-between"
-                  >
+              {recapDetail ? (
+                <>
+                  <div className="flex flex-wrap items-end justify-between gap-3">
                     <div>
-                      <div className="text-xl font-bold text-amber">
-                        {r.winnerName}
+                      <button
+                        type="button"
+                        className="text-sm font-semibold text-amber"
+                        onClick={() => setRecapDetail(null)}
+                      >
+                        ← Past winners
+                      </button>
+                      <h1 className="mt-2 text-3xl font-bold md:text-4xl">
+                        {recapDetail.gameTitle}
+                      </h1>
+                      <p className="mt-1 text-sm text-muted">
+                        {formatFinishedAt(recapDetail.finishedAt)} · code{" "}
+                        {recapDetail.joinCode} · {recapDetail.playerCount}{" "}
+                        players
+                      </p>
+                    </div>
+                    {recapDetail.recap && (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={busy}
+                        onClick={() =>
+                          void downloadRecapCsv(
+                            recapDetail.id,
+                            recapDetail.gameTitle
+                          )
+                        }
+                      >
+                        Download CSV
+                      </button>
+                    )}
+                  </div>
+                  {message && (
+                    <p
+                      className={`mt-4 text-sm ${messageTone === "bad" ? "text-bad" : "text-good"}`}
+                    >
+                      {message}
+                    </p>
+                  )}
+                  {!recapDetail.recap ? (
+                    <p className="mt-8 text-muted">
+                      This night finished before recaps were saved. Newer
+                      nights keep standings and per-question answers after Play
+                      again.
+                    </p>
+                  ) : (
+                    <div className="mt-8 space-y-8">
+                      <div>
+                        <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-amber">
+                          Standings
+                        </h2>
+                        <ol className="mt-3 space-y-2">
+                          {recapDetail.recap.standings.map((row, i) => (
+                            <li
+                              key={`${row.name}-${i}`}
+                              className="flex items-center justify-between rounded-xl border border-line bg-panel px-4 py-2.5"
+                            >
+                              <span className="font-semibold">
+                                {i + 1}. {row.name}
+                              </span>
+                              <span className="tabular-nums text-amber">
+                                {row.totalScore.toLocaleString()} pts
+                              </span>
+                            </li>
+                          ))}
+                        </ol>
                       </div>
-                      <div className="mt-1 text-sm text-muted">
-                        {r.gameTitle} · {r.winnerScore} pts · {r.playerCount} players · code{" "}
-                        {r.joinCode}
-                        {isSuper && r.owner ? ` · ${r.owner.name}` : ""}
-                      </div>
-                      {Array.isArray(r.podium) && r.podium.length > 1 && (
-                        <div className="mt-1 text-xs text-muted">
-                          Podium:{" "}
-                          {r.podium
-                            .map((p, i) => `${i + 1}. ${p.name} (${p.totalScore})`)
-                            .join(" · ")}
+                      <div>
+                        <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-amber">
+                          Questions
+                        </h2>
+                        <div className="mt-3 space-y-3">
+                          {recapDetail.recap.questions.map((q) => {
+                            const pct =
+                              q.answerCount === 0
+                                ? 0
+                                : Math.round(
+                                    (q.correctCount / q.answerCount) * 100
+                                  );
+                            const correct =
+                              q.options[q.correctIndex] ?? "—";
+                            return (
+                              <article
+                                key={q.order}
+                                className="rounded-2xl border border-line bg-panel p-4"
+                              >
+                                <div className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+                                  Q{q.order + 1}
+                                  {q.roundTitle ? ` · ${q.roundTitle}` : ""}
+                                </div>
+                                <div className="mt-1 font-semibold">
+                                  {q.prompt}
+                                </div>
+                                <p className="mt-2 text-sm text-muted">
+                                  Correct: {correct} · {q.correctCount}/
+                                  {q.answerCount} right ({pct}%)
+                                </p>
+                              </article>
+                            );
+                          })}
                         </div>
-                      )}
+                      </div>
                     </div>
-                    <div className="shrink-0 text-sm tabular-nums text-muted">
-                      {formatFinishedAt(r.finishedAt)}
-                    </div>
-                  </article>
-                ))}
-              </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <h1 className="text-3xl font-bold md:text-4xl">
+                    Past winners
+                  </h1>
+                  <p className="mt-1 text-sm text-muted">
+                    Saved when a night finishes — kept after Play again.
+                    Open Recap for standings and per-question results.
+                  </p>
+                  {message && (
+                    <p
+                      className={`mt-4 text-sm ${messageTone === "bad" ? "text-bad" : "text-good"}`}
+                    >
+                      {message}
+                    </p>
+                  )}
+                  <div className="mt-6 space-y-3">
+                    {results.length === 0 && (
+                      <p className="text-muted">No finished games yet.</p>
+                    )}
+                    {results.map((r) => (
+                      <article
+                        key={r.id}
+                        className="flex flex-col gap-3 rounded-2xl border border-line bg-panel p-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div>
+                          <div className="text-xl font-bold text-amber">
+                            {r.winnerName}
+                          </div>
+                          <div className="mt-1 text-sm text-muted">
+                            {r.gameTitle} · {r.winnerScore} pts ·{" "}
+                            {r.playerCount} players · code {r.joinCode}
+                            {isSuper && r.owner ? ` · ${r.owner.name}` : ""}
+                          </div>
+                          {Array.isArray(r.podium) && r.podium.length > 1 && (
+                            <div className="mt-1 text-xs text-muted">
+                              Podium:{" "}
+                              {r.podium
+                                .map(
+                                  (p, i) =>
+                                    `${i + 1}. ${p.name} (${p.totalScore})`
+                                )
+                                .join(" · ")}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 flex-wrap items-center gap-2">
+                          <div className="text-sm tabular-nums text-muted">
+                            {formatFinishedAt(r.finishedAt)}
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            disabled={busy}
+                            onClick={() => void openRecap(r.id)}
+                          >
+                            Recap
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </>
+              )}
             </section>
           )}
 

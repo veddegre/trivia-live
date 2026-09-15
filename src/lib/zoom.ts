@@ -16,6 +16,22 @@ export function zoomScale(opts: {
   return start ** (1 - t);
 }
 
+/**
+ * Mosaic cell size in CSS pixels. Uses the same log-time curve as zoomScale
+ * (startZoom 6 / 10 / 16 → Soft / Heavy / Extreme). Revealed is 1px = sharp.
+ */
+export function pictureFinishPixelSize(opts: {
+  startZoom: number;
+  elapsedMs: number;
+  timeLimitSec: number;
+  revealed?: boolean;
+}): number {
+  if (opts.revealed) return 1;
+  const scale = zoomScale(opts);
+  if (scale <= 1) return 1;
+  return scale * 4;
+}
+
 export function mediaPublicUrl(imageKey: string | null | undefined): string | null {
   if (!imageKey) return null;
   return `/api/media/${encodeURIComponent(imageKey)}`;

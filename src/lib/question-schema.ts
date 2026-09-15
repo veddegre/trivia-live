@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { mediaFileExists } from "@/lib/media";
+import { ROUND_TITLE_MAX } from "@/lib/rounds";
 import {
   SCORE_BASE_DEFAULT,
   SCORE_TIME_BONUS_DEFAULT,
@@ -9,10 +10,17 @@ import {
   START_ZOOM_DEFAULT,
   START_ZOOM_MAX,
   START_ZOOM_MIN,
+  gameTypeUsesAudio,
+  gameTypeUsesImage,
   type GameType,
 } from "@/lib/types";
 
-export const gameTypeSchema = z.enum(["TRIVIA", "IMAGE_ZOOM", "AUDIO_SPEED"]);
+export const gameTypeSchema = z.enum([
+  "TRIVIA",
+  "IMAGE_ZOOM",
+  "AUDIO_SPEED",
+  "PICTURE_FINISH",
+]);
 
 export const questionSchema = z.object({
   prompt: z.string().min(1).max(500),
@@ -34,6 +42,7 @@ export const questionSchema = z.object({
     .min(START_SPEED_MIN)
     .max(START_SPEED_MAX)
     .default(START_SPEED_DEFAULT),
+  roundTitle: z.string().max(ROUND_TITLE_MAX).optional().default(""),
 });
 
 export type QuestionInput = z.infer<typeof questionSchema>;
@@ -54,10 +63,10 @@ export function assertQuestionsForGameType(
   const indexErr = assertCorrectIndexes(questions);
   if (indexErr) return indexErr;
 
-  if (gameType === "IMAGE_ZOOM") {
+  if (gameTypeUsesImage(gameType)) {
     for (const q of questions) {
       if (!q.imageKey) {
-        return "Each Image Zoom question needs an uploaded image";
+        return "Each photo question needs an uploaded image";
       }
       if (!mediaFileExists(q.imageKey)) {
         return "An image is missing — re-upload it and try again";
@@ -65,7 +74,7 @@ export function assertQuestionsForGameType(
     }
   }
 
-  if (gameType === "AUDIO_SPEED") {
+  if (gameTypeUsesAudio(gameType)) {
     for (const q of questions) {
       if (!q.audioKey) {
         return "Each Guess the Song question needs an uploaded audio clip";
@@ -91,9 +100,10 @@ export function questionCreateData(
     timeLimitSec: q.timeLimitSec,
     basePoints: q.basePoints,
     timeBonus: q.timeBonus,
-    imageKey: gameType === "IMAGE_ZOOM" ? q.imageKey || null : null,
+    imageKey: gameTypeUsesImage(gameType) ? q.imageKey || null : null,
     startZoom: q.startZoom ?? START_ZOOM_DEFAULT,
-    audioKey: gameType === "AUDIO_SPEED" ? q.audioKey || null : null,
+    audioKey: gameTypeUsesAudio(gameType) ? q.audioKey || null : null,
     startSpeed: q.startSpeed ?? START_SPEED_DEFAULT,
+    roundTitle: (q.roundTitle ?? "").trim().slice(0, ROUND_TITLE_MAX),
   };
 }

@@ -21,6 +21,7 @@ import {
   withoutQuestionMedia,
 } from "@/lib/game-manager";
 import { assertDisplayName } from "@/lib/display-name";
+import { isNameBanned } from "@/lib/bans";
 import { setSocketServer, emitGameReset } from "@/lib/realtime";
 
 type JoinHostPayload = { code: string; hostToken: string };
@@ -29,7 +30,7 @@ type ReconnectPayload = { code: string; token: string };
 type AnswerPayload = { choiceIndex: number };
 
 type SocketData = {
-  role?: "host" | "player";
+  role?: "host" | "player" | "spectator";
   code?: string;
   playerId?: string;
   playerToken?: string;
@@ -37,6 +38,16 @@ type SocketData = {
 
 function room(code: string) {
   return `game:${code.toUpperCase()}`;
+}
+
+function stateForSocket(
+  role: SocketData["role"],
+  full: Awaited<ReturnType<typeof buildPublicState>>,
+  playerState: Awaited<ReturnType<typeof withoutQuestionMedia>>
+) {
+  if (!full) return null;
+  if (role === "host" || role === "spectator") return full;
+  return playerState;
 }
 
 /** Origins allowed for browser Socket.io (Cloudflare hostname + local dev). */
@@ -87,7 +98,8 @@ async function broadcastState(io: Server, code: string, force = false) {
   const sockets = await io.in(room(code)).fetchSockets();
   for (const s of sockets) {
     const d = s.data as SocketData;
-    s.emit("game:state", d.role === "host" ? state : playerState);
+    const payload = stateForSocket(d.role, state, playerState);
+    if (payload) s.emit("game:state", payload);
   }
 }
 
@@ -150,6 +162,9 @@ export function createSocketServer(httpServer: HttpServer) {
             "This host link is outdated (the game may have been reset). Open Host screen again from Admin."
           );
         }
+        if (data.code && data.code !== code) {
+          await socket.leave(room(data.code));
+        }
         data.role = "host";
         data.code = code;
         await socket.join(room(code));
@@ -159,6 +174,37 @@ export function createSocketServer(httpServer: HttpServer) {
         const state = await buildPublicState(code);
         ack?.({ ok: true, state });
         socket.emit("game:state", state);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Join failed";
+        ack?.({ ok: false, message });
+        socket.emit("error", { message });
+      }
+    });
+
+    socket.on("watch:join", async (payload: { code?: string }, ack?: (r: unknown) => void) => {
+      try {
+        const code = payload.code?.toUpperCase();
+        if (!code) throw new Error("Game not found");
+        const game = await prisma.game.findUnique({
+          where: { code },
+          select: { id: true },
+        });
+        if (!game) {
+          throw new Error(
+            "Game not found — that join code is no longer active. Ask the host for the current watch link."
+          );
+        }
+        if (data.code && data.code !== code) {
+          await socket.leave(room(data.code));
+        }
+        data.role = "spectator";
+        data.code = code;
+        data.playerId = undefined;
+        data.playerToken = undefined;
+        await socket.join(room(code));
+        const state = await buildPublicState(code);
+        ack?.({ ok: true, state });
+        if (state) socket.emit("game:state", state);
       } catch (e) {
         const message = e instanceof Error ? e.message : "Join failed";
         ack?.({ ok: false, message });
@@ -188,6 +234,11 @@ export function createSocketServer(httpServer: HttpServer) {
         }
         if (!game.allowLateJoin && game.status !== "LOBBY") {
           throw new Error("This game isn’t accepting late joins");
+        }
+        if (isNameBanned(game.bannedNames, name)) {
+          throw new Error(
+            "That name is blocked for this game — pick another"
+          );
         }
         if (game.players.length >= 200) throw new Error("Game is full");
 
@@ -354,7 +405,8 @@ export function createSocketServer(httpServer: HttpServer) {
           const d = s.data as SocketData;
           if (d.role === "player" && d.playerId === kicked.playerId) {
             s.emit("player:kicked", {
-              message: "The host removed you from the game.",
+              message:
+                "The host removed you from the game. You can’t rejoin with that name tonight.",
             });
             d.role = undefined;
             d.playerId = undefined;
@@ -432,8 +484,11 @@ export function createSocketServer(httpServer: HttpServer) {
         if (!data.code) throw new Error("Not in a game");
         const full = await buildPublicState(data.code);
         if (!full) throw new Error("Game not found");
-        const state =
-          data.role === "host" ? full : withoutQuestionMedia(full);
+        const state = stateForSocket(
+          data.role,
+          full,
+          withoutQuestionMedia(full)
+        );
         socket.emit("game:state", state);
         if (data.playerId) await emitPlayer(socket, data.code, data.playerId);
         ack?.({ ok: true, state });

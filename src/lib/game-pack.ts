@@ -9,6 +9,8 @@ import {
   START_ZOOM_DEFAULT,
   START_ZOOM_MAX,
   START_ZOOM_MIN,
+  gameTypeUsesAudio,
+  gameTypeUsesImage,
   type GameType,
 } from "@/lib/types";
 import { resolveUploadPath } from "@/lib/media";
@@ -37,6 +39,7 @@ const packQuestionSchema = z.object({
     .max(START_SPEED_MAX)
     .optional(),
   media: z.string().min(1).max(80).optional(),
+  roundTitle: z.string().max(40).optional().default(""),
 });
 
 export const gamePackSchema = z.object({
@@ -44,6 +47,7 @@ export const gamePackSchema = z.object({
   title: z.string().min(1).max(120),
   gameType: gameTypeSchema,
   allowLateJoin: z.boolean().optional().default(true),
+  allowAnswerChange: z.boolean().optional().default(false),
   questions: z.array(packQuestionSchema).min(1).max(100),
 });
 
@@ -55,6 +59,7 @@ export type SourceGame = {
   title: string;
   gameType: GameType;
   allowLateJoin: boolean;
+  allowAnswerChange: boolean;
   questions: {
     prompt: string;
     options: string[];
@@ -66,6 +71,7 @@ export type SourceGame = {
     startSpeed: number;
     imageKey: string | null;
     audioKey: string | null;
+    roundTitle: string;
   }[];
 };
 
@@ -105,8 +111,8 @@ export function mediaKeyForQuestion(
   gameType: GameType,
   q: SourceGame["questions"][number]
 ): string | null {
-  if (gameType === "IMAGE_ZOOM") return q.imageKey;
-  if (gameType === "AUDIO_SPEED") return q.audioKey;
+  if (gameTypeUsesImage(gameType)) return q.imageKey;
+  if (gameTypeUsesAudio(gameType)) return q.audioKey;
   return null;
 }
 
@@ -133,6 +139,7 @@ export function gameToPack(game: SourceGame): {
       timeBonus: q.timeBonus,
       startZoom: q.startZoom,
       startSpeed: q.startSpeed,
+      roundTitle: q.roundTitle.trim(),
       ...(zipName ? { media: zipName } : {}),
     };
   });
@@ -142,6 +149,7 @@ export function gameToPack(game: SourceGame): {
       title: game.title,
       gameType: game.gameType,
       allowLateJoin: game.allowLateJoin,
+      allowAnswerChange: game.allowAnswerChange,
       questions,
     },
     files,
@@ -212,10 +220,9 @@ export function questionsFromPack(
     timeBonus: q.timeBonus ?? SCORE_TIME_BONUS_DEFAULT,
     startZoom: q.startZoom ?? START_ZOOM_DEFAULT,
     startSpeed: q.startSpeed ?? START_SPEED_DEFAULT,
-    imageKey:
-      pack.gameType === "IMAGE_ZOOM" ? mediaKeys[i] ?? null : null,
-    audioKey:
-      pack.gameType === "AUDIO_SPEED" ? mediaKeys[i] ?? null : null,
+    imageKey: gameTypeUsesImage(pack.gameType) ? mediaKeys[i] ?? null : null,
+    audioKey: gameTypeUsesAudio(pack.gameType) ? mediaKeys[i] ?? null : null,
+    roundTitle: q.roundTitle ?? "",
   }));
 }
 

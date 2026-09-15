@@ -156,6 +156,19 @@ async function main() {
   await waitConnect(host);
   await ensureHost(host, game.code, game.hostToken);
 
+  const watch = connectSocket();
+  await waitConnect(watch);
+  const watchJoin = await emitAck<{ ok: boolean; message?: string }>(
+    watch,
+    "watch:join",
+    { code: game.code }
+  );
+  if (!watchJoin.ok) throw new Error(watchJoin.message || "watch join failed");
+  const watchLock = await emitAck<{ ok: boolean; message?: string }>(watch, "host:lock");
+  if (watchLock.ok) {
+    throw new Error("spectator must not be able to lock the question");
+  }
+
   // Keep host session warm during long join bursts (Cloudflare idle)
   const keepalive = setInterval(() => {
     if (host.connected) host.emit("game:sync");
@@ -248,6 +261,7 @@ async function main() {
   } finally {
     clearInterval(keepalive);
     host.close();
+    watch.close();
     players.forEach((p) => p.close());
   }
 }

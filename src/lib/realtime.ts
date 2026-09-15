@@ -11,7 +11,7 @@ export function getSocketServer(): Server | undefined {
 }
 
 type SocketData = {
-  role?: "host" | "player";
+  role?: "host" | "player" | "spectator";
 };
 
 /**

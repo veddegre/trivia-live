@@ -19,6 +19,7 @@ import {
   type QuestionInput,
 } from "@/lib/question-schema";
 import type { GameType } from "@/lib/types";
+import { gameTypeUsesAudio, gameTypeUsesImage } from "@/lib/types";
 
 export async function allocateJoinCode(): Promise<string> {
   for (let i = 0; i < 12; i++) {
@@ -36,6 +37,7 @@ async function insertDraftGame(opts: {
   title: string;
   gameType: GameType;
   allowLateJoin: boolean;
+  allowAnswerChange: boolean;
   ownerId: string;
   questions: QuestionInput[];
 }) {
@@ -50,6 +52,7 @@ async function insertDraftGame(opts: {
       status: "DRAFT",
       gameType: opts.gameType,
       allowLateJoin: opts.allowLateJoin,
+      allowAnswerChange: opts.allowAnswerChange,
       ownerId: opts.ownerId,
       questions: {
         create: opts.questions.map((q, order) =>
@@ -75,8 +78,8 @@ export async function createGameFromPack(opts: {
     const mediaKeys: (string | null)[] = [];
     for (const q of opts.pack.questions) {
       const needsMedia =
-        opts.pack.gameType === "IMAGE_ZOOM" ||
-        opts.pack.gameType === "AUDIO_SPEED";
+        gameTypeUsesImage(opts.pack.gameType) ||
+        gameTypeUsesAudio(opts.pack.gameType);
       if (!needsMedia) {
         mediaKeys.push(null);
         continue;
@@ -97,6 +100,7 @@ export async function createGameFromPack(opts: {
       title: opts.title ?? opts.pack.title,
       gameType: opts.pack.gameType,
       allowLateJoin: opts.pack.allowLateJoin,
+      allowAnswerChange: opts.pack.allowAnswerChange,
       ownerId: opts.ownerId,
       questions: questionsFromPack(opts.pack, mediaKeys),
     });
@@ -130,8 +134,9 @@ export async function cloneGame(opts: {
         timeBonus: q.timeBonus,
         startZoom: q.startZoom,
         startSpeed: q.startSpeed,
-        imageKey: opts.source.gameType === "IMAGE_ZOOM" ? nextKey : null,
-        audioKey: opts.source.gameType === "AUDIO_SPEED" ? nextKey : null,
+        imageKey: gameTypeUsesImage(opts.source.gameType) ? nextKey : null,
+        audioKey: gameTypeUsesAudio(opts.source.gameType) ? nextKey : null,
+        roundTitle: q.roundTitle,
       });
     }
 
@@ -139,6 +144,7 @@ export async function cloneGame(opts: {
       title: opts.title ?? copyTitle(opts.source.title),
       gameType: opts.source.gameType,
       allowLateJoin: opts.source.allowLateJoin,
+      allowAnswerChange: opts.source.allowAnswerChange,
       ownerId: opts.ownerId,
       questions,
     });

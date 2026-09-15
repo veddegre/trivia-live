@@ -56,4 +56,16 @@ assert.equal(
   500
 );
 
+// First tap at 2s. Changing later still uses this elapsed (clock does not reset).
+assert.equal(
+  scoreAnswer({
+    isCorrect: true,
+    elapsedMs: 2000,
+    timeLimitSec: 30,
+    basePoints: 500,
+    timeBonus: 500,
+  }),
+  967
+);
+
 console.log("scoring tests passed");
