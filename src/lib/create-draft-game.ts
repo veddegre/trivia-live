@@ -20,6 +20,7 @@ import {
 } from "@/lib/question-schema";
 import type { GameType } from "@/lib/types";
 import { gameTypeUsesAudio, gameTypeUsesImage } from "@/lib/types";
+import { isQuestionBonus } from "@/lib/scoring";
 
 export async function allocateJoinCode(): Promise<string> {
   for (let i = 0; i < 12; i++) {
@@ -137,6 +138,7 @@ export async function cloneGame(opts: {
         imageKey: gameTypeUsesImage(opts.source.gameType) ? nextKey : null,
         audioKey: gameTypeUsesAudio(opts.source.gameType) ? nextKey : null,
         roundTitle: q.roundTitle,
+        bonus: isQuestionBonus(q.bonus) ? q.bonus : "NONE",
       });
     }
 

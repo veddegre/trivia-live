@@ -18,12 +18,21 @@ import {
   QuestionEditor,
   type DraftQuestion,
 } from "@/components/QuestionEditor";
+import { BankPicker, type PickerBank } from "@/components/BankPicker";
+import { padDraftOptions } from "@/lib/question-bank";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password";
 import type { NightRecap } from "@/lib/night-recap";
-import { resolvedRoundTitles } from "@/lib/rounds";
+import { ROUND_TITLE_MAX, resolvedRoundTitles } from "@/lib/rounds";
 import { GAME_TYPE_LABEL, type GameType } from "@/lib/types";
 
-type AdminTab = "create" | "games" | "winners" | "hosts" | "admins" | "account";
+type AdminTab =
+  | "create"
+  | "games"
+  | "banks"
+  | "winners"
+  | "hosts"
+  | "admins"
+  | "account";
 
 const LIVE_STATUSES = new Set(["QUESTION", "REVEAL", "BETWEEN"]);
 
@@ -71,6 +80,12 @@ type PeerItem = {
   name: string;
   email: string;
   role: string;
+};
+
+type BankListItem = PickerBank & {
+  updatedAt?: string;
+  owner?: { id: string; name: string; email: string } | null;
+  _count?: { questions: number };
 };
 
 type GameResultItem = {
@@ -147,6 +162,7 @@ function NavButton({
 const ADMIN_TABS: AdminTab[] = [
   "create",
   "games",
+  "banks",
   "winners",
   "hosts",
   "admins",
@@ -214,6 +230,13 @@ function AdminInner() {
   const [shareTargetId, setShareTargetId] = useState("");
   const [recapDetail, setRecapDetail] = useState<RecapDetail | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const [banks, setBanks] = useState<BankListItem[]>([]);
+  const [editingBankId, setEditingBankId] = useState<string | null>(null);
+  const [bankTitle, setBankTitle] = useState("");
+  const [bankQuestions, setBankQuestions] = useState<DraftQuestion[]>([
+    emptyQuestion("TRIVIA"),
+  ]);
+  const [showBankPicker, setShowBankPicker] = useState(false);
 
   const isSuper = user?.role === "SUPERADMIN";
 
@@ -282,6 +305,13 @@ function AdminInner() {
     setPeers(data.peers || []);
   }, []);
 
+  const loadBanks = useCallback(async () => {
+    const res = await fetch("/api/banks");
+    if (res.status === 401) return;
+    const data = await res.json();
+    setBanks(data.banks || []);
+  }, []);
+
   useEffect(() => {
     if (tabParam && ADMIN_TABS.includes(tabParam as AdminTab)) {
       setTab(tabParam as AdminTab);
@@ -327,7 +357,7 @@ function AdminInner() {
             password: "",
           });
           setAuthed(true);
-          await Promise.all([loadGames(), loadResults(), loadPeers()]);
+          await Promise.all([loadGames(), loadResults(), loadPeers(), loadBanks()]);
           if (data.user.role === "SUPERADMIN") {
             await Promise.all([loadHosts(), loadAdmins()]);
           }
@@ -342,7 +372,7 @@ function AdminInner() {
         setLoginError("Could not reach the server. Try refreshing.");
       }
     })();
-  }, [loadGames, loadResults, loadHosts, loadAdmins, loadPeers]);
+  }, [loadGames, loadResults, loadHosts, loadAdmins, loadPeers, loadBanks]);
 
   function resetForm() {
     setEditingId(null);
@@ -351,6 +381,12 @@ function AdminInner() {
     setQuestions([emptyQuestion("TRIVIA")]);
     setAllowLateJoin(true);
     setAllowAnswerChange(false);
+  }
+
+  function resetBankForm() {
+    setEditingBankId(null);
+    setBankTitle("");
+    setBankQuestions([emptyQuestion("TRIVIA")]);
   }
 
   function chooseGameType(next: GameType) {
@@ -552,6 +588,7 @@ function AdminInner() {
             audioKey?: string | null;
             startSpeed?: number;
             roundTitle?: string;
+            bonus?: "NONE" | "DOUBLE" | "LIGHTNING";
           }) => ({
             prompt: q.prompt,
             options: Array.isArray(q.options) ? [...q.options] : ["", ""],
@@ -564,6 +601,7 @@ function AdminInner() {
             audioKey: q.audioKey ?? null,
             startSpeed: q.startSpeed ?? 2,
             roundTitle: q.roundTitle ?? "",
+            bonus: q.bonus === "DOUBLE" || q.bonus === "LIGHTNING" ? q.bonus : "NONE",
           })
         )
       );
@@ -629,6 +667,109 @@ function AdminInner() {
     await fetch(`/api/games/${id}`, { method: "DELETE" });
     if (editingId === id) resetForm();
     await loadGames();
+  }
+
+  function startEditBank(bank: BankListItem) {
+    setEditingBankId(bank.id);
+    setBankTitle(bank.title);
+    setBankQuestions(
+      (bank.questions || []).map((q) => ({
+        ...emptyQuestion("TRIVIA"),
+        prompt: q.prompt,
+        options: padDraftOptions(
+          Array.isArray(q.options) ? [...q.options] : ["", ""]
+        ),
+        correctIndex: q.correctIndex,
+        timeLimitSec: q.timeLimitSec,
+        basePoints: q.basePoints,
+        timeBonus: q.timeBonus,
+        bonus: q.bonus === "DOUBLE" || q.bonus === "LIGHTNING" ? q.bonus : "NONE",
+        roundTitle: "",
+      }))
+    );
+    goTab("banks");
+  }
+
+  async function saveBank(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMessage("");
+    try {
+      const payload = {
+        title: bankTitle.trim(),
+        questions: serializeQuestions(bankQuestions).map((q) => ({
+          prompt: q.prompt,
+          options: q.options,
+          correctIndex: q.correctIndex,
+          timeLimitSec: q.timeLimitSec,
+          basePoints: q.basePoints,
+          timeBonus: q.timeBonus,
+          bonus: q.bonus,
+        })),
+      };
+      const res = await fetch(
+        editingBankId ? `/api/banks/${editingBankId}` : "/api/banks",
+        {
+          method: editingBankId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showMessage(
+          typeof data.error === "string" ? data.error : "Could not save bank",
+          "bad"
+        );
+        return;
+      }
+      const saved = data.bank?.title || bankTitle;
+      const wasEdit = !!editingBankId;
+      resetBankForm();
+      await loadBanks();
+      showMessage(wasEdit ? `Updated “${saved}”` : `Created bank “${saved}”`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeBank(id: string, name: string) {
+    if (
+      !confirm(
+        `Delete bank “${name}”? Games already using those questions stay as they are.`
+      )
+    ) {
+      return;
+    }
+    await fetch(`/api/banks/${id}`, { method: "DELETE" });
+    if (editingBankId === id) resetBankForm();
+    await loadBanks();
+  }
+
+  async function addStarterBank() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/banks/starter", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showMessage(
+          typeof data.error === "string"
+            ? data.error
+            : "Could not add starter pack",
+          "bad"
+        );
+        return;
+      }
+      await loadBanks();
+      showMessage(
+        data.created
+          ? "Added the starter pack"
+          : "Starter pack is already in your banks"
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function openRecap(id: string) {
@@ -1079,6 +1220,14 @@ function AdminInner() {
     });
   }, [title, questions, gameType]);
 
+  const canSubmitBank = useMemo(() => {
+    if (!bankTitle.trim()) return false;
+    return bankQuestions.every((q) => {
+      const opts = q.options.map((o) => o.trim()).filter(Boolean);
+      return q.prompt.trim() && opts.length >= 2 && q.correctIndex < opts.length;
+    });
+  }, [bankTitle, bankQuestions]);
+
   if (authed === null) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-ink px-5">
@@ -1230,6 +1379,9 @@ function AdminInner() {
           </NavButton>
           <NavButton active={tab === "games"} onClick={() => goTab("games")}>
             {isSuper ? "All games" : "My games"}
+          </NavButton>
+          <NavButton active={tab === "banks"} onClick={() => goTab("banks")}>
+            Banks
           </NavButton>
 
           <div className="mt-5 px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
@@ -1420,6 +1572,23 @@ function AdminInner() {
                 >
                   + Add question
                 </button>
+                {gameType === "TRIVIA" && (
+                  <button
+                    type="button"
+                    className="w-full rounded-xl border border-dashed py-3.5 text-sm font-bold"
+                    style={{
+                      borderColor:
+                        "color-mix(in srgb, var(--amber) 50%, var(--line))",
+                      color: "var(--amber)",
+                    }}
+                    onClick={() => {
+                      void loadBanks();
+                      setShowBankPicker(true);
+                    }}
+                  >
+                    + Add from bank
+                  </button>
+                )}
 
                 <div className="flex flex-wrap justify-end gap-3 pt-2">
                   {editingId && (
@@ -1446,6 +1615,23 @@ function AdminInner() {
                   </p>
                 )}
               </form>
+              {showBankPicker && (
+                <BankPicker
+                  banks={banks}
+                  onClose={() => setShowBankPicker(false)}
+                  onAdd={(added) => {
+                    setQuestions((prev) => {
+                      const cleaned = prev.filter(
+                        (q) =>
+                          q.prompt.trim() ||
+                          q.options.some((o) => o.trim())
+                      );
+                      return [...cleaned, ...added];
+                    });
+                    setShowBankPicker(false);
+                  }}
+                />
+              )}
             </section>
           )}
 
@@ -1694,6 +1880,157 @@ function AdminInner() {
                         </button>
                       </div>
                     )}
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {tab === "banks" && (
+            <section className="mx-auto max-w-4xl">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h1 className="text-3xl font-bold md:text-4xl">
+                    {editingBankId ? "Edit bank" : "Question banks"}
+                  </h1>
+                  <p className="mt-1 text-sm text-muted">
+                    Trivia pools you can drop into a night. The bank name
+                    becomes the round name.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    disabled={busy}
+                    onClick={() => void addStarterBank()}
+                  >
+                    Add starter pack
+                  </button>
+                </div>
+              </div>
+              {message && tab === "banks" && (
+                <p
+                  className={`mt-4 text-sm ${messageTone === "bad" ? "text-bad" : "text-good"}`}
+                >
+                  {message}
+                </p>
+              )}
+
+              <form onSubmit={saveBank} className="mt-8 space-y-5">
+                <label className="block space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                    Bank name
+                  </span>
+                  <input
+                    className="field"
+                    value={bankTitle}
+                    maxLength={ROUND_TITLE_MAX}
+                    onChange={(e) => setBankTitle(e.target.value)}
+                    placeholder="e.g. Movies"
+                    required
+                  />
+                </label>
+                {bankQuestions.map((q, qi) => (
+                  <QuestionEditor
+                    key={qi}
+                    question={q}
+                    index={qi}
+                    gameType="TRIVIA"
+                    hideRound
+                    canRemove={bankQuestions.length > 1}
+                    onChange={(next) =>
+                      setBankQuestions((prev) =>
+                        prev.map((item, i) => (i === qi ? next : item))
+                      )
+                    }
+                    onRemove={() =>
+                      setBankQuestions((prev) =>
+                        prev.filter((_, i) => i !== qi)
+                      )
+                    }
+                  />
+                ))}
+                <button
+                  type="button"
+                  className="w-full rounded-xl border border-dashed py-3.5 text-sm font-bold"
+                  style={{
+                    borderColor:
+                      "color-mix(in srgb, var(--amber) 50%, var(--line))",
+                    color: "var(--amber)",
+                  }}
+                  onClick={() =>
+                    setBankQuestions((prev) => [
+                      ...prev,
+                      emptyQuestion("TRIVIA"),
+                    ])
+                  }
+                >
+                  + Add question
+                </button>
+                <div className="flex flex-wrap justify-end gap-3 pt-2">
+                  {editingBankId && (
+                    <button
+                      type="button"
+                      className="rounded-md border px-5 py-2.5 text-sm font-bold"
+                      style={{
+                        borderColor: "var(--line)",
+                        color: "var(--chalk)",
+                      }}
+                      onClick={resetBankForm}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={!canSubmitBank || busy}
+                  >
+                    {busy
+                      ? "Saving…"
+                      : editingBankId
+                        ? "Update bank"
+                        : "Save bank"}
+                  </button>
+                </div>
+              </form>
+
+              <div className="mt-10 space-y-3">
+                <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-amber">
+                  Your banks
+                </h2>
+                {banks.length === 0 && (
+                  <p className="text-muted">
+                    No banks yet — save one above or add the starter pack.
+                  </p>
+                )}
+                {banks.map((b) => (
+                  <article
+                    key={b.id}
+                    className="flex flex-col gap-3 rounded-2xl border border-line bg-panel p-4 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div>
+                      <div className="text-xl font-bold">{b.title}</div>
+                      <div className="mt-1 text-sm text-muted">
+                        {b._count?.questions ?? b.questions.length} questions
+                        {isSuper && b.owner ? ` · ${b.owner.name}` : ""}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="btn btn-ghost"
+                        onClick={() => startEditBank(b)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        onClick={() => void removeBank(b.id, b.title)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>

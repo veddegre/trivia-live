@@ -8,6 +8,8 @@ import { CountdownTimer } from "@/components/CountdownTimer";
 import { useQuestionCountdown } from "@/hooks/useQuestionCountdown";
 import type { BrandConfig } from "@/lib/branding";
 import { getSocket } from "@/lib/socket-client";
+import { joinWinnerNames, questionBonusLabel } from "@/lib/scoring";
+import { answerLetterInk } from "@/lib/answer-ink";
 import type { GamePublicState, PlayerView } from "@/lib/types";
 import { gameTypeUsesImage } from "@/lib/types";
 import { assertDisplayName } from "@/lib/display-name";
@@ -506,6 +508,11 @@ function PlayInner({ code }: { code: string }) {
                   ? `${state.round.title} · ${state.round.questionInRound + 1}/${state.round.questionsInRound}`
                   : `Question ${state.questionIndex + 1}/${state.questionTotal}`}
               </p>
+              {questionBonusLabel(state.question.bonus) ? (
+                <p className="mt-2 text-center text-[11px] font-extrabold uppercase tracking-[0.16em] text-amber">
+                  {questionBonusLabel(state.question.bonus)}
+                </p>
+              ) : null}
               <div className="mt-4">
                 <CountdownTimer
                   remainingSec={remaining}
@@ -537,7 +544,7 @@ function PlayInner({ code }: { code: string }) {
                   return (
                     <button
                       key={i}
-                      className="flex w-full items-center gap-3.5 rounded-2xl border px-4 py-4 text-left text-[17px] font-semibold transition disabled:opacity-80"
+                      className="flex min-h-[3.5rem] w-full items-center gap-3.5 rounded-2xl border px-4 py-4 text-left text-[19px] font-semibold leading-snug transition disabled:opacity-80"
                       style={
                         selected
                           ? {
@@ -559,12 +566,11 @@ function PlayInner({ code }: { code: string }) {
                       onClick={() => answer(i)}
                     >
                       <span
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-extrabold"
-                        style={
-                          selected
-                            ? { background: "var(--amber)", color: "#1a1200" }
-                            : { background: "color-mix(in srgb, var(--amber) 12%, transparent)", color: amber }
-                        }
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-extrabold"
+                        style={{
+                          background: answerLetterInk(i).bg,
+                          color: answerLetterInk(i).fg,
+                        }}
                       >
                         {letter}
                       </span>
@@ -575,8 +581,9 @@ function PlayInner({ code }: { code: string }) {
               </div>
               {player.hasAnswered && canChange && !timeUp && (
                 <p className="mt-8 text-center text-sm text-muted">
-                  Tap another option to change. Speed bonus stays from your
-                  first tap.
+                  {state.question.bonus === "LIGHTNING"
+                    ? "Tap another option to change. Lightning scores base points only."
+                    : "Tap another option to change. Speed bonus stays from your first tap."}
                 </p>
               )}
               {player.hasAnswered && (!canChange || timeUp) && (
@@ -674,6 +681,12 @@ function PlayInner({ code }: { code: string }) {
                   ) : null}
                 </div>
               )}
+              {state.hotStreak && (
+                <p className="text-center text-sm font-bold uppercase tracking-[0.14em] text-amber">
+                  {state.hotStreak.name} is on a {state.hotStreak.count}-in-a-row
+                  streak
+                </p>
+              )}
             </div>
           )}
 
@@ -710,6 +723,12 @@ function PlayInner({ code }: { code: string }) {
                   ? `Up next: ${state.round.title}`
                   : `Up next: question ${state.questionIndex + 1} of ${state.questionTotal}`}
               </p>
+              {state.hotStreak && (
+                <p className="mt-4 text-sm font-bold uppercase tracking-[0.14em] text-amber">
+                  {state.hotStreak.name} is on a {state.hotStreak.count}-in-a-row
+                  streak
+                </p>
+              )}
             </div>
           )}
 
@@ -719,11 +738,21 @@ function PlayInner({ code }: { code: string }) {
                 Game over
               </div>
               <h2 className="display text-4xl" style={{ color: amber }}>
-                {state.winner?.name || "—"}
+                {state.tiedWinners
+                  ? joinWinnerNames(state.tiedWinners.map((w) => w.name))
+                  : state.winner?.name || "—"}
               </h2>
               <p className="text-muted">
-                wins with {(state.winner?.totalScore ?? 0).toLocaleString()} pts
+                {state.tiedWinners
+                  ? `share first with ${state.tiedWinners[0].totalScore.toLocaleString()} pts`
+                  : `wins with ${(state.winner?.totalScore ?? 0).toLocaleString()} pts`}
               </p>
+              {state.hotStreak && (
+                <p className="text-sm font-bold uppercase tracking-[0.14em] text-amber">
+                  {state.hotStreak.name} is on a {state.hotStreak.count}-in-a-row
+                  streak
+                </p>
+              )}
               <div
                 className="rounded-2xl border px-5 py-5 text-left"
                 style={{

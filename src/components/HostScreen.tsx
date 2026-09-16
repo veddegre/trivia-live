@@ -15,6 +15,7 @@ import { betweenHeadline } from "@/lib/between-copy";
 import type { BrandConfig } from "@/lib/branding";
 import { clearHostToken, readHostToken, storeHostToken } from "@/lib/host-token";
 import { getSocket } from "@/lib/socket-client";
+import { joinWinnerNames, questionBonusLabel } from "@/lib/scoring";
 import type { GamePublicState, GameType, LeaderboardEntry } from "@/lib/types";
 import { GAME_TYPE_LABEL } from "@/lib/types";
 
@@ -38,6 +39,35 @@ const medal = {
     chip: "bg-bronze text-ink",
   },
 } as const;
+
+function BonusChip({ bonus }: { bonus?: string | null }) {
+  const label = questionBonusLabel(
+    bonus === "DOUBLE" || bonus === "LIGHTNING" ? bonus : null
+  );
+  if (!label) return null;
+  return (
+    <span className="rounded-full border border-amber/50 bg-amber/15 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-amber">
+      {label}
+    </span>
+  );
+}
+
+function HotStreakNote({
+  streak,
+  className = "mt-4",
+}: {
+  streak: { name: string; count: number } | null;
+  className?: string;
+}) {
+  if (!streak) return null;
+  return (
+    <p
+      className={`${className} text-sm font-bold uppercase tracking-[0.14em] text-amber`}
+    >
+      {streak.name} is on a {streak.count}-in-a-row streak
+    </p>
+  );
+}
 
 function Podium({ podium }: { podium: LeaderboardEntry[] }) {
   const order = [
@@ -481,7 +511,7 @@ export function HostScreen({
               hasMedia ? "py-2 md:py-2.5" : "py-3 md:py-4"
             }`}
           >
-            <div className="flex items-center justify-center gap-2 text-sm md:justify-start">
+            <div className="flex flex-wrap items-center justify-center gap-2 text-sm md:justify-start">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber text-sm font-extrabold text-ink">
                 ?
               </span>
@@ -490,6 +520,7 @@ export function HostScreen({
                   ? `${state.round.title} · ${state.round.questionInRound + 1}/${state.round.questionsInRound}`
                   : `Question ${state.questionIndex + 1} / ${state.questionTotal}`}
               </span>
+              <BonusChip bonus={state.question.bonus} />
             </div>
             <CountdownTimer
               remainingSec={timerSec}
@@ -601,7 +632,7 @@ export function HostScreen({
 
           <div className="mt-4 grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[1.35fr_1fr]">
             <section className="panel flex min-h-0 flex-col overflow-hidden rounded-2xl p-4 md:p-6">
-              <div className="flex shrink-0 items-center gap-2 text-amber">
+              <div className="flex flex-wrap shrink-0 items-center gap-2 text-amber">
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber text-xs font-extrabold text-ink">
                   ?
                 </span>
@@ -610,6 +641,7 @@ export function HostScreen({
                     ? `${state.round.title} · ${state.round.questionInRound + 1}/${state.round.questionsInRound}`
                     : `Question ${state.questionIndex + 1}`}
                 </span>
+                <BonusChip bonus={state.question.bonus} />
               </div>
               <h2 className="mt-3 shrink-0 text-lg font-semibold md:text-xl">
                 {state.question.prompt}
@@ -683,6 +715,7 @@ export function HostScreen({
               <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-amber">
                 Points earned this round
               </p>
+              <HotStreakNote streak={state.hotStreak} />
             </aside>
           </div>
 
@@ -777,6 +810,7 @@ export function HostScreen({
                   </div>
                 </div>
               )}
+              <HotStreakNote streak={state.hotStreak} className="mt-6" />
 
               {isHost && (
                 <button
@@ -840,9 +874,18 @@ export function HostScreen({
                 ★
               </div>
               <h1 className="display text-4xl uppercase tracking-wide md:text-6xl">
-                Game finished!
+                {state.tiedWinners ? "It's a tie!" : "Game finished!"}
               </h1>
-              <p className="mt-2 text-lg text-muted">Great game, everyone!</p>
+              {state.tiedWinners ? (
+                <p className="mt-2 text-lg text-muted">
+                  {joinWinnerNames(state.tiedWinners.map((w) => w.name))} share
+                  first with{" "}
+                  {state.tiedWinners[0].totalScore.toLocaleString()} pts
+                </p>
+              ) : (
+                <p className="mt-2 text-lg text-muted">Great game, everyone!</p>
+              )}
+              <HotStreakNote streak={state.hotStreak} className="mt-3" />
               <p className="mt-2 text-sm text-muted">
                 Night recap is saved in Admin → Past winners
               </p>

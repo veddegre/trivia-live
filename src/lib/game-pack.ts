@@ -15,6 +15,7 @@ import {
 } from "@/lib/types";
 import { resolveUploadPath } from "@/lib/media";
 import { gameTypeSchema, type QuestionInput } from "@/lib/question-schema";
+import { isQuestionBonus } from "@/lib/scoring";
 import { z } from "zod";
 
 export const GAME_PACK_VERSION = 1;
@@ -38,6 +39,7 @@ const packQuestionSchema = z.object({
     .min(START_SPEED_MIN)
     .max(START_SPEED_MAX)
     .optional(),
+  bonus: z.enum(["NONE", "DOUBLE", "LIGHTNING"]).optional().default("NONE"),
   media: z.string().min(1).max(80).optional(),
   roundTitle: z.string().max(40).optional().default(""),
 });
@@ -72,6 +74,7 @@ export type SourceGame = {
     imageKey: string | null;
     audioKey: string | null;
     roundTitle: string;
+    bonus: string;
   }[];
 };
 
@@ -140,6 +143,7 @@ export function gameToPack(game: SourceGame): {
       startZoom: q.startZoom,
       startSpeed: q.startSpeed,
       roundTitle: q.roundTitle.trim(),
+      bonus: isQuestionBonus(q.bonus) ? q.bonus : "NONE",
       ...(zipName ? { media: zipName } : {}),
     };
   });
@@ -223,6 +227,7 @@ export function questionsFromPack(
     imageKey: gameTypeUsesImage(pack.gameType) ? mediaKeys[i] ?? null : null,
     audioKey: gameTypeUsesAudio(pack.gameType) ? mediaKeys[i] ?? null : null,
     roundTitle: q.roundTitle ?? "",
+    bonus: q.bonus ?? "NONE",
   }));
 }
 

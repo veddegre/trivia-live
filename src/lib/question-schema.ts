@@ -14,6 +14,7 @@ import {
   gameTypeUsesImage,
   type GameType,
 } from "@/lib/types";
+import { isQuestionBonus } from "@/lib/scoring";
 
 export const gameTypeSchema = z.enum([
   "TRIVIA",
@@ -43,11 +44,17 @@ export const questionSchema = z.object({
     .max(START_SPEED_MAX)
     .default(START_SPEED_DEFAULT),
   roundTitle: z.string().max(ROUND_TITLE_MAX).optional().default(""),
+  bonus: z
+    .enum(["NONE", "DOUBLE", "LIGHTNING"])
+    .optional()
+    .default("NONE"),
 });
 
 export type QuestionInput = z.infer<typeof questionSchema>;
 
-export function assertCorrectIndexes(questions: QuestionInput[]) {
+export function assertCorrectIndexes(
+  questions: Array<{ options: string[]; correctIndex: number }>
+) {
   for (const q of questions) {
     if (q.correctIndex >= q.options.length) {
       return "correctIndex out of range for a question";
@@ -105,5 +112,6 @@ export function questionCreateData(
     audioKey: gameTypeUsesAudio(gameType) ? q.audioKey || null : null,
     startSpeed: q.startSpeed ?? START_SPEED_DEFAULT,
     roundTitle: (q.roundTitle ?? "").trim().slice(0, ROUND_TITLE_MAX),
+    bonus: isQuestionBonus(q.bonus) ? q.bonus : "NONE",
   };
 }

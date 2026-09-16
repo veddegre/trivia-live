@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Question" ADD COLUMN "bonus" TEXT NOT NULL DEFAULT 'NONE';

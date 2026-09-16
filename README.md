@@ -10,14 +10,14 @@ Pick a **game type** when you create a night: classic multiple-choice **Trivia**
 
 ## Features
 
-- **Admin** — create and edit games; choose **Trivia**, **Image Zoom**, **Picture Finish**, or **Guess the Song**; 2–6 options (or True/False on trivia); per-question timers and scoring; optional late-join lock; optional named rounds (Movies, Science, Final). Search and sort the games list. **Preview as player** shows the phone layout (no photo, clip, or correct answer).
+- **Admin** — create and edit games; choose **Trivia**, **Image Zoom**, **Picture Finish**, or **Guess the Song**; 2–6 options (or True/False on trivia); per-question timers and scoring; optional late-join lock; optional named rounds (Movies, Science, Final). **Question banks** are reusable trivia pools (the bank name becomes the round). Search and sort the games list. **Preview as player** shows the phone layout (no photo, clip, or correct answer).
 - **Image Zoom** — upload a JPEG/PNG/WebP/GIF per round (5 MB max); starting crop Close / Tight / Extreme; photo plays on the **host** and **watch** TVs; phones show the prompt, timer, and answer buttons
 - **Picture Finish** — same photo upload as Image Zoom; the host/watch TVs start on a chunky mosaic (Soft / Heavy / Extreme) that eases to sharp on the same timer curve. Phones stay the answer pad.
 - **Guess the Song** — upload a short clip per round (MP3, M4A, WAV, OGG, or AAC, 10 MB max); starts fast and eases to normal speed; audio plays on the **host** TV/speakers (and a watch TV after the host starts); phones are the answer pad. Host taps Play to start the clip and the round clock.
 - **Host screen** — join code, QR → `/join?code=…`, typed join URL, second-TV watch URL, live lobby roster, question control, reveal, between-round standings pause, podium finish. Opening the host screen opens the lobby.
 - **Spectator** — `/watch/[code]` is the same big-screen boards (including Image Zoom, Picture Finish, and song audio) with no Start / Lock / Kick / Play again. Anyone with the join code can open it; it never includes the host token and does not open the lobby.
-- **Player phones** — join with code + name (no accounts); remembered display name; reconnect after refresh; rank/points after each round. Names are filtered for the projector (letters/numbers/spaces; obvious slurs blocked). Hosts can **Remove** a player from the lobby or standings; that name cannot rejoin until **Play again**.
-- **Scoring** — server timestamps only (phones can’t fake speed); board updates on lock so mid-question standings don’t spoil answers. Optional **Allow changing answers**: the pick can change until lock, but speed bonus stays from the first tap.
+- **Player phones** — join with code + name (no accounts); remembered display name; reconnect after refresh; rank/points after each round. Names are filtered for the projector (letters/numbers/spaces; obvious slurs blocked). Hosts can **Remove** a player from the lobby or standings; that name cannot rejoin until **Play again**. Answer buttons are large-type with colorblind-safe A–F letter chips.
+- **Scoring** — server timestamps only (phones can’t fake speed); board updates on lock so mid-question standings don’t spoil answers. Optional **Allow changing answers**: the pick can change until lock, but speed bonus stays from the first tap. Per-question **Double points** (2×) or **Lightning** (correct/wrong, no speed bonus). A 3+ correct streak is called out on the boards. Tied first place shares the win (no extra tiebreaker question).
 - **Play again** — clear players/scores and kick-bans, keep questions, issue a new join code
 - **Export / import** — download a pack (JSON for Trivia; zip with media for Image Zoom, Picture Finish, and Guess the Song). Import creates a new draft you own. Packs never include join codes, host tokens, players, or scores.
 - **Duplicate / send a copy** — clone a night for yourself, or send a copy to another host on this instance (they get a new draft; you keep the original)
@@ -85,7 +85,7 @@ Login is **email + password** (not a shared single password).
 
 ## How a game works
 
-1. Sign in at **`/admin`** with a host or super-admin account and create a game. Choose **Trivia**, **Image Zoom**, **Picture Finish**, or **Guess the Song**, then add questions. Mark the correct option with the radio next to each choice. Optionally set base points, speed bonus, timer, **Allow late joins**, **Allow changing answers**, and **round names** (leave blank to stay in the previous round). Use **Preview as player** to see the phone layout without revealing media or the answer.
+1. Sign in at **`/admin`** with a host or super-admin account and create a game. Choose **Trivia**, **Image Zoom**, **Picture Finish**, or **Guess the Song**, then add questions (or **Add from bank** on trivia). Mark the correct option with the radio next to each choice. Optionally set base points, speed bonus, a **Double points** or **Lightning** flag, timer, **Allow late joins**, **Allow changing answers**, and **round names** (leave blank to stay in the previous round). Use **Preview as player** to see the phone layout without revealing media or the answer. Banks live in **Admin → Banks**; first setup also creates a **Starter pack**.
 2. Open **Host screen** (big display). The lobby opens when that page connects; you can also click **Open lobby** from the games list first. For a second display, open **Watch** (same join code, no host token).
 3. Players scan the **QR** (opens `/join` with the code filled in) or open the join URL shown on the host and enter the code, then pick a name.
 4. Host presses **Start question 1** → players answer against the countdown → auto-lock at 0 (or **Lock now**) → reveal correct answer + standings. On Image Zoom, the host and watch photos start zoomed in and open at a steady rate until lock/reveal. On Picture Finish, they start as a mosaic and sharpen on the same timer curve. On Guess the Song, the host taps **Play** so the clip starts fast on the room speakers and the round clock starts with it. A watch TV waits for that Play, then can listen locally without starting the clock.
@@ -159,7 +159,14 @@ points = base + timeBonus × (1 − elapsed / timeLimit)
 
 Defaults per question: **base 500**, **time bonus 500** → max **1000** if answered instantly. Wrong answers get **0**. Totals carry across the whole game.
 
+Per-question flags in the builder:
+
+- **Double points** — the usual formula, then ×2.
+- **Lightning** — time bonus is ignored; a correct answer scores base points only.
+
 Elapsed time is measured on the **server** from question open to **first** answer receive. Per-question base/bonus can be set in the admin builder. If **Allow changing answers** is on, players may switch their pick until the clock hits zero; points still use that first-tap time (a later correct pick does not get a fresh speed bonus).
+
+After reveal, between questions, and at the finish, the boards call out the longest current streak of **3 or more** correct answers. If two or more players share the top score at the end, they are co-winners (the recap lists them as `Ada & Ben`). There is no extra sudden-death question.
 
 Scores are stored when answers land but **not added to the board until the question locks**, so the live standings don’t spoil who got it right. After lock/reveal, the host shows who’s in the lead (with round deltas); phones show rank and round points. Between rounds, standings stay up until the host starts the next question.
 
@@ -192,19 +199,28 @@ npm run build        # prisma generate + next build
 npm start            # production server
 npm run db:push      # push schema (dev)
 npm run db:migrate   # prisma migrate deploy
+npm run test:unit    # all offline unit suites (no server required)
+npm run test:all     # alias for test:unit
 npm run test:scoring # unit checks for the score formula
 npm run test:zoom    # unit checks for Image Zoom scale-over-time
+npm run test:picture-finish # Picture Finish pixel/zoom curve
+npm run test:image-crop     # zoom crop geometry
 npm run test:audio-speed # unit checks for Guess the Song playback-rate curve
 npm run test:display-name # unit checks for projector name filter
 npm run test:game-pack   # unit checks for export/import packs
 npm run test:rounds      # unit checks for named round grouping
 npm run test:night-recap # unit checks for finish-time recap + CSV
-npm run smoke        # 200-player join + answer burst (app must be running)
+npm run test:bans        # banned display-name matching
+npm run smoke        # live join + answer burst (app must be running; not part of test:unit)
 ```
 
-Smoke test options:
+Smoke test options (set real admin creds against production):
 
 ```bash
+SMOKE_PLAYERS=50 SMOKE_BASE_URL=https://trivia-live.com \
+  SUPERADMIN_EMAIL='you@example.com' SUPERADMIN_PASSWORD='…' \
+  npm run smoke
+
 SMOKE_PLAYERS=200 SMOKE_BASE_URL=http://127.0.0.1:3000 npm run smoke
 ```
 

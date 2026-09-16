@@ -98,7 +98,7 @@ export default function HomePage() {
           {[
             [
               "Create a game",
-              "In Admin, pick Trivia, Image Zoom, Picture Finish, or Guess the Song. Add questions, timers, and scoring. Optionally group them into named rounds. A night is one type — types are not mixed.",
+              "In Admin, pick Trivia, Image Zoom, Picture Finish, or Guess the Song. Add questions, timers, and scoring — or drop in a trivia bank as a named round. A night is one type — types are not mixed.",
             ],
             [
               "Open the lobby",
@@ -110,7 +110,7 @@ export default function HomePage() {
             ],
             [
               "Crown a winner",
-              "Reveal, standings between rounds, then the podium finish. Hosts can remove a player for the rest of the night if needed.",
+              "Reveal, standings between rounds, streak callouts, then the podium. Ties share first. Hosts can remove a player for the rest of the night if needed.",
             ],
           ].map(([title, body], i) => (
             <li key={title} className="flex gap-5">
@@ -134,7 +134,7 @@ export default function HomePage() {
           {[
             [
               "Classic trivia",
-              "Multiple choice or True/False. Per-question timers and speed scoring.",
+              "Multiple choice or True/False. Per-question timers, double-points or lightning flags, and speed scoring. Reusable question banks drop in as a named round.",
             ],
             [
               "Image Zoom",
@@ -154,11 +154,11 @@ export default function HomePage() {
             ],
             [
               "Phones as buzzers",
-              "Players join with a code and name — no app install. Names are filtered for the projector.",
+              "Players join with a code and name — no app install. Large-type buttons with colorblind-safe letter chips. Names are filtered for the projector.",
             ],
             [
               "Pace the room",
-              "Reveal, between-question standings, named round mini-podiums, then the next question.",
+              "Reveal, between-question standings, named round mini-podiums, then the next question. Streaks of 3+ get a shout-out.",
             ],
           ].map(([title, body]) => (
             <div key={title} className="text-center">

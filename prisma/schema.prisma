@@ -38,6 +38,7 @@ model User {
   updatedAt    DateTime     @updatedAt
   games        Game[]
   results      GameResult[]
+  banks        QuestionBank[]
 }
 
 model Game {
@@ -100,6 +101,8 @@ model Question {
   timeLimitSec  Int      @default(30)
   basePoints    Int      @default(500)
   timeBonus     Int      @default(500)
+  /** DOUBLE = 2× points. LIGHTNING = no speed bonus (correct/wrong only). */
+  bonus         String   @default("NONE")
   /** Stored filename in UPLOAD_DIR; public URL is /api/media/{imageKey} */
   imageKey      String?
   /** Starting CSS scale for IMAGE_ZOOM (eases to 1 as the timer runs down) */
@@ -140,4 +143,33 @@ model Answer {
   isCorrect   Boolean  @default(false)
 
   @@unique([playerId, questionId])
+}
+
+/** Per-host reusable trivia pool. Insert into a night as a named round. */
+model QuestionBank {
+  id        String         @id @default(cuid())
+  title     String
+  ownerId   String
+  owner     User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  questions BankQuestion[]
+
+  @@index([ownerId])
+}
+
+model BankQuestion {
+  id           String       @id @default(cuid())
+  bankId       String
+  bank         QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  order        Int
+  prompt       String
+  options      String[]
+  correctIndex Int
+  timeLimitSec Int          @default(30)
+  basePoints   Int          @default(500)
+  timeBonus    Int          @default(500)
+  bonus        String       @default("NONE")
+
+  @@unique([bankId, order])
 }

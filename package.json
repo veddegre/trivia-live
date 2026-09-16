@@ -12,6 +12,8 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx scripts/seed-superadmin.ts",
     "smoke": "tsx scripts/smoke-test.ts",
+    "test:unit": "npm run test:scoring && npm run test:zoom && npm run test:picture-finish && npm run test:image-crop && npm run test:audio-speed && npm run test:display-name && npm run test:game-pack && npm run test:rounds && npm run test:night-recap && npm run test:bans && npm run test:question-bank",
+    "test:all": "npm run test:unit",
     "test:scoring": "tsx scripts/test-scoring.ts",
     "test:zoom": "tsx scripts/test-zoom.ts",
     "test:picture-finish": "tsx scripts/test-picture-finish.ts",
@@ -21,7 +23,8 @@
     "test:game-pack": "tsx scripts/test-game-pack.ts",
     "test:rounds": "tsx scripts/test-rounds.ts",
     "test:night-recap": "tsx scripts/test-night-recap.ts",
-    "test:bans": "tsx scripts/test-bans.ts"
+    "test:bans": "tsx scripts/test-bans.ts",
+    "test:question-bank": "tsx scripts/test-question-bank.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

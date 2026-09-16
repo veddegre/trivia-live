@@ -28,6 +28,7 @@ const trivia: SourceGame = {
       imageKey: null,
       audioKey: null,
       roundTitle: "",
+      bonus: "DOUBLE",
     },
   ],
 };
@@ -36,6 +37,7 @@ const { pack } = gameToPack(trivia);
 assert.equal(pack.version, 1);
 assert.equal(pack.gameType, "TRIVIA");
 assert.equal(pack.questions[0].media, undefined);
+assert.equal(pack.questions[0].bonus, "DOUBLE");
 assert.deepEqual(parsePackJson(pack), pack);
 
 assert.equal(pack.allowAnswerChange, false);
@@ -105,6 +107,7 @@ async function main() {
     gameType: "PICTURE_FINISH",
   });
   assert.equal(finishPack.gameType, "PICTURE_FINISH");
+  assert.equal(finishPack.questions[0].bonus, "NONE");
 
   assert.equal(copyTitle("Bass"), "Bass (copy)");
 

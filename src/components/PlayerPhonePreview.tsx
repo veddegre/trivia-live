@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import type { GameType } from "@/lib/types";
 import { gameTypeUsesImage } from "@/lib/types";
+import { questionBonusLabel, type QuestionBonus } from "@/lib/scoring";
+import { answerLetterInk } from "@/lib/answer-ink";
 
 type Props = {
   prompt: string;
@@ -12,6 +14,7 @@ type Props = {
   gameType: GameType;
   roundLabel?: string;
   questionLabel: string;
+  bonus?: QuestionBonus;
   onClose: () => void;
 };
 
@@ -23,6 +26,7 @@ export function PlayerPhonePreview({
   gameType,
   roundLabel,
   questionLabel,
+  bonus,
   onClose,
 }: Props) {
   const visible = options.map((opt) => opt.trim()).filter(Boolean);
@@ -67,6 +71,11 @@ export function PlayerPhonePreview({
           <p className="text-center text-sm text-muted">
             {roundLabel || questionLabel}
           </p>
+          {questionBonusLabel(bonus) ? (
+            <p className="mt-2 text-center text-[11px] font-extrabold uppercase tracking-[0.16em] text-amber">
+              {questionBonusLabel(bonus)}
+            </p>
+          ) : null}
           <div className="mt-4">
             <CountdownTimer remainingSec={timer} totalSec={timer} size="md" />
           </div>
@@ -88,12 +97,13 @@ export function PlayerPhonePreview({
               (opt, i) => (
                 <div
                   key={`${i}-${opt}`}
-                  className="flex w-full items-center gap-3.5 rounded-2xl border border-line bg-panel px-4 py-4 text-left text-[17px] font-semibold text-chalk"
+                  className="flex min-h-[3.5rem] w-full items-center gap-3.5 rounded-2xl border border-line bg-panel px-4 py-4 text-left text-[19px] font-semibold leading-snug text-chalk"
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-extrabold text-amber"
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-extrabold"
                     style={{
-                      background:
-                        "color-mix(in srgb, var(--amber) 12%, transparent)",
+                      background: answerLetterInk(i).bg,
+                      color: answerLetterInk(i).fg,
                     }}
                   >
                     {String.fromCharCode(65 + i)}

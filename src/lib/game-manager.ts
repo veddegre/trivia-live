@@ -3,7 +3,14 @@ import type { Game, Question, Player } from "@prisma/client";
 import { resolveBrand } from "@/lib/branding";
 import { generateJoinCode } from "@/lib/codes";
 import { prisma } from "@/lib/db";
-import { scoreAnswer } from "@/lib/scoring";
+import {
+  hottestStreak,
+  isQuestionBonus,
+  joinWinnerNames,
+  scoreAnswer,
+  tiedForFirst,
+  trailingCorrectStreak,
+} from "@/lib/scoring";
 import { buildNightRecap } from "@/lib/night-recap";
 import { isNameBanned, withBannedName } from "@/lib/bans";
 import {
@@ -106,6 +113,38 @@ function toLeaderboard(players: Player[], lastPoints?: Map<string, number>): Lea
     }));
 }
 
+function questionBonus(q: { bonus?: string | null }) {
+  return isQuestionBonus(q.bonus) ? q.bonus : "NONE";
+}
+
+async function hotStreakThrough(
+  game: GameWithRelations,
+  lastCompletedIndex: number
+): Promise<{ name: string; count: number } | null> {
+  if (lastCompletedIndex < 0) return null;
+  const completed = game.questions.slice(0, lastCompletedIndex + 1);
+  const answers = await prisma.answer.findMany({
+    where: { questionId: { in: completed.map((q) => q.id) } },
+    select: { playerId: true, questionId: true, isCorrect: true },
+  });
+  const byPlayer = new Map<string, Map<string, boolean>>();
+  for (const a of answers) {
+    let row = byPlayer.get(a.playerId);
+    if (!row) {
+      row = new Map();
+      byPlayer.set(a.playerId, row);
+    }
+    row.set(a.questionId, a.isCorrect);
+  }
+  return hottestStreak(
+    game.players.map((p) => {
+      const row = byPlayer.get(p.id);
+      const results = completed.map((q) => row?.get(q.id) ?? null);
+      return { name: p.name, streak: trailingCorrectStreak(results) };
+    })
+  );
+}
+
 async function roundLeaderboardFor(
   game: GameWithRelations,
   startIndex: number,
@@ -161,6 +200,7 @@ export async function buildPublicState(
         ? mediaPublicUrl(q.audioKey)
         : null,
       startSpeed: gameTypeUsesAudio(game.gameType) ? q.startSpeed : undefined,
+      bonus: questionBonus(q) === "NONE" ? undefined : questionBonus(q),
       ...(reveal ? { correctIndex: q.correctIndex } : {}),
     };
   }
@@ -187,9 +227,18 @@ export async function buildPublicState(
   }
 
   const leaderboard = toLeaderboard(game.players, lastPoints);
+  const tied = phase === "finished" ? tiedForFirst(leaderboard) : [];
   const winner =
     phase === "finished" && leaderboard.length > 0 ? leaderboard[0] : null;
+  const tiedWinners = tied.length > 1 ? tied : null;
   const leader = leaderboard.length > 0 ? leaderboard[0] : null;
+
+  let lastCompleted = -1;
+  if (phase === "reveal") lastCompleted = game.currentQuestionIndex;
+  else if (phase === "between") lastCompleted = game.currentQuestionIndex - 1;
+  else if (phase === "finished") lastCompleted = game.questions.length - 1;
+  const hotStreak =
+    lastCompleted >= 2 ? await hotStreakThrough(game, lastCompleted) : null;
 
   const titles = game.questions.map((q) => q.roundTitle);
   const round = roundViewAt(titles, game.currentQuestionIndex);
@@ -232,6 +281,8 @@ export async function buildPublicState(
         ? leader
         : null,
     winner,
+    tiedWinners,
+    hotStreak,
     allowLateJoin: game.allowLateJoin,
     allowAnswerChange: game.allowAnswerChange,
     round,
@@ -453,6 +504,7 @@ export async function submitAnswer(opts: {
       timeLimitSec: q.timeLimitSec,
       basePoints: q.basePoints,
       timeBonus: q.timeBonus,
+      bonus: questionBonus(q),
     });
     await prisma.answer.update({
       where: { id: existing.id },
@@ -474,6 +526,7 @@ export async function submitAnswer(opts: {
     timeLimitSec: q.timeLimitSec,
     basePoints: q.basePoints,
     timeBonus: q.timeBonus,
+    bonus: questionBonus(q),
   });
 
   // Store points on the answer, but do not add to totals until the round locks
@@ -539,8 +592,11 @@ export async function recordGameResult(code: string) {
   if (!game || game.players.length === 0) return null;
 
   const board = toLeaderboard(game.players);
-  const winner = board[0];
+  const tied = tiedForFirst(board);
+  const winner = tied[0];
   if (!winner) return null;
+  const winnerName =
+    tied.length > 1 ? joinWinnerNames(tied.map((p) => p.name)) : winner.name;
 
   const podium = board.slice(0, 3).map((p) => ({
     name: p.name,
@@ -574,7 +630,7 @@ export async function recordGameResult(code: string) {
         ownerId: game.ownerId,
         gameTitle: game.title,
         joinCode: game.code,
-        winnerName: winner.name,
+        winnerName,
         winnerScore: winner.totalScore,
         playerCount: game.players.length,
         podium,
@@ -583,7 +639,7 @@ export async function recordGameResult(code: string) {
       update: {
         ownerId: game.ownerId,
         gameTitle: game.title,
-        winnerName: winner.name,
+        winnerName,
         winnerScore: winner.totalScore,
         playerCount: game.players.length,
         podium,

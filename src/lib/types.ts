@@ -1,5 +1,6 @@
 import type { BrandConfig } from "@/lib/branding";
 import type { RoundView } from "@/lib/rounds";
+import type { QuestionBonus } from "@/lib/scoring";
 
 export type GamePhase = "lobby" | "question" | "reveal" | "between" | "finished";
 
@@ -17,6 +18,7 @@ export type PublicQuestion = {
   startZoom?: number;
   audioUrl?: string | null;
   startSpeed?: number;
+  bonus?: QuestionBonus;
 };
 
 export type LeaderboardEntry = {
@@ -43,6 +45,10 @@ export type GamePublicState = {
   /** Present after a round ends (reveal / between / finished) */
   leader: LeaderboardEntry | null;
   winner: LeaderboardEntry | null;
+  /** Finished: everyone sharing first place (length ≥ 2). */
+  tiedWinners: LeaderboardEntry[] | null;
+  /** Reveal / between: longest current streak of 3+ correct, if any. */
+  hotStreak: { name: string; count: number } | null;
   allowLateJoin: boolean;
   allowAnswerChange: boolean;
   /** Null when no round names are set — question list is a single unlabeled night. */

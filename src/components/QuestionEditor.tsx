@@ -10,6 +10,10 @@ import {
   START_ZOOM_DEFAULT,
   type GameType,
 } from "@/lib/types";
+import {
+  QUESTION_BONUS_LABEL,
+  type QuestionBonus,
+} from "@/lib/scoring";
 import { ROUND_TITLE_MAX } from "@/lib/rounds";
 import { mediaPublicUrl } from "@/lib/zoom";
 
@@ -20,6 +24,7 @@ export type DraftQuestion = {
   timeLimitSec: number;
   basePoints: number;
   timeBonus: number;
+  bonus: "NONE" | "DOUBLE" | "LIGHTNING";
   imageKey: string | null;
   startZoom: number;
   audioKey: string | null;
@@ -47,6 +52,7 @@ export function emptyQuestion(gameType: GameType = "TRIVIA"): DraftQuestion {
         : 30,
     basePoints: SCORE_BASE_DEFAULT,
     timeBonus: SCORE_TIME_BONUS_DEFAULT,
+    bonus: "NONE",
     imageKey: null,
     startZoom: START_ZOOM_DEFAULT,
     audioKey: null,
@@ -68,6 +74,8 @@ type Props = {
   allowAnswerChange?: boolean;
   onAllowAnswerChangeChange?: (next: boolean) => void;
   previousRoundTitle?: string;
+  /** Hide round-name field (bank editor — the bank title is the category). */
+  hideRound?: boolean;
 };
 
 export function QuestionEditor({
@@ -82,6 +90,7 @@ export function QuestionEditor({
   allowAnswerChange,
   onAllowAnswerChangeChange,
   previousRoundTitle = "",
+  hideRound = false,
 }: Props) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -215,7 +224,7 @@ export function QuestionEditor({
     <div
       className="rounded-2xl border border-line bg-panel p-5 md:p-6"
     >
-      {qi > 0 && q.roundTitle.trim() ? (
+      {qi > 0 && !hideRound && q.roundTitle.trim() ? (
         <div className="mb-4 border-b border-line pb-3 text-xs font-bold uppercase tracking-[0.16em] text-amber">
           New round
         </div>
@@ -255,6 +264,7 @@ export function QuestionEditor({
 
       <div className="mt-5 grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
         <div className="space-y-4">
+          {!hideRound && (
           <label className="block space-y-2">
             <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
               Round name
@@ -277,6 +287,7 @@ export function QuestionEditor({
               new section.
             </span>
           </label>
+          )}
           {isImage && (
             <div className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
@@ -543,6 +554,51 @@ export function QuestionEditor({
             </div>
           </div>
 
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+              Scoring flag
+            </div>
+            <p className="mt-1 text-xs text-muted">
+              Double points or lightning (no speed bonus). Standard uses the
+              numbers below.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {(["NONE", "DOUBLE", "LIGHTNING"] as QuestionBonus[]).map((flag) => {
+                const on = (q.bonus || "NONE") === flag;
+                return (
+                  <button
+                    key={flag}
+                    type="button"
+                    className="rounded-full px-3 py-1.5 text-sm font-bold"
+                    style={
+                      on
+                        ? { background: "var(--amber)", color: "#1a1200" }
+                        : {
+                            background: "transparent",
+                            color: "var(--amber)",
+                            border:
+                              "1px solid color-mix(in srgb, var(--amber) 45%, var(--line))",
+                          }
+                    }
+                    onClick={() => onChange({ ...q, bonus: flag })}
+                  >
+                    {QUESTION_BONUS_LABEL[flag]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {q.bonus === "LIGHTNING" ? (
+            <p className="text-xs text-muted">
+              Lightning ignores the speed bonus — a correct answer scores base
+              points only.
+            </p>
+          ) : q.bonus === "DOUBLE" ? (
+            <p className="text-xs text-muted">
+              Final points (base + speed) are doubled.
+            </p>
+          ) : null}
+
           <label className="block space-y-2">
             <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
               Base points
@@ -696,6 +752,11 @@ export function QuestionEditor({
                 onChange({ ...q, timeBonus: Number(e.target.value) || 0 })
               }
             />
+            {q.bonus === "LIGHTNING" ? (
+              <span className="block text-xs text-muted">
+                Not used on lightning questions.
+              </span>
+            ) : null}
           </label>
 
           {qi === 0 && onAllowLateJoinChange && (
@@ -748,6 +809,7 @@ export function QuestionEditor({
             (q.roundTitle.trim() || previousRoundTitle) || undefined
           }
           questionLabel={`Question ${qi + 1}`}
+          bonus={q.bonus}
           onClose={() => setShowPlayerPreview(false)}
         />
       )}

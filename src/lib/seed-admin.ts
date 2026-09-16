@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password";
+import { ensureStarterBank } from "@/lib/question-bank";
 
 const SETUP_LOCK_KEY = 88112233;
 
@@ -49,7 +50,7 @@ export async function createFirstSuperAdmin(opts: {
   }
 
   // Serialize first-admin creation (Postgres advisory lock)
-  return prisma.$transaction(async (tx) => {
+  const user = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(${SETUP_LOCK_KEY})`;
 
     const existing = await tx.user.count({ where: { role: "SUPERADMIN" } });
@@ -83,6 +84,9 @@ export async function createFirstSuperAdmin(opts: {
 
     return user;
   });
+
+  await ensureStarterBank(user.id);
+  return user;
 }
 
 /**
