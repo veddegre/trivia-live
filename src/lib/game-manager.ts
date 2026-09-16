@@ -494,13 +494,11 @@ export async function submitAnswer(opts: {
     if (existing.choiceIndex === opts.choiceIndex) {
       return { playerId: player.id };
     }
-    // Speed bonus stays from the first tap; only the pick can change.
-    const elapsedMs =
-      existing.answeredAt.getTime() - game.questionOpenedAt.getTime();
+    // Speed bonus uses this tap, not the first one — a late change is a late answer.
     const isCorrect = opts.choiceIndex === q.correctIndex;
     const points = scoreAnswer({
       isCorrect,
-      elapsedMs,
+      elapsedMs: nowElapsedMs,
       timeLimitSec: q.timeLimitSec,
       basePoints: q.basePoints,
       timeBonus: q.timeBonus,
@@ -510,6 +508,7 @@ export async function submitAnswer(opts: {
       where: { id: existing.id },
       data: {
         choiceIndex: opts.choiceIndex,
+        answeredAt: now,
         isCorrect,
         points,
       },

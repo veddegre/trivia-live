@@ -63,7 +63,7 @@ assert.equal(
   500
 );
 
-// First tap at 2s. Changing later still uses this elapsed (clock does not reset).
+// Answer (or last change) at 2s.
 assert.equal(
   scoreAnswer({
     isCorrect: true,
@@ -73,6 +73,18 @@ assert.equal(
     timeBonus: 500,
   }),
   967
+);
+
+// A late change is scored at the later time, not the first tap.
+assert.equal(
+  scoreAnswer({
+    isCorrect: true,
+    elapsedMs: 28000,
+    timeLimitSec: 30,
+    basePoints: 500,
+    timeBonus: 500,
+  }),
+  533
 );
 
 assert.equal(

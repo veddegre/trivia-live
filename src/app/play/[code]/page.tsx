@@ -583,7 +583,7 @@ function PlayInner({ code }: { code: string }) {
                 <p className="mt-8 text-center text-sm text-muted">
                   {state.question.bonus === "LIGHTNING"
                     ? "Tap another option to change. Lightning scores base points only."
-                    : "Tap another option to change. Speed bonus stays from your first tap."}
+                    : "Tap another option to change. Speed bonus is scored from this tap, not your first."}
                 </p>
               )}
               {player.hasAnswered && (!canChange || timeUp) && (

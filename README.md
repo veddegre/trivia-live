@@ -17,7 +17,7 @@ Pick a **game type** when you create a night: classic multiple-choice **Trivia**
 - **Host screen** — join code, QR → `/join?code=…`, typed join URL, second-TV watch URL, live lobby roster, question control, reveal, between-round standings pause, podium finish. Opening the host screen opens the lobby.
 - **Spectator** — `/watch/[code]` is the same big-screen boards (including Image Zoom, Picture Finish, and song audio) with no Start / Lock / Kick / Play again. Anyone with the join code can open it; it never includes the host token and does not open the lobby.
 - **Player phones** — join with code + name (no accounts); remembered display name; reconnect after refresh; rank/points after each round. Names are filtered for the projector (letters/numbers/spaces; obvious slurs blocked). Hosts can **Remove** a player from the lobby or standings; that name cannot rejoin until **Play again**. Answer buttons are large-type with colorblind-safe A–F letter chips.
-- **Scoring** — server timestamps only (phones can’t fake speed); board updates on lock so mid-question standings don’t spoil answers. Optional **Allow changing answers**: the pick can change until lock, but speed bonus stays from the first tap. Per-question **Double points** (2×) or **Lightning** (correct/wrong, no speed bonus). A 3+ correct streak is called out on the boards. Tied first place shares the win (no extra tiebreaker question).
+- **Scoring** — server timestamps only (phones can’t fake speed); board updates on lock so mid-question standings don’t spoil answers. Optional **Allow changing answers**: the pick can change until lock; speed bonus is scored from the **last tap**. Per-question **Double points** (2×) or **Lightning** (correct/wrong, no speed bonus). A 3+ correct streak is called out on the boards. Tied first place shares the win (no extra tiebreaker question).
 - **Play again** — clear players/scores and kick-bans, keep questions, issue a new join code
 - **Export / import** — download a pack (JSON for Trivia; zip with media for Image Zoom, Picture Finish, and Guess the Song). Import creates a new draft you own. Packs never include join codes, host tokens, players, or scores.
 - **Duplicate / send a copy** — clone a night for yourself, or send a copy to another host on this instance (they get a new draft; you keep the original)
@@ -108,7 +108,7 @@ By default players can join during the lobby **or** mid-game. Uncheck **Allow la
 
 ### Changing answers
 
-Off by default. Turn on **Allow changing answers** so players can switch their pick until the question locks. Speed bonus always uses the **first tap** — a late change can fix a mis-tap, but it cannot earn a faster time.
+Off by default. Turn on **Allow changing answers** so players can switch their pick until the question locks. Speed bonus uses the **last tap** — changing at the last second scores like a last-second answer, so you cannot bank a fast time and then swap in the correct pick.
 
 ### Kick-ban
 
@@ -164,7 +164,7 @@ Per-question flags in the builder:
 - **Double points** — the usual formula, then ×2.
 - **Lightning** — time bonus is ignored; a correct answer scores base points only.
 
-Elapsed time is measured on the **server** from question open to **first** answer receive. Per-question base/bonus can be set in the admin builder. If **Allow changing answers** is on, players may switch their pick until the clock hits zero; points still use that first-tap time (a later correct pick does not get a fresh speed bonus).
+Elapsed time is measured on the **server** from question open to the answer that counts. Per-question base/bonus can be set in the admin builder. If **Allow changing answers** is on, players may switch their pick until the clock hits zero; speed bonus is recalculated from that later tap (a last-second change does not keep an early speed bonus).
 
 After reveal, between questions, and at the finish, the boards call out the longest current streak of **3 or more** correct answers. If two or more players share the top score at the end, they are co-winners (the recap lists them as `Ada & Ben`). There is no extra sudden-death question.
 

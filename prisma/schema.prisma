@@ -52,7 +52,7 @@ model Game {
   hostToken            String       @unique @default(cuid())
   /** When false, players can only join while status is LOBBY */
   allowLateJoin        Boolean      @default(true)
-  /** When true, players may change their pick until lock; speed uses the first tap. */
+  /** When true, players may change their pick until lock; speed uses the latest tap. */
   allowAnswerChange    Boolean      @default(false)
   /** Display names blocked from joining until Play again. */
   bannedNames          String[]     @default([])

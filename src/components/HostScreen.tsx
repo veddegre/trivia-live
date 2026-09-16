@@ -1076,7 +1076,7 @@ export function HostScreen({
                     )}
                     {state.allowAnswerChange && (
                       <p className="mt-1 text-xs text-muted">
-                        Players can change answers (speed from first tap)
+                        Players can change answers (speed from last tap)
                       </p>
                     )}
                     {isHost && watchUrl && (

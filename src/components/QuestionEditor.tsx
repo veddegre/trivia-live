@@ -792,7 +792,7 @@ export function QuestionEditor({
                 </span>
                 <span className="text-xs text-muted">
                   Players can switch their pick until time is up. Speed bonus
-                  stays from the first tap.
+                  is scored from the last tap, not the first.
                 </span>
               </span>
             </label>
