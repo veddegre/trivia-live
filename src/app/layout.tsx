@@ -1,23 +1,26 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Figtree, Oswald } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const display = Bricolage_Grotesque({
+const display = localFont({
+  src: "../fonts/bricolage-grotesque-latin.woff2",
+  weight: "600 800",
   variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
+  display: "swap",
 });
 
-const body = Figtree({
+const body = localFont({
+  src: "../fonts/figtree-latin.woff2",
+  weight: "400 700",
   variable: "--font-body",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
-const condensed = Oswald({
+const condensed = localFont({
+  src: "../fonts/oswald-latin.woff2",
+  weight: "500 700",
   variable: "--font-condensed",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
