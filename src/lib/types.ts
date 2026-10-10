@@ -4,7 +4,12 @@ import type { QuestionBonus } from "@/lib/scoring";
 
 export type GamePhase = "lobby" | "question" | "reveal" | "between" | "finished";
 
-export type GameType = "TRIVIA" | "IMAGE_ZOOM" | "AUDIO_SPEED" | "PICTURE_FINISH";
+export type GameType =
+  | "TRIVIA"
+  | "IMAGE_ZOOM"
+  | "AUDIO_SPEED"
+  | "PICTURE_FINISH"
+  | "AUDIO_REVERSE";
 
 export type PublicQuestion = {
   id: string;
@@ -85,14 +90,22 @@ export const GAME_TYPE_LABEL: Record<GameType, string> = {
   IMAGE_ZOOM: "Image Zoom",
   AUDIO_SPEED: "Guess the Song",
   PICTURE_FINISH: "Picture Finish",
+  AUDIO_REVERSE: "Backwards Song",
 };
+
+export function isGameType(value: unknown): value is GameType {
+  return (
+    typeof value === "string" &&
+    Object.prototype.hasOwnProperty.call(GAME_TYPE_LABEL, value)
+  );
+}
 
 export function gameTypeUsesImage(type: GameType): boolean {
   return type === "IMAGE_ZOOM" || type === "PICTURE_FINISH";
 }
 
 export function gameTypeUsesAudio(type: GameType): boolean {
-  return type === "AUDIO_SPEED";
+  return type === "AUDIO_SPEED" || type === "AUDIO_REVERSE";
 }
 
 export const DISPLAY_NAME_KEY = "trivia-display-name";

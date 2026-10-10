@@ -23,7 +23,13 @@ import { padDraftOptions } from "@/lib/question-bank";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password";
 import type { NightRecap } from "@/lib/night-recap";
 import { ROUND_TITLE_MAX, resolvedRoundTitles } from "@/lib/rounds";
-import { GAME_TYPE_LABEL, type GameType } from "@/lib/types";
+import {
+  GAME_TYPE_LABEL,
+  gameTypeUsesAudio,
+  gameTypeUsesImage,
+  isGameType,
+  type GameType,
+} from "@/lib/types";
 
 type AdminTab =
   | "create"
@@ -396,7 +402,8 @@ function AdminInner() {
         (q.prompt.trim() &&
           q.prompt.trim() !== "What is this?" &&
           q.prompt.trim() !== "Who is this?" &&
-          q.prompt.trim() !== "Name that tune") ||
+          q.prompt.trim() !== "Name that tune" &&
+          q.prompt.trim() !== "What's playing backwards?") ||
         q.imageKey ||
         q.audioKey ||
         q.options.some((o) => o.trim())
@@ -567,12 +574,9 @@ function AdminInner() {
       setTitle(g.title || "");
       setAllowLateJoin(g.allowLateJoin !== false);
       setAllowAnswerChange(g.allowAnswerChange === true);
-      const loadedType: GameType =
-        g.gameType === "IMAGE_ZOOM" ||
-        g.gameType === "AUDIO_SPEED" ||
-        g.gameType === "PICTURE_FINISH"
-          ? g.gameType
-          : "TRIVIA";
+      const loadedType: GameType = isGameType(g.gameType)
+        ? g.gameType
+        : "TRIVIA";
       setGameType(loadedType);
       setQuestions(
         (g.questions || []).map(
@@ -1213,9 +1217,8 @@ function AdminInner() {
       const basics =
         q.prompt.trim() && opts.length >= 2 && q.correctIndex < opts.length;
       if (!basics) return false;
-      if (gameType === "IMAGE_ZOOM" && !q.imageKey) return false;
-      if (gameType === "PICTURE_FINISH" && !q.imageKey) return false;
-      if (gameType === "AUDIO_SPEED" && !q.audioKey) return false;
+      if (gameTypeUsesImage(gameType) && !q.imageKey) return false;
+      if (gameTypeUsesAudio(gameType) && !q.audioKey) return false;
       return true;
     });
   }, [title, questions, gameType]);
@@ -1453,8 +1456,10 @@ function AdminInner() {
                   : gameType === "PICTURE_FINISH"
                     ? "Upload photos that start as a mosaic and sharpen as the timer runs down"
                     : gameType === "AUDIO_SPEED"
-                    ? "Upload short clips that start sped up and ease to normal as the timer runs"
-                    : "Build your Trivia Live game"}
+                      ? "Upload short clips that start sped up and ease to normal as the timer runs"
+                      : gameType === "AUDIO_REVERSE"
+                        ? "Upload short clips that play backwards until the answer is revealed"
+                        : "Build your Trivia Live game"}
               </p>
 
               <form onSubmit={saveGame} className="mt-8 space-y-5">
@@ -1475,7 +1480,7 @@ function AdminInner() {
                   <legend className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
                     Game type
                   </legend>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {(
                       [
                         {
@@ -1497,6 +1502,11 @@ function AdminInner() {
                           id: "AUDIO_SPEED" as const,
                           title: "Guess the Song",
                           blurb: "A clip starts fast, then eases to normal speed",
+                        },
+                        {
+                          id: "AUDIO_REVERSE" as const,
+                          title: "Backwards Song",
+                          blurb: "A clip plays backwards until you reveal the answer",
                         },
                       ] as const
                     ).map((opt) => {

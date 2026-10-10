@@ -199,7 +199,7 @@ export async function buildPublicState(
       audioUrl: gameTypeUsesAudio(game.gameType)
         ? mediaPublicUrl(q.audioKey)
         : null,
-      startSpeed: gameTypeUsesAudio(game.gameType) ? q.startSpeed : undefined,
+      startSpeed: game.gameType === "AUDIO_SPEED" ? q.startSpeed : undefined,
       bonus: questionBonus(q) === "NONE" ? undefined : questionBonus(q),
       ...(reveal ? { correctIndex: q.correctIndex } : {}),
     };
@@ -404,7 +404,7 @@ export async function openQuestion(code: string, index?: number) {
   }
 
   const q = game.questions[nextIndex];
-  const deferClock = game.gameType === "AUDIO_SPEED";
+  const deferClock = gameTypeUsesAudio(game.gameType);
   const openedAt = deferClock ? null : new Date();
   await prisma.game.update({
     where: { id: game.id },
@@ -424,7 +424,7 @@ export async function openQuestion(code: string, index?: number) {
   };
 }
 
-/** Arm the question timer (used when Guess the Song host taps Play). */
+/** Arm the question timer (host taps Play on a song round). */
 export async function startQuestionClock(code: string) {
   const game = await loadGame(code);
   if (!game) throw new Error("Game not found");

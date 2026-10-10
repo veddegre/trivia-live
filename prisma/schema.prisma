@@ -21,6 +21,7 @@ enum GameType {
   IMAGE_ZOOM
   AUDIO_SPEED
   PICTURE_FINISH
+  AUDIO_REVERSE
 }
 
 enum UserRole {

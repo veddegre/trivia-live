@@ -21,6 +21,7 @@ export const gameTypeSchema = z.enum([
   "IMAGE_ZOOM",
   "AUDIO_SPEED",
   "PICTURE_FINISH",
+  "AUDIO_REVERSE",
 ]);
 
 export const questionSchema = z.object({
@@ -84,7 +85,9 @@ export function assertQuestionsForGameType(
   if (gameTypeUsesAudio(gameType)) {
     for (const q of questions) {
       if (!q.audioKey) {
-        return "Each Guess the Song question needs an uploaded audio clip";
+        return gameType === "AUDIO_REVERSE"
+          ? "Each Backwards Song question needs an uploaded audio clip"
+          : "Each Guess the Song question needs an uploaded audio clip";
       }
       if (!mediaFileExists(q.audioKey)) {
         return "An audio clip is missing — re-upload it and try again";

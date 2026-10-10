@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import type { GameType } from "@/lib/types";
-import { gameTypeUsesImage } from "@/lib/types";
+import { gameTypeUsesAudio, gameTypeUsesImage } from "@/lib/types";
 import { questionBonusLabel, type QuestionBonus } from "@/lib/scoring";
 import { answerLetterInk } from "@/lib/answer-ink";
 
@@ -87,9 +87,11 @@ export function PlayerPhonePreview({
               Watch the host screen
             </p>
           )}
-          {gameType === "AUDIO_SPEED" && (
+          {gameTypeUsesAudio(gameType) && (
             <p className="mt-2 text-center text-sm text-muted">
-              Listen on the host speakers
+              {gameType === "AUDIO_REVERSE"
+                ? "Listen on the host speakers — the clip is backwards"
+                : "Listen on the host speakers"}
             </p>
           )}
           <div className="mt-7 grid gap-3">

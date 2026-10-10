@@ -11,7 +11,7 @@ import { getSocket } from "@/lib/socket-client";
 import { joinWinnerNames, questionBonusLabel } from "@/lib/scoring";
 import { answerLetterInk } from "@/lib/answer-ink";
 import type { GamePublicState, PlayerView } from "@/lib/types";
-import { gameTypeUsesImage } from "@/lib/types";
+import { gameTypeUsesAudio, gameTypeUsesImage } from "@/lib/types";
 import { assertDisplayName } from "@/lib/display-name";
 import { DISPLAY_NAME_KEY } from "@/lib/types";
 
@@ -528,11 +528,15 @@ function PlayInner({ code }: { code: string }) {
                   Watch the host screen
                 </p>
               )}
-              {state.gameType === "AUDIO_SPEED" && (
+              {gameTypeUsesAudio(state.gameType) && (
                 <p className="mt-2 text-center text-sm text-muted">
                   {state.questionOpenedAt
-                    ? "Listen on the host speakers"
-                    : "Wait for the host to play the snippet"}
+                    ? state.gameType === "AUDIO_REVERSE"
+                      ? "Listen on the host speakers — the clip is backwards"
+                      : "Listen on the host speakers"
+                    : state.gameType === "AUDIO_REVERSE"
+                      ? "Wait for the host to play the clip backwards"
+                      : "Wait for the host to play the snippet"}
                 </p>
               )}
               <div className="mt-7 grid gap-3">
@@ -540,7 +544,7 @@ function PlayInner({ code }: { code: string }) {
                   const selected = player.selectedChoice === i;
                   const letter = String.fromCharCode(65 + i);
                   const waitingForMusic =
-                    state.gameType === "AUDIO_SPEED" && !state.questionOpenedAt;
+                    gameTypeUsesAudio(state.gameType) && !state.questionOpenedAt;
                   return (
                     <button
                       key={i}

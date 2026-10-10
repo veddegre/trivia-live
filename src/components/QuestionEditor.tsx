@@ -8,6 +8,7 @@ import {
   SCORE_TIME_BONUS_DEFAULT,
   START_SPEED_DEFAULT,
   START_ZOOM_DEFAULT,
+  gameTypeUsesAudio,
   type GameType,
 } from "@/lib/types";
 import {
@@ -40,14 +41,16 @@ export function emptyQuestion(gameType: GameType = "TRIVIA"): DraftQuestion {
         : gameType === "PICTURE_FINISH"
           ? "Who is this?"
           : gameType === "AUDIO_SPEED"
-            ? "Name that tune"
+          ? "Name that tune"
+          : gameType === "AUDIO_REVERSE"
+            ? "What's playing backwards?"
             : "",
     options: ["", "", "", ""],
     correctIndex: 0,
     timeLimitSec:
       gameType === "IMAGE_ZOOM" ||
       gameType === "PICTURE_FINISH" ||
-      gameType === "AUDIO_SPEED"
+      gameTypeUsesAudio(gameType)
         ? 45
         : 30,
     basePoints: SCORE_BASE_DEFAULT,
@@ -100,7 +103,8 @@ export function QuestionEditor({
   const isZoom = gameType === "IMAGE_ZOOM";
   const isPictureFinish = gameType === "PICTURE_FINISH";
   const isImage = isZoom || isPictureFinish;
-  const isAudio = gameType === "AUDIO_SPEED";
+  const isAudio = gameTypeUsesAudio(gameType);
+  const isReverse = gameType === "AUDIO_REVERSE";
   const previewUrl = mediaPublicUrl(q.imageKey);
   const audioUrl = mediaPublicUrl(q.audioKey);
 
@@ -379,11 +383,13 @@ export function QuestionEditor({
                 Audio clip
               </span>
               <p className="text-xs text-muted">
-                Upload a short snippet you chopped in Audacity (MP3, M4A, WAV —
-                about 12–20 seconds). Only use audio you have the right to
-                host: your own recordings, public domain, or a license that
-                allows this use. A venue playlist license is not enough, and a
-                short clip is not automatically fair use.
+                {isReverse
+                  ? "Upload a short clip (MP3, M4A, WAV — about 12–20 seconds). It plays backwards on the host speakers until reveal, then you can replay it forwards."
+                  : "Upload a short snippet you chopped in Audacity (MP3, M4A, WAV — about 12–20 seconds). It starts fast and eases to normal speed."}{" "}
+                Only use audio you have the right to host: your own recordings,
+                public domain, or a license that allows this use. A venue
+                playlist license is not enough, and a short clip is not
+                automatically fair use.
               </p>
               {audioUrl ? (
                 <div className="rounded-xl border border-line bg-ink-2/50 p-4">
@@ -455,9 +461,11 @@ export function QuestionEditor({
                   ? "Who is this?"
                   : isZoom
                     ? "What is this?"
-                    : isAudio
-                      ? "Name that tune"
-                      : "Enter your question…"
+                    : isReverse
+                      ? "What's playing backwards?"
+                      : isAudio
+                        ? "Name that tune"
+                        : "Enter your question…"
               }
               value={q.prompt}
               onChange={(e) => onChange({ ...q, prompt: e.target.value })}
@@ -615,7 +623,14 @@ export function QuestionEditor({
             />
           </label>
 
-          {isAudio && (
+          {isReverse && (
+            <p className="text-xs text-muted">
+              The clip loops backwards until you reveal the answer. Replay on
+              the results screen plays it forwards, once.
+            </p>
+          )}
+
+          {isAudio && !isReverse && (
             <div>
               <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
                 Starting speed

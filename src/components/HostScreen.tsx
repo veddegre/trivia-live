@@ -7,6 +7,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { BrandProvider } from "@/components/BrandProvider";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import { JoinQr } from "@/components/JoinQr";
+import { ReverseRevealAudio } from "@/components/ReverseRevealAudio";
 import { SpeedRevealAudio } from "@/components/SpeedRevealAudio";
 import { ZoomRevealImage } from "@/components/ZoomRevealImage";
 import { PictureFinishImage } from "@/components/PictureFinishImage";
@@ -563,7 +564,16 @@ export function HostScreen({
               />
             )}
 
-            {hasAudio && (
+            {hasAudio && state.gameType === "AUDIO_REVERSE" && (
+              <ReverseRevealAudio
+                src={state.question.audioUrl!}
+                openedAt={state.questionOpenedAt}
+                onPlayRequest={isHost ? startClock : undefined}
+                className="mx-auto mt-4 w-full max-w-xl shrink-0"
+              />
+            )}
+
+            {hasAudio && state.gameType === "AUDIO_SPEED" && (
               <SpeedRevealAudio
                 src={state.question.audioUrl!}
                 startSpeed={state.question.startSpeed}
@@ -655,7 +665,14 @@ export function HostScreen({
                   className="mx-auto mt-3 aspect-square w-full max-w-[min(36vh,18rem)] shrink-0 rounded-xl border border-line"
                 />
               )}
-              {hasAudio && (
+              {hasAudio && state.gameType === "AUDIO_REVERSE" && (
+                <ReverseRevealAudio
+                  src={state.question.audioUrl!}
+                  revealed
+                  className="mt-3 w-full shrink-0"
+                />
+              )}
+              {hasAudio && state.gameType === "AUDIO_SPEED" && (
                 <SpeedRevealAudio
                   src={state.question.audioUrl!}
                   startSpeed={state.question.startSpeed}
