@@ -5,7 +5,7 @@ import { emptyQuestion, type DraftQuestion } from "@/components/QuestionEditor";
 import {
   draftQuestionFromBank,
   padDraftOptions,
-} from "@/lib/question-bank";
+} from "@/lib/question-draft";
 import { isQuestionBonus } from "@/lib/scoring";
 
 export type PickerBank = {

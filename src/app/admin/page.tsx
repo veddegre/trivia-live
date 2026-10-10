@@ -19,7 +19,7 @@ import {
   type DraftQuestion,
 } from "@/components/QuestionEditor";
 import { BankPicker, type PickerBank } from "@/components/BankPicker";
-import { padDraftOptions } from "@/lib/question-bank";
+import { padDraftOptions } from "@/lib/question-draft";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password";
 import type { NightRecap } from "@/lib/night-recap";
 import { ROUND_TITLE_MAX, resolvedRoundTitles } from "@/lib/rounds";
