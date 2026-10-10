@@ -37,6 +37,8 @@ model User {
   email        String       @unique
   name         String
   passwordHash String
+  /** Bumped on logout and password change so older cookies stop working. */
+  sessionVersion Int        @default(0)
   role         UserRole     @default(HOST)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt

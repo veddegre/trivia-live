@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { hashPassword, requireSuperAdmin } from "@/lib/auth";
+import {
+  SESSION_COOKIE,
+  hashPassword,
+  makeSessionToken,
+  requireSuperAdmin,
+  sessionCookieOptions,
+} from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@/lib/password";
 import { countSuperAdmins } from "@/lib/seed-admin";
@@ -34,6 +40,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     email?: string;
     name?: string;
     passwordHash?: string;
+    sessionVersion?: { increment: number };
   } = {};
 
   if (parsed.data.email !== undefined) {
@@ -49,6 +56,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   if (parsed.data.name !== undefined) data.name = parsed.data.name.trim();
   if (parsed.data.password) {
     data.passwordHash = await hashPassword(parsed.data.password);
+    data.sessionVersion = { increment: 1 };
   }
 
   const updated = await prisma.user.update({
@@ -60,10 +68,27 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       name: true,
       role: true,
       createdAt: true,
+      sessionVersion: true,
     },
   });
 
-  return NextResponse.json({ admin: updated });
+  const res = NextResponse.json({
+    admin: {
+      id: updated.id,
+      email: updated.email,
+      name: updated.name,
+      role: updated.role,
+      createdAt: updated.createdAt,
+    },
+  });
+  if (parsed.data.password && id === admin.id) {
+    res.cookies.set(
+      SESSION_COOKIE,
+      makeSessionToken(updated.id, updated.sessionVersion),
+      sessionCookieOptions()
+    );
+  }
+  return res;
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx) {

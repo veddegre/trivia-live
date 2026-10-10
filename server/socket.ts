@@ -4,6 +4,7 @@ import { safeEqualString } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
   buildPlayerView,
+  buildPlayerViews,
   buildPublicState,
   clearQuestionTimer,
   finishGame,
@@ -24,7 +25,12 @@ import {
 } from "@/lib/game-manager";
 import { assertDisplayName } from "@/lib/display-name";
 import { isNameBanned } from "@/lib/bans";
+import { rateLimit } from "@/lib/rate-limit";
 import { setSocketServer, emitGameReset } from "@/lib/realtime";
+import { secretToken } from "@/lib/secret-token";
+import { forSpectator } from "@/lib/spectator-state";
+import { visiblePuzzleText } from "@/lib/text-reveal";
+import { gameTypeUsesRevealText, type GamePublicState } from "@/lib/types";
 
 type JoinHostPayload = { code: string; hostToken: string };
 type JoinPlayerPayload = { code: string; name: string };
@@ -44,12 +50,138 @@ function room(code: string) {
 
 function stateForSocket(
   role: SocketData["role"],
-  full: Awaited<ReturnType<typeof buildPublicState>>,
-  playerState: Awaited<ReturnType<typeof withoutQuestionMedia>>
+  full: Awaited<ReturnType<typeof buildPublicState>>
 ) {
   if (!full) return null;
-  if (role === "host" || role === "spectator") return full;
-  return playerState;
+  if (role === "host") return full;
+  if (role === "spectator") return forSpectator(full);
+  return withoutQuestionMedia(full);
+}
+
+/**
+ * Venue wifi is one public IP, so the IP ceilings sit at a full room.
+ * Per-socket limits stop a single connection from looping.
+ */
+const SOCKET_LIMITS = {
+  join: {
+    socket: { limit: 10, windowMs: 60_000 },
+    ip: { limit: 240, windowMs: 120_000 },
+  },
+  answer: {
+    socket: { limit: 12, windowMs: 10_000 },
+    ip: { limit: 500, windowMs: 10_000 },
+  },
+  watch: {
+    socket: { limit: 10, windowMs: 60_000 },
+    ip: { limit: 30, windowMs: 60_000 },
+  },
+  reconnect: {
+    socket: { limit: 20, windowMs: 60_000 },
+    ip: { limit: 400, windowMs: 60_000 },
+  },
+} as const;
+
+function headerValue(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0]?.trim() || "";
+  return value?.trim() || "";
+}
+
+function socketIp(socket: Socket): string {
+  const headers = socket.handshake.headers;
+  const cf = headerValue(headers["cf-connecting-ip"]);
+  if (cf) return cf;
+  const real = headerValue(headers["x-real-ip"]);
+  if (real) return real;
+  const forwarded = headerValue(headers["x-forwarded-for"]);
+  if (forwarded) return forwarded.split(",")[0]?.trim() || "unknown";
+  return socket.handshake.address || "unknown";
+}
+
+function tooFast(
+  socket: Socket,
+  action: keyof typeof SOCKET_LIMITS,
+  ack?: (r: unknown) => void
+): boolean {
+  const rule = SOCKET_LIMITS[action];
+  const ip = socketIp(socket);
+  const bySocket = rateLimit(`socket:${action}:${socket.id}`, rule.socket);
+  const byIp = rateLimit(`ip:${action}:${ip}`, rule.ip);
+  if (bySocket.ok && byIp.ok) return false;
+  ack?.({
+    ok: false,
+    message: "Too many attempts. Wait a moment and try again.",
+  });
+  return true;
+}
+
+type PuzzleArm = {
+  questionId: string;
+  openedAt: string;
+  timer: ReturnType<typeof setInterval>;
+};
+
+const puzzleArms = new Map<string, PuzzleArm>();
+
+function clearPuzzleArm(code: string) {
+  const key = code.toUpperCase();
+  const arm = puzzleArms.get(key);
+  if (!arm) return;
+  clearInterval(arm.timer);
+  puzzleArms.delete(key);
+}
+
+async function emitPuzzleFrame(
+  io: Server,
+  code: string,
+  questionId: string,
+  text: string
+) {
+  const sockets = await io.in(room(code)).fetchSockets();
+  for (const s of sockets) {
+    const d = s.data as SocketData;
+    if (d.role === "spectator") s.emit("puzzle:frame", { questionId, text });
+  }
+}
+
+/** Push the on-screen puzzle to watch TVs without sending them the solved phrase. */
+function syncPuzzleArm(io: Server, state: GamePublicState) {
+  const code = state.code.toUpperCase();
+  const phrase = state.question?.revealText;
+  const questionId = state.question?.id;
+  const openedAt = state.questionOpenedAt;
+  const live =
+    state.phase === "question" &&
+    !!phrase &&
+    !!questionId &&
+    !!openedAt &&
+    gameTypeUsesRevealText(state.gameType);
+  if (!live || !phrase || !questionId || !openedAt) {
+    clearPuzzleArm(code);
+    return;
+  }
+  const existing = puzzleArms.get(code);
+  if (
+    existing &&
+    existing.questionId === questionId &&
+    existing.openedAt === openedAt
+  ) {
+    return;
+  }
+  clearPuzzleArm(code);
+  const mode = state.gameType === "FINISH_LINE" ? "line" : "unscramble";
+  const timeLimitSec = state.timeLimitSec;
+  const timer = setInterval(() => {
+    const text = visiblePuzzleText({
+      text: phrase,
+      mode,
+      seed: questionId,
+      openedAt,
+      timeLimitSec,
+      now: Date.now(),
+    });
+    void emitPuzzleFrame(io, code, questionId, text);
+  }, 200);
+  puzzleArms.set(code, { questionId, openedAt, timer });
 }
 
 /** Origins allowed for browser Socket.io (Cloudflare hostname + local dev). */
@@ -95,12 +227,15 @@ async function broadcastState(io: Server, code: string, force = false) {
   if (!force && shouldThrottleBroadcast(code)) return;
   markBroadcast(code);
   const state = await buildPublicState(code);
-  if (!state) return;
-  const playerState = withoutQuestionMedia(state);
+  if (!state) {
+    clearPuzzleArm(code);
+    return;
+  }
+  syncPuzzleArm(io, state);
   const sockets = await io.in(room(code)).fetchSockets();
   for (const s of sockets) {
     const d = s.data as SocketData;
-    const payload = stateForSocket(d.role, state, playerState);
+    const payload = stateForSocket(d.role, state);
     if (payload) s.emit("game:state", payload);
   }
 }
@@ -112,14 +247,45 @@ async function emitPlayer(socket: Socket, code: string, playerId: string) {
 
 async function refreshPlayers(io: Server, code: string) {
   const sockets = await io.in(room(code)).fetchSockets();
-  await Promise.all(
-    sockets.map(async (s) => {
-      const d = s.data as SocketData;
-      if (d.role === "player" && d.playerId) {
-        await emitPlayer(s as unknown as Socket, code, d.playerId);
+  const players = sockets.filter((s) => {
+    const d = s.data as SocketData;
+    return d.role === "player" && !!d.playerId;
+  });
+  if (players.length === 0) return;
+  const views = await buildPlayerViews(code);
+  for (const s of players) {
+    const view = views.get((s.data as SocketData).playerId!);
+    if (view) s.emit("player:state", view);
+  }
+}
+
+/**
+ * One full board update after an answer burst, not one per tap.
+ * Further taps during that update schedule a single follow-up.
+ */
+const answerBroadcasts = new Map<string, { dirty: boolean }>();
+
+function scheduleAnswerBroadcast(io: Server, code: string) {
+  const key = code.toUpperCase();
+  const existing = answerBroadcasts.get(key);
+  if (existing) {
+    existing.dirty = true;
+    return;
+  }
+  const pending = { dirty: false };
+  answerBroadcasts.set(key, pending);
+  setTimeout(() => {
+    void (async () => {
+      pending.dirty = false;
+      try {
+        await broadcastState(io, key, true);
+      } finally {
+        const follow = pending.dirty;
+        answerBroadcasts.delete(key);
+        if (follow) scheduleAnswerBroadcast(io, key);
       }
-    })
-  );
+    })();
+  }, 300);
 }
 
 async function autoLockAndBroadcast(io: Server, code: string) {
@@ -201,6 +367,7 @@ export function createSocketServer(httpServer: HttpServer) {
 
     socket.on("watch:join", async (payload: { code?: string }, ack?: (r: unknown) => void) => {
       try {
+        if (tooFast(socket, "watch", ack)) return;
         const code = payload.code?.toUpperCase();
         if (!code) throw new Error("Game not found");
         const game = await prisma.game.findUnique({
@@ -220,7 +387,8 @@ export function createSocketServer(httpServer: HttpServer) {
         data.playerId = undefined;
         data.playerToken = undefined;
         await socket.join(room(code));
-        const state = await buildPublicState(code);
+        const full = await buildPublicState(code);
+        const state = stateForSocket("spectator", full);
         ack?.({ ok: true, state });
         if (state) socket.emit("game:state", state);
       } catch (e) {
@@ -232,6 +400,7 @@ export function createSocketServer(httpServer: HttpServer) {
 
     socket.on("player:join", async (payload: JoinPlayerPayload, ack?: (r: unknown) => void) => {
       try {
+        if (tooFast(socket, "join", ack)) return;
         const code = payload.code?.toUpperCase();
         const name = assertDisplayName(payload.name || "");
 
@@ -266,7 +435,7 @@ export function createSocketServer(httpServer: HttpServer) {
         if (existing) throw new Error("Name already taken — pick another");
 
         const player = await prisma.player.create({
-          data: { gameId: game.id, name },
+          data: { gameId: game.id, name, token: secretToken() },
         });
 
         data.role = "player";
@@ -291,6 +460,7 @@ export function createSocketServer(httpServer: HttpServer) {
 
     socket.on("player:reconnect", async (payload: ReconnectPayload, ack?: (r: unknown) => void) => {
       try {
+        if (tooFast(socket, "reconnect", ack)) return;
         const code = payload.code?.toUpperCase();
         const player = await prisma.player.findFirst({
           where: { token: payload.token, game: { code } },
@@ -447,6 +617,7 @@ export function createSocketServer(httpServer: HttpServer) {
         const existing = await prisma.game.findUnique({ where: { code: data.code } });
         if (!existing) throw new Error("Game not found");
         const previousCode = data.code;
+        clearPuzzleArm(previousCode);
         const { game } = await resetGame(existing.id);
         if (!game) throw new Error("Reset failed");
 
@@ -474,6 +645,7 @@ export function createSocketServer(httpServer: HttpServer) {
 
     socket.on("player:answer", async (payload: AnswerPayload, ack?: (r: unknown) => void) => {
       try {
+        if (tooFast(socket, "answer", ack)) return;
         if (data.role !== "player" || !data.code || !data.playerToken || !data.playerId) {
           throw new Error("Not authorized");
         }
@@ -483,12 +655,7 @@ export function createSocketServer(httpServer: HttpServer) {
           choiceIndex: payload.choiceIndex,
         });
         await emitPlayer(socket, data.code, data.playerId);
-        // Throttled live board for host/others
-        await broadcastState(io, data.code, false);
-        // Always push a light answer-count update eventually
-        setTimeout(() => {
-          void broadcastState(io, data.code!, true);
-        }, 300);
+        scheduleAnswerBroadcast(io, data.code);
         ack?.({ ok: true, ...result });
       } catch (e) {
         const message = e instanceof Error ? e.message : "Answer failed";
@@ -502,11 +669,7 @@ export function createSocketServer(httpServer: HttpServer) {
         if (!data.code) throw new Error("Not in a game");
         const full = await buildPublicState(data.code);
         if (!full) throw new Error("Game not found");
-        const state = stateForSocket(
-          data.role,
-          full,
-          withoutQuestionMedia(full)
-        );
+        const state = stateForSocket(data.role, full);
         socket.emit("game:state", state);
         if (data.playerId) await emitPlayer(socket, data.code, data.playerId);
         ack?.({ ok: true, state });

@@ -1,5 +1,6 @@
 import { generateJoinCode } from "@/lib/codes";
 import { prisma } from "@/lib/db";
+import { secretToken } from "@/lib/secret-token";
 import {
   copyTitle,
   isSafePackMediaName,
@@ -58,6 +59,7 @@ async function insertDraftGame(opts: {
       gameType: opts.gameType,
       allowLateJoin: opts.allowLateJoin,
       allowAnswerChange: opts.allowAnswerChange,
+      hostToken: secretToken(),
       ownerId: opts.ownerId,
       questions: {
         create: opts.questions.map((q, order) =>

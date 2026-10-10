@@ -33,6 +33,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     email?: string;
     name?: string;
     passwordHash?: string;
+    sessionVersion?: { increment: number };
   } = {};
 
   if (parsed.data.email !== undefined) {
@@ -48,6 +49,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   if (parsed.data.name !== undefined) data.name = parsed.data.name.trim();
   if (parsed.data.password) {
     data.passwordHash = await hashPassword(parsed.data.password);
+    data.sessionVersion = { increment: 1 };
   }
 
   const updated = await prisma.user.update({

@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
-  const token = makeSessionToken(user.id);
+  const token = makeSessionToken(user.id, user.sessionVersion);
   const res = NextResponse.json({
     ok: true,
     user: {
@@ -136,6 +136,17 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE() {
+  try {
+    const session = await getSessionUser();
+    if (session) {
+      await prisma.user.update({
+        where: { id: session.id },
+        data: { sessionVersion: { increment: 1 } },
+      });
+    }
+  } catch (e) {
+    console.error("logout session revoke failed", e);
+  }
   const res = NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE, "", {
     ...sessionCookieOptions(),

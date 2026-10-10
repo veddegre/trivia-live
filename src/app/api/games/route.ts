@@ -3,6 +3,7 @@ import { z } from "zod";
 import { gamesOwnedBy, requireUser } from "@/lib/auth";
 import { allocateJoinCode } from "@/lib/create-draft-game";
 import { prisma } from "@/lib/db";
+import { secretToken } from "@/lib/secret-token";
 import {
   assertQuestionsForGameType,
   gameTypeSchema,
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
       gameType: parsed.data.gameType,
       allowLateJoin: parsed.data.allowLateJoin,
       allowAnswerChange: parsed.data.allowAnswerChange,
+      hostToken: secretToken(),
       ownerId: user.id,
       questions: {
         create: parsed.data.questions.map((q, order) =>

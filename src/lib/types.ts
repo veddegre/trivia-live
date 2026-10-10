@@ -22,11 +22,15 @@ export type PublicQuestion = {
   timeLimitSec: number;
   // correctIndex only included after reveal / for host
   correctIndex?: number;
+  /** Picks per option. Present on reveal, in the same order as options. */
+  choiceCounts?: number[];
   imageUrl?: string | null;
   startZoom?: number;
   audioUrl?: string | null;
   startSpeed?: number;
   revealText?: string;
+  /** Watch payload: revealText is the on-screen text, not the solved phrase. */
+  revealSnapshot?: boolean;
   bonus?: QuestionBonus;
 };
 

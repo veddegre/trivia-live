@@ -91,7 +91,7 @@ Login is **email + password** (not a shared single password).
 1. Sign in at **`/admin`** with a host or super-admin account and create a game. Choose a game type, then add questions (or **Add from bank** on trivia). Mark the correct option with the radio next to each choice. Optionally set base points, speed bonus, a **Double points** or **Lightning** flag, timer, **Allow late joins**, **Allow changing answers**, and **round names** (leave blank to stay in the previous round). Use **Preview as player** to see the phone layout without revealing media or the answer. Banks live in **Admin → Banks**; first setup also creates a **Starter pack**.
 2. Open **Host screen** (big display). The lobby opens when that page connects; you can also click **Open lobby** from the games list first. For a second display, open **Watch** (same join code, no host token).
 3. Players scan the **QR** (opens `/join` with the code filled in) or open the join URL shown on the host and enter the code, then pick a name.
-4. Host presses **Start question 1** → players answer against the countdown → auto-lock at 0 (or **Lock now**) → reveal correct answer + standings. On Image Zoom, the host and watch photos start zoomed in and open at a steady rate until lock/reveal. On Picture Finish, they start as a mosaic and sharpen on the same timer curve. On Guess the Song, the host taps **Play** so the clip starts fast on the room speakers and the round clock starts with it. On Backwards Song, **Play** starts the same clip reversed. A watch TV waits for that Play, then can listen locally without starting the clock. On Unscramble, letters lock in from the left. On Finish the Line, words appear in order. On Silhouette, a solid shape fills in with color.
+4. Host presses **Start question 1** → players answer against the countdown → auto-lock at 0 (or **Lock now**) → reveal the correct answer, how many players picked each option, and the standings. On Image Zoom, the host and watch photos start zoomed in and open at a steady rate until lock/reveal. On Picture Finish, they start as a mosaic and sharpen on the same timer curve. On Guess the Song, the host taps **Play** so the clip starts fast on the room speakers and the round clock starts with it. On Backwards Song, **Play** starts the same clip reversed. A watch TV waits for that Play, then can listen locally without starting the clock. On Unscramble, letters lock in from the left. On Finish the Line, words appear in order. On Silhouette, a solid shape fills in with color.
 5. Host presses **Continue** → between-question standings pause → **Start question N** for the next prompt (not an immediate jump). If you named rounds, the last question of a round shows that round’s mini-podium before the next section.
 6. After the last question, the host shows a **top-3 podium** and final standings. Phones show place and score.
 7. **Play again** (admin or finished host screen) clears players/scores and any kick-bans, keeps questions, issues a **new join code**, and reopens the lobby. Phones are sent back to `/join`.
@@ -135,11 +135,11 @@ Same upload as Image Zoom. The host and watch TVs start on a solid dark shape an
 
 ### Unscramble
 
-Host enters a phrase per question. During the round the host and watch screens show those letters scrambled, then lock them into place from the left as the timer runs. Spaces and punctuation stay put. Phones show the prompt and answer buttons only.
+Host enters a phrase per question. During the round the host and watch screens show those letters scrambled, then lock them into place from the left as the timer runs. Spaces and punctuation stay put. A watch screen receives only the letters currently showing, not the solved phrase. Phones show the prompt and answer buttons only.
 
 ### Finish the Line
 
-Host enters a lyric, quote, or sentence. The first word is visible when the question opens; the remaining words appear in order over the timer. Phones never receive the line.
+Host enters a lyric, quote, or sentence. The first word is visible when the question opens; the remaining words appear in order over the timer. Phones never receive the line. A watch screen receives only the words that have appeared so far, until the reveal.
 
 ### Guess the Song
 
@@ -155,7 +155,7 @@ Uploads (images and audio) are stored on disk (`UPLOAD_DIR`, default `data/uploa
 
 ### Spectator / second TV
 
-`/watch/[code]` is a read-only host board for a second display. It uses the public join code (shown on the host lobby as **Second TV**, and as **Watch** in admin). It never receives `hostToken`, cannot Start / Lock / Kick / End / Play again, and does not open a draft lobby. After **Play again**, watch screens follow the new code.
+`/watch/[code]` is a read-only host board for a second display. It uses the public join code (shown on the host lobby as **Second TV**, and as **Watch** in admin). It never receives `hostToken`, cannot Start / Lock / Kick / End / Play again, and does not open a draft lobby. During Unscramble and Finish the Line it receives the text that is on screen at that moment, and the solved line only when the question is revealed. After **Play again**, watch screens follow the new code.
 
 ### Routes
 

@@ -55,14 +55,22 @@ function sign(value: string): string {
   return createHmac("sha256", sessionSecret()).update(value).digest("hex");
 }
 
-export function makeSessionToken(userId: string): string {
-  const payload = `${userId}:${Date.now()}`;
+export type ParsedSession = {
+  userId: string;
+  sessionVersion: number;
+};
+
+export function makeSessionToken(userId: string, sessionVersion = 0): string {
+  const payload = `${userId}:${sessionVersion}:${Date.now()}`;
   return `${payload}.${sign(payload)}`;
 }
 
-export function parseSessionToken(token: string | undefined): string | null {
+export function parseSessionToken(token: string | undefined): ParsedSession | null {
   if (!token) return null;
-  const [payload, sig] = token.split(".");
+  const dot = token.lastIndexOf(".");
+  if (dot <= 0) return null;
+  const payload = token.slice(0, dot);
+  const sig = token.slice(dot + 1);
   if (!payload || !sig) return null;
   let expected: string;
   try {
@@ -75,12 +83,16 @@ export function parseSessionToken(token: string | undefined): string | null {
   } catch {
     return null;
   }
-  const [userId, tsRaw] = payload.split(":");
-  if (!userId || !tsRaw) return null;
+  const parts = payload.split(":");
+  if (parts.length !== 3) return null;
+  const [userId, versionRaw, tsRaw] = parts;
+  if (!userId || versionRaw == null || !tsRaw) return null;
+  const sessionVersion = Number(versionRaw);
   const issuedAt = Number(tsRaw);
+  if (!Number.isInteger(sessionVersion) || sessionVersion < 0) return null;
   if (!Number.isFinite(issuedAt)) return null;
   if (Date.now() - issuedAt > SESSION_MAX_AGE_MS) return null;
-  return userId;
+  return { userId, sessionVersion };
 }
 
 export function sessionCookieOptions() {
@@ -139,10 +151,10 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     // (AsyncLocalStorage invariant before/outside a Next request).
     const { cookies } = await import("next/headers");
     const jar = await cookies();
-    const userId = parseSessionToken(jar.get(SESSION_COOKIE)?.value);
-    if (!userId) return null;
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return null;
+    const parsed = parseSessionToken(jar.get(SESSION_COOKIE)?.value);
+    if (!parsed) return null;
+    const user = await prisma.user.findUnique({ where: { id: parsed.userId } });
+    if (!user || user.sessionVersion !== parsed.sessionVersion) return null;
     return toSessionUser(user);
   } catch (e) {
     console.error("getSessionUser failed", e);

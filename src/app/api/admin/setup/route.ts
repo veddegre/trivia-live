@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     }
 
     const user = await createFirstSuperAdmin(parsed.data);
-    const token = makeSessionToken(user.id);
+    const token = makeSessionToken(user.id, user.sessionVersion);
     const res = NextResponse.json({
       ok: true,
       user: {

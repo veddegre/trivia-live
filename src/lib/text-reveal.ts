@@ -29,6 +29,43 @@ function seededShuffle<T>(items: T[], seed: string): T[] {
   return arr;
 }
 
+export function revealProgress(
+  openedAt: string | null | undefined,
+  timeLimitSec: number | null | undefined,
+  now: number,
+  revealed: boolean
+): number {
+  if (revealed) return 1;
+  if (!openedAt) return 0;
+  const limit = Math.max(1, (timeLimitSec ?? 45) * 1000);
+  const elapsed = now - new Date(openedAt).getTime();
+  return Math.min(1, Math.max(0, elapsed / limit));
+}
+
+/** The phrase as it should appear at `now`. This string does not include hidden words. */
+export function visiblePuzzleText(opts: {
+  text: string;
+  mode: "unscramble" | "line";
+  seed: string;
+  openedAt: string | null;
+  timeLimitSec: number | null;
+  now: number;
+  revealed?: boolean;
+}): string {
+  const progress = revealProgress(
+    opts.openedAt,
+    opts.timeLimitSec,
+    opts.now,
+    !!opts.revealed
+  );
+  if (opts.mode === "line") {
+    return finishLineTokens(opts.text, progress)
+      .map((token) => token.text)
+      .join(" ");
+  }
+  return unscrambleText(opts.text, progress, opts.seed);
+}
+
 function isLetter(ch: string): boolean {
   return /[\p{L}\p{N}]/u.test(ch);
 }

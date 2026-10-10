@@ -1,4 +1,3 @@
-import { randomBytes } from "crypto";
 import { Prisma, type Game, type Question, type Player } from "@prisma/client";
 import { resolveBrand } from "@/lib/branding";
 import { generateJoinCode } from "@/lib/codes";
@@ -27,7 +26,9 @@ import type {
   PlayerView,
   PublicQuestion,
 } from "@/lib/types";
+import { choiceCountsFor } from "@/lib/choice-counts";
 import { questionRecoveryPlan } from "@/lib/question-recovery";
+import { secretToken } from "@/lib/secret-token";
 import {
   gameTypeUsesAudio,
   gameTypeUsesImage,
@@ -240,6 +241,16 @@ export async function buildPublicState(
   const reveal =
     opts?.revealCorrect || phase === "reveal" || phase === "finished";
 
+  let choiceCounts: number[] | undefined;
+  if (q && (phase === "reveal" || phase === "finished")) {
+    const picks = await prisma.answer.findMany({
+      where: { questionId: q.id },
+      select: { choiceIndex: true },
+    });
+    choiceCounts = choiceCountsFor(q.options.length, picks);
+    if (phase === "reveal") rt.answerCount = picks.length;
+  }
+
   let question: PublicQuestion | null = null;
   if (q && (phase === "question" || phase === "reveal" || phase === "finished")) {
     question = {
@@ -260,12 +271,11 @@ export async function buildPublicState(
         ? q.revealText
         : undefined,
       bonus: questionBonus(q) === "NONE" ? undefined : questionBonus(q),
-      ...(reveal ? { correctIndex: q.correctIndex } : {}),
+      ...(reveal ? { correctIndex: q.correctIndex, choiceCounts } : {}),
     };
   }
 
-  // Refresh answer count from DB when in question/reveal
-  if (q && (phase === "question" || phase === "reveal")) {
+  if (q && phase === "question") {
     rt.answerCount = await prisma.answer.count({ where: { questionId: q.id } });
   }
 
@@ -377,69 +387,67 @@ export function withoutQuestionMedia(state: GamePublicState): GamePublicState {
   };
 }
 
+/**
+ * One game load and one answer load, then a view per player.
+ * Phase changes used to query once per phone.
+ */
+export async function buildPlayerViews(code: string): Promise<Map<string, PlayerView>> {
+  const game = await prisma.game.findUnique({
+    where: { code: code.toUpperCase() },
+    include: {
+      questions: { orderBy: { order: "asc" } },
+      players: true,
+    },
+  });
+  if (!game) return new Map();
+
+  const status = game.status;
+  const q = game.questions[game.currentQuestionIndex];
+  const resultQuestion =
+    status === "BETWEEN" ? game.questions[game.currentQuestionIndex - 1] : q;
+  const answerQuestion = status === "QUESTION" ? q : resultQuestion;
+  const showResult =
+    status === "REVEAL" || status === "BETWEEN" || status === "FINISHED";
+
+  const answers = answerQuestion
+    ? await prisma.answer.findMany({
+        where: { questionId: answerQuestion.id },
+        select: {
+          playerId: true,
+          choiceIndex: true,
+          isCorrect: true,
+          points: true,
+        },
+      })
+    : [];
+  const byPlayer = new Map(answers.map((answer) => [answer.playerId, answer]));
+
+  const views = new Map<string, PlayerView>();
+  for (const player of game.players) {
+    const answer = byPlayer.get(player.id);
+    const hasAnswered = !!answer;
+    views.set(player.id, {
+      playerId: player.id,
+      name: player.name,
+      token: player.token,
+      totalScore: player.totalScore,
+      hasAnswered,
+      selectedChoice: answer ? answer.choiceIndex : null,
+      lastResult:
+        answer && showResult
+          ? { isCorrect: answer.isCorrect, points: answer.points }
+          : null,
+    });
+  }
+  return views;
+}
+
 export async function buildPlayerView(
   code: string,
   playerId: string
 ): Promise<PlayerView | null> {
-  const player = await prisma.player.findFirst({
-    where: { id: playerId, game: { code: code.toUpperCase() } },
-    include: {
-      game: {
-        include: {
-          questions: { orderBy: { order: "asc" } },
-        },
-      },
-    },
-  });
-  if (!player) return null;
-
-  const status = player.game.status;
-  const q = player.game.questions[player.game.currentQuestionIndex];
-  const resultQuestion =
-    status === "BETWEEN"
-      ? player.game.questions[player.game.currentQuestionIndex - 1]
-      : q;
-  let hasAnswered = false;
-  let lastResult: PlayerView["lastResult"] = null;
-
-  let selectedChoice: number | null = null;
-  if (q && status === "QUESTION") {
-    const answer = await prisma.answer.findUnique({
-      where: {
-        playerId_questionId: { playerId: player.id, questionId: q.id },
-      },
-    });
-    if (answer) {
-      hasAnswered = true;
-      selectedChoice = answer.choiceIndex;
-    }
-  } else if (resultQuestion) {
-    const answer = await prisma.answer.findUnique({
-      where: {
-        playerId_questionId: {
-          playerId: player.id,
-          questionId: resultQuestion.id,
-        },
-      },
-    });
-    if (answer) {
-      hasAnswered = true;
-      selectedChoice = answer.choiceIndex;
-      if (status === "REVEAL" || status === "BETWEEN" || status === "FINISHED") {
-        lastResult = { isCorrect: answer.isCorrect, points: answer.points };
-      }
-    }
-  }
-
-  return {
-    playerId: player.id,
-    name: player.name,
-    token: player.token,
-    totalScore: player.totalScore,
-    hasAnswered,
-    selectedChoice,
-    lastResult,
-  };
+  const views = await buildPlayerViews(code);
+  return views.get(playerId) ?? null;
 }
 
 export async function openLobby(code: string) {
@@ -862,7 +870,7 @@ export async function resetGame(gameId: string) {
   clearQuestionTimer(previousCode);
 
   const nextCode = await uniqueJoinCode();
-  const hostToken = randomBytes(18).toString("hex");
+  const hostToken = secretToken();
 
   await prisma.$transaction([
     prisma.answer.deleteMany({

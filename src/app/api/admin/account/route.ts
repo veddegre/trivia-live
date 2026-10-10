@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
+  SESSION_COOKIE,
   hashPassword,
+  makeSessionToken,
   requireUser,
+  sessionCookieOptions,
   verifyPassword,
 } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -58,7 +61,12 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
-  const data: { name?: string; email?: string; passwordHash?: string } = {};
+  const data: {
+    name?: string;
+    email?: string;
+    passwordHash?: string;
+    sessionVersion?: { increment: number };
+  } = {};
   if (parsed.data.name !== undefined) data.name = parsed.data.name.trim();
   if (parsed.data.email !== undefined) {
     const email = parsed.data.email.trim().toLowerCase();
@@ -72,13 +80,35 @@ export async function PATCH(req: NextRequest) {
   }
   if (parsed.data.password) {
     data.passwordHash = await hashPassword(parsed.data.password);
+    data.sessionVersion = { increment: 1 };
   }
 
   const user = await prisma.user.update({
     where: { id: me.id },
     data,
-    select: { id: true, email: true, name: true, role: true },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      sessionVersion: true,
+    },
   });
 
-  return NextResponse.json({ user });
+  const res = NextResponse.json({
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    },
+  });
+  if (parsed.data.password) {
+    res.cookies.set(
+      SESSION_COOKIE,
+      makeSessionToken(user.id, user.sessionVersion),
+      sessionCookieOptions()
+    );
+  }
+  return res;
 }

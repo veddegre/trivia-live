@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { finishLineTokens, unscrambleText } from "../src/lib/text-reveal";
+import { forSpectator } from "../src/lib/spectator-state";
+import { finishLineTokens, unscrambleText, visiblePuzzleText } from "../src/lib/text-reveal";
+import type { GamePublicState } from "../src/lib/types";
 import { silhouetteReveal } from "../src/lib/zoom";
 
 const phrase = "new york";
@@ -57,5 +59,84 @@ const extreme = silhouetteReveal({
   timeLimitSec: 30,
 });
 assert.ok(extreme < soft, `extreme ${extreme} should trail soft ${soft}`);
+
+const hiddenLine = visiblePuzzleText({
+  text: "one two three",
+  mode: "line",
+  seed: "q",
+  openedAt: null,
+  timeLimitSec: 30,
+  now: Date.parse("2026-10-10T12:00:00.000Z"),
+});
+assert.equal(hiddenLine.startsWith("one"), true);
+assert.equal(hiddenLine.includes("two"), false);
+assert.equal(hiddenLine.includes("three"), false);
+
+const solved = visiblePuzzleText({
+  text: "new york",
+  mode: "unscramble",
+  seed: "q1",
+  openedAt: "2026-10-10T12:00:00.000Z",
+  timeLimitSec: 30,
+  now: Date.parse("2026-10-10T12:00:00.000Z"),
+});
+assert.notEqual(solved, "new york");
+
+const board = {
+  code: "ABC",
+  title: "Night",
+  gameType: "FINISH_LINE",
+  phase: "question",
+  status: "QUESTION",
+  playerCount: 0,
+  answerCount: 0,
+  questionIndex: 0,
+  questionTotal: 1,
+  question: {
+    id: "q",
+    order: 0,
+    prompt: "Finish it",
+    options: ["a", "b"],
+    timeLimitSec: 30,
+    revealText: "one two three",
+  },
+  questionOpenedAt: null,
+  serverNow: "2026-10-10T12:00:00.000Z",
+  timeLimitSec: 30,
+  leaderboard: [],
+  leader: null,
+  winner: null,
+  tiedWinners: null,
+  hotStreak: null,
+  allowLateJoin: true,
+  allowAnswerChange: false,
+  round: null,
+  rounds: null,
+  endedRound: null,
+  brand: {
+    displayName: "Trivia",
+    tagline: null,
+    logoUrl: null,
+    mode: "dark",
+    tokens: {
+      ink: "#000",
+      ink2: "#111",
+      panel: "#222",
+      line: "#333",
+      chalk: "#fff",
+      muted: "#999",
+      amber: "#f0a820",
+      amberHot: "#ffc14d",
+    },
+  },
+} as GamePublicState;
+
+const watching = forSpectator(board);
+assert.equal(watching.question?.revealSnapshot, true);
+assert.equal(watching.question?.revealText?.includes("two"), false);
+
+const revealed = forSpectator({ ...board, phase: "reveal" });
+assert.equal(revealed.question?.revealText, "one two three");
+assert.equal(revealed.question?.revealSnapshot, undefined);
 
 console.log("text-reveal tests passed");

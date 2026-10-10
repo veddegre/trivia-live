@@ -288,6 +288,10 @@ export function HostScreen({
   const [qrUrl, setQrUrl] = useState("");
   const [manualJoinUrl, setManualJoinUrl] = useState("");
   const [watchUrl, setWatchUrl] = useState("");
+  const [puzzleFrame, setPuzzleFrame] = useState<{
+    questionId: string;
+    text: string;
+  } | null>(null);
 
   const liveCode = (state?.code || code).toUpperCase();
 
@@ -378,8 +382,17 @@ export function HostScreen({
       }
     };
 
+    const onState = (next: GamePublicState) => {
+      setState(next);
+      setPuzzleFrame(null);
+    };
+    const onFrame = (frame: { questionId: string; text: string }) => {
+      if (!isHost) setPuzzleFrame(frame);
+    };
+
     socket.on("connect", onConnect);
-    socket.on("game:state", setState);
+    socket.on("game:state", onState);
+    socket.on("puzzle:frame", onFrame);
     socket.on("game:reset", onReset);
     socket.on("error", (p: { message: string }) => setError(p.message));
     if (socket.connected) onConnect();
@@ -387,7 +400,8 @@ export function HostScreen({
 
     return () => {
       socket.off("connect", onConnect);
-      socket.off("game:state", setState);
+      socket.off("game:state", onState);
+      socket.off("puzzle:frame", onFrame);
       socket.off("game:reset", onReset);
     };
   }, [code, hostToken, isHost, router]);
@@ -512,6 +526,11 @@ export function HostScreen({
     const hasImage = !!state.question.imageUrl;
     const hasAudio = !!state.question.audioUrl;
     const hasText = !!state.question.revealText;
+    const snapshot = !isHost && !!state.question.revealSnapshot;
+    const puzzleText =
+      snapshot && puzzleFrame?.questionId === state.question.id
+        ? puzzleFrame.text
+        : state.question.revealText!;
     const hasMedia = hasImage || hasAudio || hasText;
     const timerSec =
       remaining ??
@@ -579,12 +598,13 @@ export function HostScreen({
 
             {hasText && (
               <TextReveal
-                text={state.question.revealText!}
+                text={puzzleText}
                 mode={state.gameType === "FINISH_LINE" ? "line" : "unscramble"}
                 seed={state.question.id}
                 openedAt={state.questionOpenedAt}
                 timeLimitSec={state.timeLimitSec}
                 clockOffsetMs={clockOffsetMs}
+                literal={snapshot}
                 className="mx-auto mt-4 max-w-4xl"
               />
             )}
@@ -737,29 +757,48 @@ export function HostScreen({
               >
                 {state.question.options.map((opt, i) => {
                   const correct = state.question?.correctIndex === i;
+                  const counts = state.question?.choiceCounts;
+                  const count = counts?.[i] ?? 0;
+                  const picked = counts?.reduce((sum, n) => sum + n, 0) ?? 0;
+                  const share = picked > 0 ? Math.round((100 * count) / picked) : 0;
                   return (
                     <li
                       key={i}
-                      className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 ${
+                      className={`rounded-xl border px-4 py-2.5 ${
                         correct
                           ? "border-good bg-good/10"
                           : "border-line bg-ink-2/40"
                       }`}
                     >
-                      <span
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${
-                          correct
-                            ? "bg-good text-ink"
-                            : "border border-line text-muted"
-                        }`}
-                      >
-                        {correct ? "✓" : String.fromCharCode(65 + i)}
-                      </span>
-                      <span className="flex-1 font-semibold">{opt}</span>
-                      {correct && (
-                        <span className="text-sm font-bold uppercase tracking-wide text-good">
-                          Correct
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${
+                            correct
+                              ? "bg-good text-ink"
+                              : "border border-line text-muted"
+                          }`}
+                        >
+                          {correct ? "✓" : String.fromCharCode(65 + i)}
                         </span>
+                        <span className="flex-1 font-semibold">{opt}</span>
+                        {counts && (
+                          <span className="text-sm font-bold tabular-nums text-chalk">
+                            {count}
+                          </span>
+                        )}
+                        {correct && (
+                          <span className="text-sm font-bold uppercase tracking-wide text-good">
+                            Correct
+                          </span>
+                        )}
+                      </div>
+                      {counts && (
+                        <div className="mt-2 ml-11 h-2 overflow-hidden rounded-full bg-ink">
+                          <div
+                            className={`h-full rounded-full ${correct ? "bg-good" : "bg-amber/80"}`}
+                            style={{ width: `${share}%` }}
+                          />
+                        </div>
                       )}
                     </li>
                   );
