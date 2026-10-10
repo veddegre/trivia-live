@@ -1,5 +1,5 @@
 import { randomBytes } from "crypto";
-import type { Game, Question, Player } from "@prisma/client";
+import { Prisma, type Game, type Question, type Player } from "@prisma/client";
 import { resolveBrand } from "@/lib/branding";
 import { generateJoinCode } from "@/lib/codes";
 import { prisma } from "@/lib/db";
@@ -27,6 +27,7 @@ import type {
   PlayerView,
   PublicQuestion,
 } from "@/lib/types";
+import { questionRecoveryPlan } from "@/lib/question-recovery";
 import {
   gameTypeUsesAudio,
   gameTypeUsesImage,
@@ -61,13 +62,64 @@ export function scheduleQuestionAutoLock(
   timeLimitSec: number,
   onExpire: () => void
 ) {
+  scheduleQuestionAutoLockMs(code, timeLimitSec * 1000, onExpire);
+}
+
+/** Schedule auto-lock after a millisecond delay (used to re-arm remaining time). */
+export function scheduleQuestionAutoLockMs(
+  code: string,
+  delayMs: number,
+  onExpire: () => void
+) {
   const key = code.toUpperCase();
   clearQuestionTimer(key);
   const rt = getRuntime(key);
   rt.autoLockTimer = setTimeout(() => {
     rt.autoLockTimer = undefined;
     onExpire();
-  }, Math.max(0, timeLimitSec) * 1000);
+  }, Math.max(0, delayMs));
+}
+
+/**
+ * Re-arm or lock questions that were open when the process died.
+ * The auto-lock timer only lives in memory, so a restart otherwise leaves them stuck.
+ */
+export async function recoverOpenQuestions(
+  arm: (code: string, remainingMs: number) => void,
+  now = Date.now()
+) {
+  const games = await prisma.game.findMany({
+    where: { status: "QUESTION" },
+    include: {
+      questions: { orderBy: { order: "asc" }, select: { timeLimitSec: true } },
+    },
+  });
+
+  let locked = 0;
+  let armed = 0;
+  let waiting = 0;
+
+  for (const game of games) {
+    const limit = game.questions[game.currentQuestionIndex]?.timeLimitSec ?? 0;
+    const plan = questionRecoveryPlan(game.questionOpenedAt, limit, now);
+    if (plan.action === "wait") {
+      waiting += 1;
+      continue;
+    }
+    if (plan.action === "lock") {
+      try {
+        const result = await lockQuestion(game.code);
+        if (result.locked) locked += 1;
+      } catch {
+        /* a live host locked it first */
+      }
+      continue;
+    }
+    arm(game.code, plan.remainingMs);
+    armed += 1;
+  }
+
+  return { locked, armed, waiting };
 }
 
 function phaseFromStatus(status: Game["status"]): GamePhase {
@@ -281,6 +333,7 @@ export async function buildPublicState(
     questionTotal: game.questions.length,
     question,
     questionOpenedAt: game.questionOpenedAt?.toISOString() ?? null,
+    serverNow: new Date().toISOString(),
     timeLimitSec: q?.timeLimitSec ?? null,
     leaderboard,
     leader:
@@ -462,6 +515,35 @@ export async function startQuestionClock(code: string) {
   };
 }
 
+function closedQuestionMessage(status: string | undefined, questionOpenedAt: Date | null) {
+  return status === "QUESTION" && !questionOpenedAt
+    ? "Wait for the music to start"
+    : "Question is not open";
+}
+
+function isUniqueViolation(err: unknown) {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+}
+
+/**
+ * Set every player's total to the sum of their answer points.
+ * Safe to run more than once; a second lock cannot add the round again.
+ */
+async function recomputeTotals(tx: Prisma.TransactionClient, gameId: string) {
+  await tx.$executeRaw`
+    UPDATE "Player" AS p
+    SET "totalScore" = CAST(s.points AS INTEGER)
+    FROM (
+      SELECT p2.id, COALESCE(SUM(a.points), 0) AS points
+      FROM "Player" p2
+      LEFT JOIN "Answer" a ON a."playerId" = p2.id
+      WHERE p2."gameId" = ${gameId}
+      GROUP BY p2.id
+    ) AS s
+    WHERE p.id = s.id
+  `;
+}
+
 export async function submitAnswer(opts: {
   code: string;
   playerToken: string;
@@ -469,13 +551,6 @@ export async function submitAnswer(opts: {
 }) {
   const game = await loadGame(opts.code);
   if (!game) throw new Error("Game not found");
-  if (game.status !== "QUESTION" || !game.questionOpenedAt) {
-    throw new Error(
-      game.status === "QUESTION" && !game.questionOpenedAt
-        ? "Wait for the music to start"
-        : "Question is not open"
-    );
-  }
 
   const player = game.players.find((p) => p.token === opts.playerToken);
   if (!player) throw new Error("Player not found");
@@ -487,108 +562,138 @@ export async function submitAnswer(opts: {
     throw new Error("Invalid choice");
   }
 
-  const now = new Date();
-  const nowElapsedMs = now.getTime() - game.questionOpenedAt.getTime();
-  if (nowElapsedMs > q.timeLimitSec * 1000) {
-    throw new Error("Time is up");
+  if (game.status !== "QUESTION" || !game.questionOpenedAt) {
+    throw new Error(closedQuestionMessage(game.status, game.questionOpenedAt));
   }
 
-  const existing = await prisma.answer.findUnique({
-    where: {
-      playerId_questionId: { playerId: player.id, questionId: q.id },
-    },
-  });
-  if (existing) {
-    if (!game.allowAnswerChange) throw new Error("Already answered");
-    if (existing.choiceIndex === opts.choiceIndex) {
-      return { playerId: player.id };
-    }
-    // Speed bonus uses this tap, not the first one — a late change is a late answer.
+  const scored = (elapsedMs: number) => {
     const isCorrect = opts.choiceIndex === q.correctIndex;
     const points = scoreAnswer({
       isCorrect,
-      elapsedMs: nowElapsedMs,
+      elapsedMs,
       timeLimitSec: q.timeLimitSec,
       basePoints: q.basePoints,
       timeBonus: q.timeBonus,
       bonus: questionBonus(q),
     });
-    await prisma.answer.update({
-      where: { id: existing.id },
-      data: {
-        choiceIndex: opts.choiceIndex,
-        answeredAt: now,
-        isCorrect,
-        points,
-      },
+    return { isCorrect, points };
+  };
+
+  // Hold the game row so this write cannot land after lock has summed the answers.
+  const outcome = await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<
+      Array<{ status: string; questionOpenedAt: Date | null }>
+    >`
+      SELECT CAST(status AS text) AS status, "questionOpenedAt"
+      FROM "Game"
+      WHERE id = ${game.id}
+      FOR UPDATE
+    `;
+    const row = rows[0];
+    if (!row || row.status !== "QUESTION" || !row.questionOpenedAt) {
+      throw new Error(closedQuestionMessage(row?.status, row?.questionOpenedAt ?? null));
+    }
+
+    const stillPlaying = await tx.player.findUnique({
+      where: { id: player.id },
+      select: { id: true },
     });
-    getRuntime(game.code).dirtyLeaderboard = true;
-    return { playerId: player.id };
-  }
+    if (!stillPlaying) throw new Error("Player not found");
 
-  const elapsedMs = nowElapsedMs;
-  const isCorrect = opts.choiceIndex === q.correctIndex;
-  const points = scoreAnswer({
-    isCorrect,
-    elapsedMs,
-    timeLimitSec: q.timeLimitSec,
-    basePoints: q.basePoints,
-    timeBonus: q.timeBonus,
-    bonus: questionBonus(q),
-  });
-
-  // Store points on the answer, but do not add to totals until the round locks
-  await prisma.answer.create({
-    data: {
-      playerId: player.id,
-      questionId: q.id,
+    const answeredAt = new Date();
+    const elapsedMs = answeredAt.getTime() - new Date(row.questionOpenedAt).getTime();
+    if (elapsedMs > q.timeLimitSec * 1000) {
+      throw new Error("Time is up");
+    }
+    const { isCorrect, points } = scored(elapsedMs);
+    const data = {
       choiceIndex: opts.choiceIndex,
-      answeredAt: now,
+      answeredAt,
       isCorrect,
       points,
-    },
-  });
+    };
 
-  const rt = getRuntime(game.code);
-  rt.answerCount += 1;
-  rt.dirtyLeaderboard = true;
+    const existing = await tx.answer.findUnique({
+      where: {
+        playerId_questionId: { playerId: player.id, questionId: q.id },
+      },
+    });
+    if (existing) {
+      if (!game.allowAnswerChange) throw new Error("Already answered");
+      if (existing.choiceIndex === opts.choiceIndex) return "unchanged" as const;
+      await tx.answer.update({ where: { id: existing.id }, data });
+      return "updated" as const;
+    }
+
+    try {
+      await tx.answer.create({
+        data: {
+          playerId: player.id,
+          questionId: q.id,
+          ...data,
+        },
+      });
+      return "created" as const;
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      if (!game.allowAnswerChange) throw new Error("Already answered");
+      await tx.answer.update({
+        where: {
+          playerId_questionId: { playerId: player.id, questionId: q.id },
+        },
+        data,
+      });
+      return "updated" as const;
+    }
+  }, { maxWait: 30_000, timeout: 30_000 });
+
+  if (outcome === "created") {
+    const rt = getRuntime(game.code);
+    rt.answerCount += 1;
+    rt.dirtyLeaderboard = true;
+  } else if (outcome === "updated") {
+    getRuntime(game.code).dirtyLeaderboard = true;
+  }
 
   // Don't return points/isCorrect — that would spoil the round on the phone
   return { playerId: player.id };
 }
 
-/** Apply pending answer points for the current question onto player totals. */
-async function applyRoundScores(game: GameWithRelations) {
-  const q = game.questions[game.currentQuestionIndex];
-  if (!q) return;
-
-  const answers = await prisma.answer.findMany({
-    where: { questionId: q.id },
-  });
-
-  if (answers.length === 0) return;
-
-  await prisma.$transaction(
-    answers.map((a) =>
-      prisma.player.update({
-        where: { id: a.playerId },
-        data: { totalScore: { increment: a.points } },
-      })
-    )
-  );
+/**
+ * Claim QUESTION → next status. Only the call that wins the row adds scores.
+ * Totals are replaced with SUM(answer points), so a second winner cannot double them.
+ */
+async function claimQuestionAndScore(
+  gameId: string,
+  next: "REVEAL" | "FINISHED"
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const claimed = await tx.game.updateMany({
+      where: { id: gameId, status: "QUESTION" },
+      data: {
+        status: next,
+        ...(next === "FINISHED" ? { questionOpenedAt: null } : {}),
+      },
+    });
+    if (claimed.count !== 1) return false;
+    await recomputeTotals(tx, gameId);
+    return true;
+  }, { maxWait: 30_000, timeout: 30_000 });
 }
 
-export async function lockQuestion(code: string) {
+export async function lockQuestion(code: string): Promise<{ locked: boolean }> {
   const game = await loadGame(code);
   if (!game) throw new Error("Game not found");
-  if (game.status !== "QUESTION") throw new Error("No open question");
+  if (game.status !== "QUESTION") {
+    if (game.status === "REVEAL" || game.status === "FINISHED") {
+      return { locked: false };
+    }
+    throw new Error("No open question");
+  }
 
   clearQuestionTimer(game.code);
-  await applyRoundScores(game);
-  await prisma.game.update({
-    where: { id: game.id },
-    data: { status: "REVEAL" },
-  });
+  const locked = await claimQuestionAndScore(game.id, "REVEAL");
+  return { locked };
 }
 
 /**
@@ -690,16 +795,26 @@ export async function nextQuestion(code: string) {
 }
 
 export async function finishGame(code: string) {
-  clearQuestionTimer(code);
-  const game = await loadGame(code);
-  if (game?.status === "QUESTION") {
-    await applyRoundScores(game);
+  const key = code.toUpperCase();
+  clearQuestionTimer(key);
+  const game = await loadGame(key);
+  if (!game) throw new Error("Game not found");
+
+  const claimed = await claimQuestionAndScore(game.id, "FINISHED");
+  if (!claimed) {
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.game.updateMany({
+          where: { id: game.id, status: { not: "FINISHED" } },
+          data: { status: "FINISHED", questionOpenedAt: null },
+        });
+        await recomputeTotals(tx, game.id);
+      },
+      { maxWait: 30_000, timeout: 30_000 }
+    );
   }
-  await prisma.game.update({
-    where: { code: code.toUpperCase() },
-    data: { status: "FINISHED", questionOpenedAt: null },
-  });
-  await recordGameResult(code);
+
+  await recordGameResult(key);
 }
 
 async function uniqueJoinCode(): Promise<string> {

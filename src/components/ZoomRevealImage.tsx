@@ -9,6 +9,8 @@ type Props = {
   openedAt?: string | null;
   timeLimitSec?: number | null;
   revealed?: boolean;
+  /** Subtract from Date.now() so a fast or slow device tracks the server clock. */
+  clockOffsetMs?: number;
   className?: string;
   alt?: string;
 };
@@ -19,6 +21,7 @@ export function ZoomRevealImage({
   openedAt,
   timeLimitSec,
   revealed = false,
+  clockOffsetMs = 0,
   className = "",
   alt = "",
 }: Props) {
@@ -35,13 +38,14 @@ export function ZoomRevealImage({
     }
 
     img.style.transition = "none";
-    const opened = openedAt ? new Date(openedAt).getTime() : Date.now();
+    const now = () => Date.now() - clockOffsetMs;
+    const opened = openedAt ? new Date(openedAt).getTime() : now();
     const limit = timeLimitSec ?? 30;
     let raf = 0;
     const tick = () => {
       const scale = zoomScale({
         startZoom,
-        elapsedMs: Date.now() - opened,
+        elapsedMs: now() - opened,
         timeLimitSec: limit,
       });
       img.style.transform = `scale(${scale})`;
@@ -49,7 +53,7 @@ export function ZoomRevealImage({
     };
     tick();
     return () => cancelAnimationFrame(raf);
-  }, [src, startZoom, openedAt, timeLimitSec, revealed]);
+  }, [src, startZoom, openedAt, timeLimitSec, revealed, clockOffsetMs]);
 
   return (
     <div

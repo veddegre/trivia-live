@@ -36,7 +36,7 @@ export async function GET() {
         needsSetup: true,
         setupTokenRequired: setupTokenRequired(),
         error:
-          "Database not ready. Run migrations / db push, then restart the app.",
+          "Database not ready. Run migrations, then restart the app.",
       },
       { status: 503 }
     );

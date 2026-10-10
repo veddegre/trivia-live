@@ -9,6 +9,8 @@ type Props = {
   openedAt?: string | null;
   timeLimitSec?: number | null;
   revealed?: boolean;
+  /** Subtract from Date.now() so a fast or slow device tracks the server clock. */
+  clockOffsetMs?: number;
   className?: string;
   alt?: string;
 };
@@ -98,6 +100,7 @@ export function SilhouetteImage({
   openedAt,
   timeLimitSec,
   revealed = false,
+  clockOffsetMs = 0,
   className = "",
   alt = "",
 }: Props) {
@@ -186,11 +189,12 @@ export function SilhouetteImage({
       }
       const tick = () => {
         if (cancelled) return;
-        const opened = openedAt ? new Date(openedAt).getTime() : Date.now();
+        const now = Date.now() - clockOffsetMs;
+        const opened = openedAt ? new Date(openedAt).getTime() : now;
         paint(
           silhouetteReveal({
             startZoom,
-            elapsedMs: revealed ? (timeLimitSec ?? 45) * 1000 : Date.now() - opened,
+            elapsedMs: revealed ? (timeLimitSec ?? 45) * 1000 : now - opened,
             timeLimitSec: timeLimitSec ?? 45,
             revealed,
           })
@@ -205,7 +209,7 @@ export function SilhouetteImage({
       cancelled = true;
       cancelAnimationFrame(raf);
     };
-  }, [src, startZoom, openedAt, timeLimitSec, revealed]);
+  }, [src, startZoom, openedAt, timeLimitSec, revealed, clockOffsetMs]);
 
   return (
     <div

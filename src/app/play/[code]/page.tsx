@@ -5,6 +5,7 @@ import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react
 import { BrandMark } from "@/components/BrandMark";
 import { BrandProvider } from "@/components/BrandProvider";
 import { CountdownTimer } from "@/components/CountdownTimer";
+import { useClockOffset } from "@/hooks/useClockOffset";
 import { useQuestionCountdown } from "@/hooks/useQuestionCountdown";
 import type { BrandConfig } from "@/lib/branding";
 import { getSocket } from "@/lib/socket-client";
@@ -50,10 +51,12 @@ function PlayInner({ code }: { code: string }) {
   const [gameMissing, setGameMissing] = useState(false);
   const autoJoinAttempted = useRef(false);
 
+  const clockOffsetMs = useClockOffset(state?.serverNow);
   const remaining = useQuestionCountdown(
     state?.questionOpenedAt,
     state?.timeLimitSec,
-    state?.phase === "question"
+    state?.phase === "question",
+    clockOffsetMs
   );
 
   const timeUp = remaining === 0;

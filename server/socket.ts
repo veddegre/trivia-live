@@ -13,8 +13,10 @@ import {
   nextQuestion,
   openLobby,
   openQuestion,
+  recoverOpenQuestions,
   resetGame,
   scheduleQuestionAutoLock,
+  scheduleQuestionAutoLockMs,
   shouldThrottleBroadcast,
   startQuestionClock,
   submitAnswer,
@@ -148,6 +150,22 @@ export function createSocketServer(httpServer: HttpServer) {
     cors: { origin: socketCorsOrigin(), credentials: true },
   });
   setSocketServer(io);
+
+  void recoverOpenQuestions((code, remainingMs) => {
+    scheduleQuestionAutoLockMs(code, remainingMs, () => {
+      void autoLockAndBroadcast(io, code);
+    });
+  })
+    .then((summary) => {
+      if (summary.locked || summary.armed || summary.waiting) {
+        console.log(
+          `Recovered open questions: locked ${summary.locked}, re-armed ${summary.armed}, waiting for play ${summary.waiting}`
+        );
+      }
+    })
+    .catch((err) => {
+      console.error("Failed to recover open questions", err);
+    });
 
   io.on("connection", (socket: Socket) => {
     const data = socket.data as SocketData;

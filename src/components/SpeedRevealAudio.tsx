@@ -9,6 +9,8 @@ type Props = {
   openedAt?: string | null;
   timeLimitSec?: number | null;
   revealed?: boolean;
+  /** Subtract from Date.now() so a fast or slow device tracks the server clock. */
+  clockOffsetMs?: number;
   /** Called when the host taps Play (before audio starts). Should arm the round clock. */
   onPlayRequest?: () => void | Promise<void>;
   className?: string;
@@ -20,6 +22,7 @@ export function SpeedRevealAudio({
   openedAt,
   timeLimitSec,
   revealed = false,
+  clockOffsetMs = 0,
   onPlayRequest,
   className = "",
 }: Props) {
@@ -50,7 +53,7 @@ export function SpeedRevealAudio({
     const tick = () => {
       const rate = playbackRate({
         startSpeed,
-        elapsedMs: Date.now() - opened,
+        elapsedMs: Date.now() - clockOffsetMs - opened,
         timeLimitSec: limit,
       });
       audio.playbackRate = rate;
@@ -59,7 +62,7 @@ export function SpeedRevealAudio({
     };
     tick();
     return () => cancelAnimationFrame(raf);
-  }, [src, startSpeed, openedAt, timeLimitSec, revealed, playing]);
+  }, [src, startSpeed, openedAt, timeLimitSec, revealed, playing, clockOffsetMs]);
 
   useEffect(() => {
     const audio = audioRef.current;

@@ -9,6 +9,8 @@ type Props = {
   openedAt?: string | null;
   timeLimitSec?: number | null;
   revealed?: boolean;
+  /** Subtract from Date.now() so a fast or slow device tracks the server clock. */
+  clockOffsetMs?: number;
   className?: string;
   alt?: string;
 };
@@ -41,6 +43,7 @@ export function PictureFinishImage({
   openedAt,
   timeLimitSec,
   revealed = false,
+  clockOffsetMs = 0,
   className = "",
   alt = "",
 }: Props) {
@@ -103,14 +106,15 @@ export function PictureFinishImage({
         paint(1);
         return;
       }
-      const opened = openedAt ? new Date(openedAt).getTime() : Date.now();
+      const now = () => Date.now() - clockOffsetMs;
+      const opened = openedAt ? new Date(openedAt).getTime() : now();
       const limit = timeLimitSec ?? 45;
       const tick = () => {
         if (cancelled) return;
         paint(
           pictureFinishPixelSize({
             startZoom,
-            elapsedMs: Date.now() - opened,
+            elapsedMs: now() - opened,
             timeLimitSec: limit,
           })
         );
@@ -133,7 +137,7 @@ export function PictureFinishImage({
       cancelled = true;
       cancelAnimationFrame(raf);
     };
-  }, [src, startZoom, openedAt, timeLimitSec, revealed]);
+  }, [src, startZoom, openedAt, timeLimitSec, revealed, clockOffsetMs]);
 
   return (
     <div

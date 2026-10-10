@@ -13,6 +13,7 @@ import { ZoomRevealImage } from "@/components/ZoomRevealImage";
 import { PictureFinishImage } from "@/components/PictureFinishImage";
 import { SilhouetteImage } from "@/components/SilhouetteImage";
 import { TextReveal } from "@/components/TextReveal";
+import { useClockOffset } from "@/hooks/useClockOffset";
 import { useQuestionCountdown } from "@/hooks/useQuestionCountdown";
 import { betweenHeadline } from "@/lib/between-copy";
 import type { BrandConfig } from "@/lib/branding";
@@ -207,6 +208,7 @@ function HostQuestionImage({
   openedAt,
   timeLimitSec,
   revealed,
+  clockOffsetMs,
   className,
 }: {
   gameType: GameType;
@@ -215,6 +217,7 @@ function HostQuestionImage({
   openedAt?: string | null;
   timeLimitSec?: number | null;
   revealed?: boolean;
+  clockOffsetMs?: number;
   className?: string;
 }) {
   if (gameType === "SILHOUETTE") {
@@ -225,6 +228,7 @@ function HostQuestionImage({
         openedAt={openedAt}
         timeLimitSec={timeLimitSec}
         revealed={revealed}
+        clockOffsetMs={clockOffsetMs}
         className={className}
         alt=""
       />
@@ -238,6 +242,7 @@ function HostQuestionImage({
         openedAt={openedAt}
         timeLimitSec={timeLimitSec}
         revealed={revealed}
+        clockOffsetMs={clockOffsetMs}
         className={className}
         alt=""
       />
@@ -250,6 +255,7 @@ function HostQuestionImage({
       openedAt={openedAt}
       timeLimitSec={timeLimitSec}
       revealed={revealed}
+      clockOffsetMs={clockOffsetMs}
       className={className}
       alt=""
     />
@@ -301,10 +307,12 @@ export function HostScreen({
     setWatchUrl(`${base}/watch/${encodeURIComponent(liveCode)}`);
   }, [liveCode]);
 
+  const clockOffsetMs = useClockOffset(state?.serverNow);
   const remaining = useQuestionCountdown(
     state?.questionOpenedAt,
     state?.timeLimitSec,
-    state?.phase === "question"
+    state?.phase === "question",
+    clockOffsetMs
   );
 
   useEffect(() => {
@@ -576,6 +584,7 @@ export function HostScreen({
                 seed={state.question.id}
                 openedAt={state.questionOpenedAt}
                 timeLimitSec={state.timeLimitSec}
+                clockOffsetMs={clockOffsetMs}
                 className="mx-auto mt-4 max-w-4xl"
               />
             )}
@@ -587,6 +596,7 @@ export function HostScreen({
                 startZoom={state.question.startZoom}
                 openedAt={state.questionOpenedAt}
                 timeLimitSec={state.timeLimitSec}
+                clockOffsetMs={clockOffsetMs}
                 className="mx-auto mt-3 aspect-square w-full max-w-[min(42vh,22rem)] shrink-0 rounded-2xl border border-line"
               />
             )}
@@ -606,6 +616,7 @@ export function HostScreen({
                 startSpeed={state.question.startSpeed}
                 openedAt={state.questionOpenedAt}
                 timeLimitSec={state.timeLimitSec}
+                clockOffsetMs={clockOffsetMs}
                 onPlayRequest={isHost ? startClock : undefined}
                 className="mx-auto mt-4 w-full max-w-xl shrink-0"
               />

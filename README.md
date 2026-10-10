@@ -69,7 +69,6 @@ cp .env.example .env
 # 3. Install + schema
 npm install
 npx prisma migrate deploy
-# or: npx prisma db push
 
 # 4. Run (Next + Socket.io on one port)
 npm run dev
@@ -344,7 +343,7 @@ git pull
 docker compose up --build -d
 ```
 
-Migrations run automatically on container start (`prisma migrate deploy` in the entrypoint). Postgres data in the `trivia_pg` volume and media uploads in `trivia_uploads` are kept across rebuilds.
+Migrations run automatically on container start (`prisma migrate deploy` in the entrypoint). If that fails, the container exits instead of rewriting the schema. Postgres data in the `trivia_pg` volume and media uploads in `trivia_uploads` are kept across rebuilds.
 
 If you use the systemd unit above:
 
@@ -359,3 +358,4 @@ sudo systemctl restart trivia-live
 - ~200 WebSocket connections is light for a single Node process
 - Live board updates are throttled so answer bursts don’t flood the host display
 - One game of 200 players is the design target; many small concurrent games also fit on the same small server
+- Run one app instance. Question timers and the rate limiter live in that process’s memory. A second instance splits joins across both, arms two timers for one question, and gives each box its own rate limit.

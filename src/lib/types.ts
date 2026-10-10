@@ -49,6 +49,8 @@ export type GamePublicState = {
   questionTotal: number;
   question: PublicQuestion | null;
   questionOpenedAt: string | null;
+  /** Server time when this payload was built. Devices subtract the offset from Date.now(). */
+  serverNow: string;
   timeLimitSec: number | null;
   leaderboard: LeaderboardEntry[];
   /** Present after a round ends (reveal / between / finished) */

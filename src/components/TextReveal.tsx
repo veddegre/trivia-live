@@ -10,18 +10,21 @@ type Props = {
   openedAt?: string | null;
   timeLimitSec?: number | null;
   revealed?: boolean;
+  /** Subtract from Date.now() so a fast or slow device tracks the server clock. */
+  clockOffsetMs?: number;
   className?: string;
 };
 
 function progressAt(
   openedAt: string | null | undefined,
   timeLimitSec: number | null | undefined,
-  revealed: boolean
+  revealed: boolean,
+  clockOffsetMs: number
 ): number {
   if (revealed) return 1;
   if (!openedAt) return 0;
   const limit = Math.max(1, (timeLimitSec ?? 45) * 1000);
-  const elapsed = Date.now() - new Date(openedAt).getTime();
+  const elapsed = Date.now() - clockOffsetMs - new Date(openedAt).getTime();
   return Math.min(1, Math.max(0, elapsed / limit));
 }
 
@@ -32,10 +35,11 @@ export function TextReveal({
   openedAt,
   timeLimitSec,
   revealed = false,
+  clockOffsetMs = 0,
   className = "",
 }: Props) {
   const [progress, setProgress] = useState(() =>
-    progressAt(openedAt, timeLimitSec, revealed)
+    progressAt(openedAt, timeLimitSec, revealed, clockOffsetMs)
   );
 
   useEffect(() => {
@@ -45,12 +49,12 @@ export function TextReveal({
     }
     let raf = 0;
     const tick = () => {
-      setProgress(progressAt(openedAt, timeLimitSec, false));
+      setProgress(progressAt(openedAt, timeLimitSec, false, clockOffsetMs));
       raf = requestAnimationFrame(tick);
     };
     tick();
     return () => cancelAnimationFrame(raf);
-  }, [openedAt, timeLimitSec, revealed]);
+  }, [openedAt, timeLimitSec, revealed, clockOffsetMs]);
 
   if (mode === "unscramble") {
     const shown = unscrambleText(text, progress, seed);

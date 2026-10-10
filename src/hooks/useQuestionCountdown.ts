@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 export function useQuestionCountdown(
   questionOpenedAt: string | null | undefined,
   timeLimitSec: number | null | undefined,
-  active: boolean
+  active: boolean,
+  clockOffsetMs = 0
 ): number | null {
   const [remaining, setRemaining] = useState<number | null>(null);
 
@@ -18,13 +19,13 @@ export function useQuestionCountdown(
     const opened = new Date(questionOpenedAt).getTime();
     const limit = timeLimitSec * 1000;
     const tick = () => {
-      const left = Math.max(0, limit - (Date.now() - opened));
+      const left = Math.max(0, limit - (Date.now() - clockOffsetMs - opened));
       setRemaining(Math.ceil(left / 1000));
     };
     tick();
     const id = setInterval(tick, 200);
     return () => clearInterval(id);
-  }, [questionOpenedAt, timeLimitSec, active]);
+  }, [questionOpenedAt, timeLimitSec, active, clockOffsetMs]);
 
   return remaining;
 }

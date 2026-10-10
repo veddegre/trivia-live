@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Database not ready for accounts. Run migrations / db push, then restart the app.",
+          "Database not ready for accounts. Run migrations, then restart the app.",
       },
       { status: 503 }
     );
