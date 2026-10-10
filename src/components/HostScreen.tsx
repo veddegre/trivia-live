@@ -11,6 +11,8 @@ import { ReverseRevealAudio } from "@/components/ReverseRevealAudio";
 import { SpeedRevealAudio } from "@/components/SpeedRevealAudio";
 import { ZoomRevealImage } from "@/components/ZoomRevealImage";
 import { PictureFinishImage } from "@/components/PictureFinishImage";
+import { SilhouetteImage } from "@/components/SilhouetteImage";
+import { TextReveal } from "@/components/TextReveal";
 import { useQuestionCountdown } from "@/hooks/useQuestionCountdown";
 import { betweenHeadline } from "@/lib/between-copy";
 import type { BrandConfig } from "@/lib/branding";
@@ -215,6 +217,19 @@ function HostQuestionImage({
   revealed?: boolean;
   className?: string;
 }) {
+  if (gameType === "SILHOUETTE") {
+    return (
+      <SilhouetteImage
+        src={src}
+        startZoom={startZoom}
+        openedAt={openedAt}
+        timeLimitSec={timeLimitSec}
+        revealed={revealed}
+        className={className}
+        alt=""
+      />
+    );
+  }
   if (gameType === "PICTURE_FINISH") {
     return (
       <PictureFinishImage
@@ -488,7 +503,8 @@ export function HostScreen({
   if (state.phase === "question" && state.question) {
     const hasImage = !!state.question.imageUrl;
     const hasAudio = !!state.question.audioUrl;
-    const hasMedia = hasImage || hasAudio;
+    const hasText = !!state.question.revealText;
+    const hasMedia = hasImage || hasAudio || hasText;
     const timerSec =
       remaining ??
       (hasAudio && !state.questionOpenedAt ? state.timeLimitSec : remaining);
@@ -552,6 +568,17 @@ export function HostScreen({
             >
               {state.question.prompt}
             </h2>
+
+            {hasText && (
+              <TextReveal
+                text={state.question.revealText!}
+                mode={state.gameType === "FINISH_LINE" ? "line" : "unscramble"}
+                seed={state.question.id}
+                openedAt={state.questionOpenedAt}
+                timeLimitSec={state.timeLimitSec}
+                className="mx-auto mt-4 max-w-4xl"
+              />
+            )}
 
             {hasImage && (
               <HostQuestionImage
@@ -626,6 +653,7 @@ export function HostScreen({
   if (state.phase === "reveal" && state.question) {
     const hasImage = !!state.question.imageUrl;
     const hasAudio = !!state.question.audioUrl;
+    const hasText = !!state.question.revealText;
     return (
       <BrandProvider brand={brand}>
         <main className="mx-auto flex h-dvh w-full max-w-6xl flex-col overflow-hidden px-5 py-4 md:py-5">
@@ -656,6 +684,15 @@ export function HostScreen({
               <h2 className="mt-3 shrink-0 text-lg font-semibold md:text-xl">
                 {state.question.prompt}
               </h2>
+              {hasText && (
+                <TextReveal
+                  text={state.question.revealText!}
+                  mode={state.gameType === "FINISH_LINE" ? "line" : "unscramble"}
+                  seed={state.question.id}
+                  revealed
+                  className="mt-3 max-w-3xl"
+                />
+              )}
               {hasImage && (
                 <HostQuestionImage
                   gameType={state.gameType}
@@ -682,7 +719,7 @@ export function HostScreen({
               )}
               <ol
                 className={`mt-4 space-y-2 ${
-                  hasImage || hasAudio
+                  hasImage || hasAudio || hasText
                     ? "shrink-0"
                     : "min-h-0 flex-1 overflow-y-auto"
                 }`}

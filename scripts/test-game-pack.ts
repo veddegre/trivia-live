@@ -27,6 +27,7 @@ const trivia: SourceGame = {
       startSpeed: 2,
       imageKey: null,
       audioKey: null,
+      revealText: "",
       roundTitle: "",
       bonus: "DOUBLE",
     },

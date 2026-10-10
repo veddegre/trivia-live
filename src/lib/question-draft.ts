@@ -37,6 +37,7 @@ export function draftQuestionFromBank(q: DraftBankQuestion, bankTitle: string) {
     audioKey: null,
     startZoom: START_ZOOM_DEFAULT,
     startSpeed: START_SPEED_DEFAULT,
+    revealText: "",
     roundTitle: bankTitle.trim().slice(0, ROUND_TITLE_MAX),
   };
 }

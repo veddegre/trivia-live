@@ -12,6 +12,7 @@ import {
   START_ZOOM_MIN,
   gameTypeUsesAudio,
   gameTypeUsesImage,
+  gameTypeUsesRevealText,
   type GameType,
 } from "@/lib/types";
 import { isQuestionBonus } from "@/lib/scoring";
@@ -22,6 +23,9 @@ export const gameTypeSchema = z.enum([
   "AUDIO_SPEED",
   "PICTURE_FINISH",
   "AUDIO_REVERSE",
+  "UNSCRAMBLE",
+  "FINISH_LINE",
+  "SILHOUETTE",
 ]);
 
 export const questionSchema = z.object({
@@ -44,6 +48,7 @@ export const questionSchema = z.object({
     .min(START_SPEED_MIN)
     .max(START_SPEED_MAX)
     .default(START_SPEED_DEFAULT),
+  revealText: z.string().max(300).optional().default(""),
   roundTitle: z.string().max(ROUND_TITLE_MAX).optional().default(""),
   bonus: z
     .enum(["NONE", "DOUBLE", "LIGHTNING"])
@@ -82,6 +87,16 @@ export function assertQuestionsForGameType(
     }
   }
 
+  if (gameTypeUsesRevealText(gameType)) {
+    for (const q of questions) {
+      if (!q.revealText?.trim()) {
+        return gameType === "UNSCRAMBLE"
+          ? "Each Unscramble question needs a phrase"
+          : "Each Finish the Line question needs a line";
+      }
+    }
+  }
+
   if (gameTypeUsesAudio(gameType)) {
     for (const q of questions) {
       if (!q.audioKey) {
@@ -114,6 +129,9 @@ export function questionCreateData(
     startZoom: q.startZoom ?? START_ZOOM_DEFAULT,
     audioKey: gameTypeUsesAudio(gameType) ? q.audioKey || null : null,
     startSpeed: q.startSpeed ?? START_SPEED_DEFAULT,
+    revealText: gameTypeUsesRevealText(gameType)
+      ? (q.revealText ?? "").trim().slice(0, 300)
+      : "",
     roundTitle: (q.roundTitle ?? "").trim().slice(0, ROUND_TITLE_MAX),
     bonus: isQuestionBonus(q.bonus) ? q.bonus : "NONE",
   };

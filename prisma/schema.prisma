@@ -22,6 +22,9 @@ enum GameType {
   AUDIO_SPEED
   PICTURE_FINISH
   AUDIO_REVERSE
+  UNSCRAMBLE
+  FINISH_LINE
+  SILHOUETTE
 }
 
 enum UserRole {
@@ -114,6 +117,8 @@ model Question {
   audioKey      String?
   /** Starting HTMLAudioElement.playbackRate for AUDIO_SPEED (eases to 1) */
   startSpeed    Float    @default(2)
+  /** Phrase or quote revealed on the host screen for Unscramble and Finish the Line. */
+  revealText    String   @default("")
   answers       Answer[]
 
   @@unique([gameId, order])

@@ -19,7 +19,11 @@ import {
   type QuestionInput,
 } from "@/lib/question-schema";
 import type { GameType } from "@/lib/types";
-import { gameTypeUsesAudio, gameTypeUsesImage } from "@/lib/types";
+import {
+  gameTypeUsesAudio,
+  gameTypeUsesImage,
+  gameTypeUsesRevealText,
+} from "@/lib/types";
 import { isQuestionBonus } from "@/lib/scoring";
 
 export async function allocateJoinCode(): Promise<string> {
@@ -137,6 +141,9 @@ export async function cloneGame(opts: {
         startSpeed: q.startSpeed,
         imageKey: gameTypeUsesImage(opts.source.gameType) ? nextKey : null,
         audioKey: gameTypeUsesAudio(opts.source.gameType) ? nextKey : null,
+        revealText: gameTypeUsesRevealText(opts.source.gameType)
+          ? q.revealText
+          : "",
         roundTitle: q.roundTitle,
         bonus: isQuestionBonus(q.bonus) ? q.bonus : "NONE",
       });

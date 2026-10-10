@@ -98,7 +98,7 @@ export default function HomePage() {
           {[
             [
               "Create a game",
-              "In Admin, pick Trivia, Image Zoom, Picture Finish, Guess the Song, or Backwards Song. Add questions, timers, and scoring — or drop in a trivia bank as a named round. A night is one type — types are not mixed.",
+              "In Admin, pick Trivia, Image Zoom, Picture Finish, Silhouette, Guess the Song, Backwards Song, Unscramble, or Finish the Line. Add questions, timers, and scoring — or drop in a trivia bank as a named round. A night is one type — types are not mixed.",
             ],
             [
               "Open the lobby",
@@ -151,6 +151,18 @@ export default function HomePage() {
             [
               "Backwards Song",
               "A short clip plays backwards on the room speakers. Reveal replays it forwards.",
+            ],
+            [
+              "Silhouette",
+              "A photo starts as a solid shape on the host screen and fills in with color.",
+            ],
+            [
+              "Unscramble",
+              "A phrase starts jumbled on the host screen and locks into place as the clock runs down.",
+            ],
+            [
+              "Finish the Line",
+              "A lyric or quote appears word by word on the host screen.",
             ],
             [
               "Host on any screen",

@@ -9,6 +9,8 @@ import {
   START_SPEED_DEFAULT,
   START_ZOOM_DEFAULT,
   gameTypeUsesAudio,
+  gameTypeUsesImage,
+  gameTypeUsesRevealText,
   type GameType,
 } from "@/lib/types";
 import {
@@ -30,27 +32,32 @@ export type DraftQuestion = {
   startZoom: number;
   audioKey: string | null;
   startSpeed: number;
+  revealText: string;
   roundTitle: string;
 };
 
 export function emptyQuestion(gameType: GameType = "TRIVIA"): DraftQuestion {
   return {
     prompt:
-      gameType === "IMAGE_ZOOM"
+      gameType === "IMAGE_ZOOM" || gameType === "SILHOUETTE"
         ? "What is this?"
         : gameType === "PICTURE_FINISH"
           ? "Who is this?"
           : gameType === "AUDIO_SPEED"
-          ? "Name that tune"
-          : gameType === "AUDIO_REVERSE"
-            ? "What's playing backwards?"
-            : "",
+            ? "Name that tune"
+            : gameType === "AUDIO_REVERSE"
+              ? "What's playing backwards?"
+              : gameType === "UNSCRAMBLE"
+                ? "Unscramble this"
+                : gameType === "FINISH_LINE"
+                  ? "Name that line"
+                  : "",
     options: ["", "", "", ""],
     correctIndex: 0,
     timeLimitSec:
-      gameType === "IMAGE_ZOOM" ||
-      gameType === "PICTURE_FINISH" ||
-      gameTypeUsesAudio(gameType)
+      gameTypeUsesImage(gameType) ||
+      gameTypeUsesAudio(gameType) ||
+      gameTypeUsesRevealText(gameType)
         ? 45
         : 30,
     basePoints: SCORE_BASE_DEFAULT,
@@ -60,6 +67,7 @@ export function emptyQuestion(gameType: GameType = "TRIVIA"): DraftQuestion {
     startZoom: START_ZOOM_DEFAULT,
     audioKey: null,
     startSpeed: START_SPEED_DEFAULT,
+    revealText: "",
     roundTitle: "",
   };
 }
@@ -102,9 +110,13 @@ export function QuestionEditor({
   const [cropObjectUrl, setCropObjectUrl] = useState<string | null>(null);
   const isZoom = gameType === "IMAGE_ZOOM";
   const isPictureFinish = gameType === "PICTURE_FINISH";
-  const isImage = isZoom || isPictureFinish;
+  const isSilhouette = gameType === "SILHOUETTE";
+  const isImage = isZoom || isPictureFinish || isSilhouette;
   const isAudio = gameTypeUsesAudio(gameType);
   const isReverse = gameType === "AUDIO_REVERSE";
+  const isUnscramble = gameType === "UNSCRAMBLE";
+  const isFinishLine = gameType === "FINISH_LINE";
+  const isRevealText = gameTypeUsesRevealText(gameType);
   const previewUrl = mediaPublicUrl(q.imageKey);
   const audioUrl = mediaPublicUrl(q.audioKey);
 
@@ -299,7 +311,11 @@ export function QuestionEditor({
               </span>
               <p className="text-xs text-muted">
                 Square crop with a centered subject works best
-                {isPictureFinish ? " for Picture Finish." : " for Image Zoom."}
+                {isSilhouette
+                  ? " for Silhouette. A plain background makes a cleaner shape."
+                  : isPictureFinish
+                    ? " for Picture Finish."
+                    : " for Image Zoom."}
               </p>
               {previewUrl ? (
                 <div className="overflow-hidden rounded-xl border border-line bg-ink-2/50">
@@ -446,26 +462,56 @@ export function QuestionEditor({
             </div>
           )}
 
+          {isRevealText && (
+            <label className="block space-y-2">
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                {isUnscramble ? "Phrase" : "Line"}
+              </span>
+              <textarea
+                className="field min-h-[72px] resize-y"
+                maxLength={300}
+                placeholder={
+                  isUnscramble
+                    ? "The phrase to unscramble"
+                    : "The lyric or quote that fills in word by word"
+                }
+                value={q.revealText}
+                onChange={(e) => onChange({ ...q, revealText: e.target.value })}
+              />
+              <p className="text-xs text-muted">
+                {isUnscramble
+                  ? "Shown scrambled on the host screen. Letters lock into place as the timer runs."
+                  : "The first word shows right away. The rest appear as the timer runs. Phones never see this text."}
+              </p>
+            </label>
+          )}
+
           <label className="block space-y-2">
             <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
               {isImage
                 ? "Prompt (shown with the image)"
                 : isAudio
                   ? "Prompt (shown with the song)"
-                  : "Question prompt"}
+                  : isRevealText
+                    ? "Prompt (shown with the puzzle)"
+                    : "Question prompt"}
             </span>
             <textarea
               className="field min-h-[96px] resize-y"
               placeholder={
                 isPictureFinish
                   ? "Who is this?"
-                  : isZoom
+                  : isZoom || isSilhouette
                     ? "What is this?"
                     : isReverse
                       ? "What's playing backwards?"
-                      : isAudio
-                        ? "Name that tune"
-                        : "Enter your question…"
+                      : isUnscramble
+                        ? "Unscramble this"
+                        : isFinishLine
+                          ? "Name that line"
+                          : isAudio
+                            ? "Name that tune"
+                            : "Enter your question…"
               }
               value={q.prompt}
               onChange={(e) => onChange({ ...q, prompt: e.target.value })}
@@ -527,7 +573,7 @@ export function QuestionEditor({
               Timer
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
-              {[...(isImage || isAudio ? [15, 30, 45, 60] : [15, 30, 60])].map((sec) => {
+              {[...(isImage || isAudio || isRevealText ? [15, 30, 45, 60] : [15, 30, 60])].map((sec) => {
                 const on = q.timeLimitSec === sec;
                 return (
                   <button
@@ -662,6 +708,47 @@ export function QuestionEditor({
                             }
                       }
                       onClick={() => onChange({ ...q, startSpeed: opt.value })}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {isSilhouette && (
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                Starting shape
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                How long the photo stays a solid silhouette before the color
+                comes back.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[
+                  { label: "Soft", value: 6 },
+                  { label: "Heavy", value: 10 },
+                  { label: "Extreme", value: 16 },
+                ].map((opt) => {
+                  const on = q.startZoom === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className="rounded-full px-3 py-1.5 text-sm font-bold"
+                      style={
+                        on
+                          ? { background: "var(--amber)", color: "#1a1200" }
+                          : {
+                              background: "transparent",
+                              color: "var(--amber)",
+                              border:
+                                "1px solid color-mix(in srgb, var(--amber) 45%, var(--line))",
+                            }
+                      }
+                      onClick={() => onChange({ ...q, startZoom: opt.value })}
                     >
                       {opt.label}
                     </button>

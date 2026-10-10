@@ -17,6 +17,7 @@ export const bankQuestionSchema = questionSchema.omit({
   audioKey: true,
   startZoom: true,
   startSpeed: true,
+  revealText: true,
   roundTitle: true,
 });
 

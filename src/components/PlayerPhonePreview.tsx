@@ -3,7 +3,11 @@
 import { useEffect } from "react";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import type { GameType } from "@/lib/types";
-import { gameTypeUsesAudio, gameTypeUsesImage } from "@/lib/types";
+import {
+  gameTypeUsesAudio,
+  gameTypeUsesImage,
+  gameTypeUsesRevealText,
+} from "@/lib/types";
 import { questionBonusLabel, type QuestionBonus } from "@/lib/scoring";
 import { answerLetterInk } from "@/lib/answer-ink";
 
@@ -82,7 +86,7 @@ export function PlayerPhonePreview({
           <h3 className="display mt-6 text-center text-[1.45rem] leading-snug text-chalk">
             {prompt.trim() || "Question prompt"}
           </h3>
-          {gameTypeUsesImage(gameType) && (
+          {(gameTypeUsesImage(gameType) || gameTypeUsesRevealText(gameType)) && (
             <p className="mt-2 text-center text-sm text-muted">
               Watch the host screen
             </p>

@@ -6,13 +6,16 @@
 
 Live trivia for up to **200 players**. Build games ahead of time, open a host screen on a big display, and let people answer from their phones. Scores update live; correct + faster answers rank higher.
 
-Pick a **game type** when you create a night: classic multiple-choice **Trivia**, **Image Zoom** (a photo starts cropped in tight on the host screen and zooms out as the timer runs down), **Picture Finish** (a photo starts as a mosaic and sharpens), **Guess the Song** (a short clip starts sped up on the host speakers and eases to normal speed), or **Backwards Song** (a short clip plays backwards until the answer is revealed). A game is one type only — types are not mixed in a single night.
+Pick a **game type** when you create a night: classic multiple-choice **Trivia**, **Image Zoom**, **Picture Finish**, **Silhouette**, **Guess the Song**, **Backwards Song**, **Unscramble**, or **Finish the Line**. A game is one type only — types are not mixed in a single night.
 
 ## Features
 
-- **Admin** — create and edit games; choose **Trivia**, **Image Zoom**, **Picture Finish**, **Guess the Song**, or **Backwards Song**; 2–6 options (or True/False on trivia); per-question timers and scoring; optional late-join lock; optional named rounds (Movies, Science, Final). **Question banks** are reusable trivia pools (the bank name becomes the round). Search and sort the games list. **Preview as player** shows the phone layout (no photo, clip, or correct answer).
+- **Admin** — create and edit games; choose **Trivia**, **Image Zoom**, **Picture Finish**, **Silhouette**, **Guess the Song**, **Backwards Song**, **Unscramble**, or **Finish the Line**; 2–6 options (or True/False on trivia); per-question timers and scoring; optional late-join lock; optional named rounds (Movies, Science, Final). **Question banks** are reusable trivia pools (the bank name becomes the round). Search and sort the games list. **Preview as player** shows the phone layout (no photo, clip, or correct answer).
 - **Image Zoom** — upload a JPEG/PNG/WebP/GIF per round (5 MB max); starting crop Close / Tight / Extreme; photo plays on the **host** and **watch** TVs; phones show the prompt, timer, and answer buttons
 - **Picture Finish** — same photo upload as Image Zoom; the host/watch TVs start on a chunky mosaic (Soft / Heavy / Extreme) that eases to sharp on the same timer curve. Phones stay the answer pad.
+- **Silhouette** — same photo upload; the host/watch TVs start on a solid shape (Soft / Heavy / Extreme) that fills in with color. A plain background reads more clearly. Phones stay the answer pad.
+- **Unscramble** — type a phrase per question. It starts jumbled on the host screen and letters lock into place from the left as the timer runs. Phones stay the answer pad.
+- **Finish the Line** — type a lyric or quote. The first word shows on the host screen and the rest appear as the timer runs. Phones never receive the line.
 - **Guess the Song** — upload a short clip per round (MP3, M4A, WAV, OGG, or AAC, 10 MB max); starts fast and eases to normal speed; audio plays on the **host** TV/speakers (and a watch TV after the host starts); phones are the answer pad. Host taps Play to start the clip and the round clock.
 - **Backwards Song** — same clip upload as Guess the Song; the host/watch TVs play it reversed until reveal, then can replay it forwards. Phones stay the answer pad. Host taps Play to start the clip and the round clock.
 - **Host screen** — join code, QR → `/join?code=…`, typed join URL, second-TV watch URL, live lobby roster, question control, reveal, between-round standings pause, podium finish. Opening the host screen opens the lobby.
@@ -20,7 +23,7 @@ Pick a **game type** when you create a night: classic multiple-choice **Trivia**
 - **Player phones** — join with code + name (no accounts); remembered display name; reconnect after refresh; rank/points after each round. Names are filtered for the projector (letters/numbers/spaces; obvious slurs blocked). Hosts can **Remove** a player from the lobby or standings; that name cannot rejoin until **Play again**. Answer buttons are large-type with colorblind-safe A–F letter chips.
 - **Scoring** — server timestamps only (phones can’t fake speed); board updates on lock so mid-question standings don’t spoil answers. Optional **Allow changing answers**: the pick can change until lock; speed bonus is scored from the **last tap**. Per-question **Double points** (2×) or **Lightning** (correct/wrong, no speed bonus). A 3+ correct streak is called out on the boards. Tied first place shares the win (no extra tiebreaker question).
 - **Play again** — clear players/scores and kick-bans, keep questions, issue a new join code
-- **Export / import** — download a pack (JSON for Trivia; zip with media for Image Zoom, Picture Finish, Guess the Song, and Backwards Song). Import creates a new draft you own. Packs never include join codes, host tokens, players, or scores.
+- **Export / import** — download a pack (JSON for Trivia, Unscramble, and Finish the Line; zip with media for the photo and song types). Import creates a new draft you own. Packs never include join codes, host tokens, players, or scores.
 - **Duplicate / send a copy** — clone a night for yourself, or send a copy to another host on this instance (they get a new draft; you keep the original)
 - **Past winners** — hall of fame in admin (winner, podium, date/time) survives Play again. Each finished night also stores a **recap** (full standings + per-question answers) you can view or download as CSV after players are cleared.
 - Built for work, family, or group events on a small VPS or bare-metal box
@@ -86,10 +89,10 @@ Login is **email + password** (not a shared single password).
 
 ## How a game works
 
-1. Sign in at **`/admin`** with a host or super-admin account and create a game. Choose **Trivia**, **Image Zoom**, **Picture Finish**, **Guess the Song**, or **Backwards Song**, then add questions (or **Add from bank** on trivia). Mark the correct option with the radio next to each choice. Optionally set base points, speed bonus, a **Double points** or **Lightning** flag, timer, **Allow late joins**, **Allow changing answers**, and **round names** (leave blank to stay in the previous round). Use **Preview as player** to see the phone layout without revealing media or the answer. Banks live in **Admin → Banks**; first setup also creates a **Starter pack**.
+1. Sign in at **`/admin`** with a host or super-admin account and create a game. Choose a game type, then add questions (or **Add from bank** on trivia). Mark the correct option with the radio next to each choice. Optionally set base points, speed bonus, a **Double points** or **Lightning** flag, timer, **Allow late joins**, **Allow changing answers**, and **round names** (leave blank to stay in the previous round). Use **Preview as player** to see the phone layout without revealing media or the answer. Banks live in **Admin → Banks**; first setup also creates a **Starter pack**.
 2. Open **Host screen** (big display). The lobby opens when that page connects; you can also click **Open lobby** from the games list first. For a second display, open **Watch** (same join code, no host token).
 3. Players scan the **QR** (opens `/join` with the code filled in) or open the join URL shown on the host and enter the code, then pick a name.
-4. Host presses **Start question 1** → players answer against the countdown → auto-lock at 0 (or **Lock now**) → reveal correct answer + standings. On Image Zoom, the host and watch photos start zoomed in and open at a steady rate until lock/reveal. On Picture Finish, they start as a mosaic and sharpen on the same timer curve. On Guess the Song, the host taps **Play** so the clip starts fast on the room speakers and the round clock starts with it. On Backwards Song, **Play** starts the same clip reversed. A watch TV waits for that Play, then can listen locally without starting the clock.
+4. Host presses **Start question 1** → players answer against the countdown → auto-lock at 0 (or **Lock now**) → reveal correct answer + standings. On Image Zoom, the host and watch photos start zoomed in and open at a steady rate until lock/reveal. On Picture Finish, they start as a mosaic and sharpen on the same timer curve. On Guess the Song, the host taps **Play** so the clip starts fast on the room speakers and the round clock starts with it. On Backwards Song, **Play** starts the same clip reversed. A watch TV waits for that Play, then can listen locally without starting the clock. On Unscramble, letters lock in from the left. On Finish the Line, words appear in order. On Silhouette, a solid shape fills in with color.
 5. Host presses **Continue** → between-question standings pause → **Start question N** for the next prompt (not an immediate jump). If you named rounds, the last question of a round shows that round’s mini-podium before the next section.
 6. After the last question, the host shows a **top-3 podium** and final standings. Phones show place and score.
 7. **Play again** (admin or finished host screen) clears players/scores and any kick-bans, keeps questions, issues a **new join code**, and reopens the lobby. Phones are sent back to `/join`.
@@ -97,7 +100,7 @@ Login is **email + password** (not a shared single password).
 
 You can **Edit** a game in admin to fix questions or settings before answers exist (or after Play again). Mid-round edits are blocked.
 
-**Duplicate** makes a draft copy for you (new join code). **Send a copy** does the same for another host on this site. **Export** downloads a pack to move a night between machines or email it; **Import pack** on My games turns that file into a new draft. Image Zoom, Picture Finish, Guess the Song, and Backwards Song packs include the uploaded files — only export audio you have the right to share.
+**Duplicate** makes a draft copy for you (new join code). **Send a copy** does the same for another host on this site. **Export** downloads a pack to move a night between machines or email it; **Import pack** on My games turns that file into a new draft. Image Zoom, Picture Finish, Silhouette, Guess the Song, and Backwards Song packs include the uploaded files — only export audio you have the right to share.
 
 ### Join codes
 
@@ -126,6 +129,18 @@ Host uploads one image per question. During the round the host and watch display
 ### Picture Finish
 
 Same upload and crop as Image Zoom. The host and watch TVs start on a pixelated mosaic (Soft / Heavy / Extreme) that eases to sharp using the same timer curve as Image Zoom. Phones never see the photo. Scoring is unchanged.
+
+### Silhouette
+
+Same upload as Image Zoom. The host and watch TVs start on a solid dark shape and fill back in with color (Soft / Heavy / Extreme controls how long the shape holds). A subject on a plain background reads more clearly. Phones never see the photo.
+
+### Unscramble
+
+Host enters a phrase per question. During the round the host and watch screens show those letters scrambled, then lock them into place from the left as the timer runs. Spaces and punctuation stay put. Phones show the prompt and answer buttons only.
+
+### Finish the Line
+
+Host enters a lyric, quote, or sentence. The first word is visible when the question opens; the remaining words appear in order over the timer. Phones never receive the line.
 
 ### Guess the Song
 
@@ -212,6 +227,7 @@ npm run test:picture-finish # Picture Finish pixel/zoom curve
 npm run test:image-crop     # zoom crop geometry
 npm run test:audio-speed # unit checks for Guess the Song playback-rate curve
 npm run test:audio-reverse # unit checks for Backwards Song sample reversal
+npm run test:text-reveal    # Unscramble, Finish the Line, and Silhouette timing
 npm run test:display-name # unit checks for projector name filter
 npm run test:game-pack   # unit checks for export/import packs
 npm run test:rounds      # unit checks for named round grouping

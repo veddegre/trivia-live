@@ -40,6 +40,7 @@ const packQuestionSchema = z.object({
     .max(START_SPEED_MAX)
     .optional(),
   bonus: z.enum(["NONE", "DOUBLE", "LIGHTNING"]).optional().default("NONE"),
+  revealText: z.string().max(300).optional().default(""),
   media: z.string().min(1).max(80).optional(),
   roundTitle: z.string().max(40).optional().default(""),
 });
@@ -73,6 +74,7 @@ export type SourceGame = {
     startSpeed: number;
     imageKey: string | null;
     audioKey: string | null;
+    revealText: string;
     roundTitle: string;
     bonus: string;
   }[];
@@ -142,6 +144,7 @@ export function gameToPack(game: SourceGame): {
       timeBonus: q.timeBonus,
       startZoom: q.startZoom,
       startSpeed: q.startSpeed,
+      revealText: (q.revealText ?? "").trim(),
       roundTitle: q.roundTitle.trim(),
       bonus: isQuestionBonus(q.bonus) ? q.bonus : "NONE",
       ...(zipName ? { media: zipName } : {}),
@@ -224,6 +227,7 @@ export function questionsFromPack(
     timeBonus: q.timeBonus ?? SCORE_TIME_BONUS_DEFAULT,
     startZoom: q.startZoom ?? START_ZOOM_DEFAULT,
     startSpeed: q.startSpeed ?? START_SPEED_DEFAULT,
+    revealText: q.revealText ?? "",
     imageKey: gameTypeUsesImage(pack.gameType) ? mediaKeys[i] ?? null : null,
     audioKey: gameTypeUsesAudio(pack.gameType) ? mediaKeys[i] ?? null : null,
     roundTitle: q.roundTitle ?? "",
@@ -239,7 +243,7 @@ export async function buildExportBytes(game: SourceGame): Promise<{
   const { pack, files } = gameToPack(game);
   const json = JSON.stringify(pack, null, 2);
 
-  if (game.gameType === "TRIVIA" && files.length === 0) {
+  if (files.length === 0) {
     return {
       bytes: Buffer.from(json, "utf8"),
       filename: packFilename(game.title, "json"),

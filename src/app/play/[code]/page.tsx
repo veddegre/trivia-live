@@ -11,7 +11,11 @@ import { getSocket } from "@/lib/socket-client";
 import { joinWinnerNames, questionBonusLabel } from "@/lib/scoring";
 import { answerLetterInk } from "@/lib/answer-ink";
 import type { GamePublicState, PlayerView } from "@/lib/types";
-import { gameTypeUsesAudio, gameTypeUsesImage } from "@/lib/types";
+import {
+  gameTypeUsesAudio,
+  gameTypeUsesImage,
+  gameTypeUsesRevealText,
+} from "@/lib/types";
 import { assertDisplayName } from "@/lib/display-name";
 import { DISPLAY_NAME_KEY } from "@/lib/types";
 
@@ -523,7 +527,8 @@ function PlayInner({ code }: { code: string }) {
               <h2 className="display mt-6 text-center text-[1.65rem] leading-snug text-chalk md:text-2xl">
                 {state.question.prompt}
               </h2>
-              {gameTypeUsesImage(state.gameType) && (
+              {(gameTypeUsesImage(state.gameType) ||
+                gameTypeUsesRevealText(state.gameType)) && (
                 <p className="mt-2 text-center text-sm text-muted">
                   Watch the host screen
                 </p>

@@ -9,7 +9,10 @@ export type GameType =
   | "IMAGE_ZOOM"
   | "AUDIO_SPEED"
   | "PICTURE_FINISH"
-  | "AUDIO_REVERSE";
+  | "AUDIO_REVERSE"
+  | "UNSCRAMBLE"
+  | "FINISH_LINE"
+  | "SILHOUETTE";
 
 export type PublicQuestion = {
   id: string;
@@ -23,6 +26,7 @@ export type PublicQuestion = {
   startZoom?: number;
   audioUrl?: string | null;
   startSpeed?: number;
+  revealText?: string;
   bonus?: QuestionBonus;
 };
 
@@ -91,6 +95,9 @@ export const GAME_TYPE_LABEL: Record<GameType, string> = {
   AUDIO_SPEED: "Guess the Song",
   PICTURE_FINISH: "Picture Finish",
   AUDIO_REVERSE: "Backwards Song",
+  UNSCRAMBLE: "Unscramble",
+  FINISH_LINE: "Finish the Line",
+  SILHOUETTE: "Silhouette",
 };
 
 export function isGameType(value: unknown): value is GameType {
@@ -101,7 +108,15 @@ export function isGameType(value: unknown): value is GameType {
 }
 
 export function gameTypeUsesImage(type: GameType): boolean {
-  return type === "IMAGE_ZOOM" || type === "PICTURE_FINISH";
+  return (
+    type === "IMAGE_ZOOM" ||
+    type === "PICTURE_FINISH" ||
+    type === "SILHOUETTE"
+  );
+}
+
+export function gameTypeUsesRevealText(type: GameType): boolean {
+  return type === "UNSCRAMBLE" || type === "FINISH_LINE";
 }
 
 export function gameTypeUsesAudio(type: GameType): boolean {

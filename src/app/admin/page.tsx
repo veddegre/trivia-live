@@ -27,6 +27,7 @@ import {
   GAME_TYPE_LABEL,
   gameTypeUsesAudio,
   gameTypeUsesImage,
+  gameTypeUsesRevealText,
   isGameType,
   type GameType,
 } from "@/lib/types";
@@ -403,7 +404,9 @@ function AdminInner() {
           q.prompt.trim() !== "What is this?" &&
           q.prompt.trim() !== "Who is this?" &&
           q.prompt.trim() !== "Name that tune" &&
-          q.prompt.trim() !== "What's playing backwards?") ||
+          q.prompt.trim() !== "What's playing backwards?" &&
+          q.prompt.trim() !== "Unscramble this" &&
+          q.prompt.trim() !== "Name that line") ||
         q.imageKey ||
         q.audioKey ||
         q.options.some((o) => o.trim())
@@ -591,6 +594,7 @@ function AdminInner() {
             startZoom?: number;
             audioKey?: string | null;
             startSpeed?: number;
+            revealText?: string;
             roundTitle?: string;
             bonus?: "NONE" | "DOUBLE" | "LIGHTNING";
           }) => ({
@@ -604,6 +608,7 @@ function AdminInner() {
             startZoom: q.startZoom ?? 10,
             audioKey: q.audioKey ?? null,
             startSpeed: q.startSpeed ?? 2,
+            revealText: q.revealText ?? "",
             roundTitle: q.roundTitle ?? "",
             bonus: q.bonus === "DOUBLE" || q.bonus === "LIGHTNING" ? q.bonus : "NONE",
           })
@@ -1219,6 +1224,7 @@ function AdminInner() {
       if (!basics) return false;
       if (gameTypeUsesImage(gameType) && !q.imageKey) return false;
       if (gameTypeUsesAudio(gameType) && !q.audioKey) return false;
+      if (gameTypeUsesRevealText(gameType) && !q.revealText.trim()) return false;
       return true;
     });
   }, [title, questions, gameType]);
@@ -1459,7 +1465,13 @@ function AdminInner() {
                       ? "Upload short clips that start sped up and ease to normal as the timer runs"
                       : gameType === "AUDIO_REVERSE"
                         ? "Upload short clips that play backwards until the answer is revealed"
-                        : "Build your Trivia Live game"}
+                        : gameType === "UNSCRAMBLE"
+                          ? "A phrase starts scrambled on the host screen and locks into place as the timer runs"
+                          : gameType === "FINISH_LINE"
+                            ? "A lyric or quote appears word by word on the host screen"
+                            : gameType === "SILHOUETTE"
+                              ? "Upload photos that start as a solid shape and fill in with color"
+                              : "Build your Trivia Live game"}
               </p>
 
               <form onSubmit={saveGame} className="mt-8 space-y-5">
@@ -1507,6 +1519,21 @@ function AdminInner() {
                           id: "AUDIO_REVERSE" as const,
                           title: "Backwards Song",
                           blurb: "A clip plays backwards until you reveal the answer",
+                        },
+                        {
+                          id: "SILHOUETTE" as const,
+                          title: "Silhouette",
+                          blurb: "A photo starts as a solid shape, then fills in with color",
+                        },
+                        {
+                          id: "UNSCRAMBLE" as const,
+                          title: "Unscramble",
+                          blurb: "A phrase starts jumbled, then locks into place",
+                        },
+                        {
+                          id: "FINISH_LINE" as const,
+                          title: "Finish the Line",
+                          blurb: "A lyric or quote appears one word at a time",
                         },
                       ] as const
                     ).map((opt) => {

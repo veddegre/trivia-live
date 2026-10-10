@@ -32,6 +32,23 @@ export function pictureFinishPixelSize(opts: {
   return scale * 4;
 }
 
+/**
+ * 0 = solid silhouette, 1 = the full photo.
+ * Higher startZoom holds the shape longer (Soft 6, Heavy 10, Extreme 16).
+ */
+export function silhouetteReveal(opts: {
+  startZoom: number;
+  elapsedMs: number;
+  timeLimitSec: number;
+  revealed?: boolean;
+}): number {
+  if (opts.revealed) return 1;
+  const limitMs = Math.max(1, opts.timeLimitSec * 1000);
+  const t = Math.min(1, Math.max(0, opts.elapsedMs / limitMs));
+  const power = Math.max(1, opts.startZoom / 6);
+  return t ** power;
+}
+
 export function mediaPublicUrl(imageKey: string | null | undefined): string | null {
   if (!imageKey) return null;
   return `/api/media/${encodeURIComponent(imageKey)}`;

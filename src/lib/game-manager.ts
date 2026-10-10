@@ -27,7 +27,11 @@ import type {
   PlayerView,
   PublicQuestion,
 } from "@/lib/types";
-import { gameTypeUsesAudio, gameTypeUsesImage } from "@/lib/types";
+import {
+  gameTypeUsesAudio,
+  gameTypeUsesImage,
+  gameTypeUsesRevealText,
+} from "@/lib/types";
 
 type GameWithRelations = Game & {
   questions: Question[];
@@ -200,6 +204,9 @@ export async function buildPublicState(
         ? mediaPublicUrl(q.audioKey)
         : null,
       startSpeed: game.gameType === "AUDIO_SPEED" ? q.startSpeed : undefined,
+      revealText: gameTypeUsesRevealText(game.gameType)
+        ? q.revealText
+        : undefined,
       bonus: questionBonus(q) === "NONE" ? undefined : questionBonus(q),
       ...(reveal ? { correctIndex: q.correctIndex } : {}),
     };
@@ -299,7 +306,8 @@ export function withoutQuestionMedia(state: GamePublicState): GamePublicState {
     !state.question.imageUrl &&
     state.question.startZoom == null &&
     !state.question.audioUrl &&
-    state.question.startSpeed == null
+    state.question.startSpeed == null &&
+    !state.question.revealText
   ) {
     return state;
   }
@@ -311,6 +319,7 @@ export function withoutQuestionMedia(state: GamePublicState): GamePublicState {
       startZoom: undefined,
       audioUrl: null,
       startSpeed: undefined,
+      revealText: undefined,
     },
   };
 }
