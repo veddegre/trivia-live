@@ -10,22 +10,17 @@ Each question picks its own type: classic multiple-choice **Trivia**, **Image Zo
 
 ## Features
 
-- **Admin** — create and edit games; choose **Trivia**, **Image Zoom**, **Picture Finish**, **Silhouette**, **Guess the Song**, **Backwards Song**, **Unscramble**, or **Finish the Line**; 2–6 options (or True/False on trivia); per-question timers and scoring; optional late-join lock; optional named rounds (Movies, Science, Final). **Question banks** are reusable trivia pools (the bank name becomes the round). Search and sort the games list. **Preview as player** shows the phone layout (no photo, clip, or correct answer).
-- **Image Zoom** — upload a JPEG/PNG/WebP/GIF per round (5 MB max); starting crop Close / Tight / Extreme; photo plays on the **host** and **watch** TVs; phones show the prompt, timer, and answer buttons
-- **Picture Finish** — same photo upload as Image Zoom; the host/watch TVs start on a chunky mosaic (Soft / Heavy / Extreme) that eases to sharp on the same timer curve. Phones stay the answer pad.
-- **Silhouette** — same photo upload; the host/watch TVs start on a solid shape (Soft / Heavy / Extreme) that fills in with color. A plain background reads more clearly. Phones stay the answer pad.
-- **Unscramble** — type a phrase per question. It starts jumbled on the host screen and letters lock into place from the left as the timer runs. Phones stay the answer pad.
-- **Finish the Line** — type a lyric or quote. The first word shows on the host screen and the rest appear as the timer runs. Phones never receive the line.
-- **Guess the Song** — upload a short clip per round (MP3, M4A, WAV, OGG, or AAC, 10 MB max); starts fast and eases to normal speed; audio plays on the **host** TV/speakers (and a watch TV after the host starts); phones are the answer pad. Host taps Play to start the clip and the round clock.
-- **Backwards Song** — same clip upload as Guess the Song; the host/watch TVs play it reversed until reveal, then can replay it forwards. Phones stay the answer pad. Host taps Play to start the clip and the round clock.
-- **Host screen** — join code, QR → `/join?code=…`, typed join URL, second-TV watch URL, live lobby roster, reveal, between-round standings pause, podium finish. Opening the host screen opens the lobby. Start, Lock, Continue, Kick, Skip, Void, Pause, and Add 10 seconds live on **Controls** (`/remote/[code]`), meant for the host’s phone. Song rounds still use Play on the big screen so the room speakers can start.
-- **Spectator** — `/watch/[code]` is the same big-screen boards (including Image Zoom, Picture Finish, and song audio) with no Start / Lock / Kick / Play again. Anyone with the join code can open it; it never includes the host token and does not open the lobby.
-- **Player phones** — join with code + name (no accounts); remembered display name; reconnect after refresh; rank/points after each round. On a **team night**, players also enter a team name. Everyone on that team shares one answer and one score. Names are filtered for the projector (letters/numbers/spaces; obvious slurs blocked). Hosts can **Remove** a player from the lobby or standings; that name cannot rejoin until **Play again**. Answer buttons are large-type with colorblind-safe A–F letter chips.
-- **Scoring** — server timestamps only (phones can’t fake speed); board updates on lock so mid-question standings don’t spoil answers. A question can be a **typed answer**: players type it, small typos still count, and a leading The, A, or An is ignored. Extra lines are other accepted answers. The answer stays off the screens until reveal. Optional **Allow changing answers**: the pick can change until lock; speed bonus is scored from the **last tap**. Per-question **Double points** (2×) or **Lightning** (correct/wrong, no speed bonus). A 3+ correct streak is called out on the boards. Tied first place shares the win (no extra tiebreaker question).
-- **Play again** — clear players/scores and kick-bans, keep questions, issue a new join code
+- **Admin** — create and edit games. Each question has its own type, timer, and points. A night can mix types. Optional late-join lock, **Team night**, **Allow changing answers**, and named rounds (Movies, Science, Final). **Question banks** are reusable trivia pools (the bank name becomes the round). Search and sort the games list. **Preview as player** shows the phone layout without the photo, clip, puzzle text, or correct answer.
+- **Eight question types** — Trivia, Image Zoom, Picture Finish, Silhouette, Unscramble, Finish the Line, Guess the Song, and Backwards Song. Setup and what each screen shows are under [Question types](#question-types).
+- **Answer styles** — any question can instead be a typed answer, a closest number, or a wager. See [Answer styles](#answer-styles).
+- **Host screen** — join code, QR → `/join?code=…`, typed join URL, second-TV watch URL, live lobby roster, reveal, between-round standings, podium finish. Opening the host screen opens the lobby. Start, Lock, Continue, Remove, Skip, Void, Pause, and Add 10 seconds live on **Controls** (`/remote/[code]`), meant for the host’s phone. Song rounds still use Play on the big screen so the room speakers can start.
+- **Spectator** — `/watch/[code]` is the same big-screen board, including photos, puzzles, and song audio, with no Start, Lock, Remove, or Play again. Anyone with the join code can open it; it never includes the host token and does not open the lobby.
+- **Player phones** — join with code + name (no accounts); remembered display name; reconnect after refresh; rank and points after each round. On a team night, players also enter a team name. Names are filtered for the projector (letters, numbers, spaces, hyphen, apostrophe; obvious slurs blocked). Hosts can **Remove** a player; that name cannot rejoin until **Play again**. Answer buttons are large-type with colorblind-safe A–F letter chips.
+- **Scoring** — server timestamps only (phones can’t fake speed). The board updates on lock so mid-question standings don’t spoil answers. Optional **Double points** (2×) or **Lightning** (correct or wrong, no speed bonus). A streak of 3 or more correct answers is called out on the boards. Tied first place shares the win.
+- **Play again** — clear players, scores, and kick-bans, keep questions, issue a new join code
 - **Export / import** — download a pack (JSON for Trivia, Unscramble, and Finish the Line; zip with media for the photo and song types). Import creates a new draft you own. Packs never include join codes, host tokens, players, or scores.
 - **Duplicate / send a copy** — clone a night for yourself, or send a copy to another host on this instance (they get a new draft; you keep the original)
-- **Past winners** — hall of fame in admin (winner, podium, date/time) survives Play again. Each finished night also stores a **recap** (full standings + per-question answers) you can view or download as CSV after players are cleared.
+- **History** — **Past winners** keeps the winner, podium, and date after Play again. Each finished night also stores a **recap** (full standings and per-question answers) you can view or download as CSV. **Season** adds night scores across a date range.
 - Built for work, family, or group events on a small VPS or bare-metal box
 
 ## Stack
@@ -88,14 +83,14 @@ Login is **email + password** (not a shared single password).
 
 ## How a game works
 
-1. Sign in at **`/admin`** with a host or super-admin account and create a game. Each question has a type. Add questions (or **Add from bank** for trivia). Mark the correct option with the radio next to each choice. Optionally set base points, speed bonus, a **Double points** or **Lightning** flag, timer, **Allow late joins**, **Allow changing answers**, and **round names** (leave blank to stay in the previous round). Use **Preview as player** to see the phone layout without revealing media or the answer. Banks live in **Admin → Banks**; first setup also creates a **Starter pack**. **Export** downloads a JSON bank. **Import bank** accepts that JSON, or a CSV with a header row of `prompt`, `A`, `B`, `C`, `D`, and `correct` (a letter, the option text, or a 1-based number).
+1. Sign in at **`/admin`** with a host or super-admin account and create a game. On each question, pick a type, write the prompt, and mark the correct choice (or turn on [Typed answer](#typed-answer), [Closest number](#closest-number), or [Wager](#wager)). **Add from bank** inserts trivia questions. Optionally set base points, speed bonus, **Double points** or **Lightning**, the timer, **Allow late joins**, **Allow changing answers**, **Team night**, and **round names** (leave blank to stay in the previous round). Use **Preview as player** to see the phone layout without revealing media or the answer. Banks live in **Admin → Banks**; first setup also creates a **Starter pack**. **Export** downloads a JSON bank. **Import bank** accepts that JSON, or a CSV with a header row of `prompt`, `A`, `B`, `C`, `D`, and `correct` (a letter, the option text, or a 1-based number).
 2. Open **Host screen** (big display). The lobby opens when that page connects; you can also click **Open lobby** from the games list first. For a second display, open **Watch** (same join code, no host token).
 3. Players scan the **QR** (opens `/join` with the code filled in) or open the join URL shown on the host and enter the code, then pick a name.
-4. Host presses **Start question 1** → players answer against the countdown → auto-lock at 0 (or **Lock now**) → reveal the correct answer, how many players picked each option, and the standings. On Image Zoom, the host and watch photos start zoomed in and open at a steady rate until lock/reveal. On Picture Finish, they start as a mosaic and sharpen on the same timer curve. On Guess the Song, the host taps **Play** so the clip starts fast on the room speakers and the round clock starts with it. On Backwards Song, **Play** starts the same clip reversed. A watch TV waits for that Play, then can listen locally without starting the clock. On Unscramble, letters lock in from the left. On Finish the Line, words appear in order. On Silhouette, a solid shape fills in with color.
+4. Host presses **Start question 1** on the big screen or on Controls. Players answer against the countdown. The question auto-locks at 0, or the host presses **Lock now**. Reveal shows the correct answer, how many players picked each option, and the standings. What the room sees depends on the question type — photos, puzzles, and songs play on the host and watch screens; phones stay the answer pad. Song rounds wait until the host taps **Play** on the big screen, which starts both the clip and the clock. Pause, extra time, skip, and void are on [Host controls](#host-controls).
 5. Host presses **Continue** → between-question standings pause → **Start question N** for the next prompt (not an immediate jump). If you named rounds, the last question of a round shows that round’s mini-podium before the next section.
 6. After the last question, the host shows a **top-3 podium** and final standings. Phones show place and score.
 7. **Play again** (admin or finished host screen) clears players/scores and any kick-bans, keeps questions, issues a **new join code**, and reopens the lobby. Phones are sent back to `/join`.
-8. Finished nights appear under **Past winners** in admin (date/time, winner, podium, player count). Open **Recap** for full standings and per-question accuracy, or download a CSV. Recaps stay after Play again. **Season** adds those night scores together for a date range. The same name, ignoring caps and spacing, is one player. Team nights count the team name. Dates are UTC.
+8. Finished nights appear under **Admin → History → Past winners** (date/time, winner, podium, player count). Open **Recap** for full standings and per-question accuracy, or download a CSV. Recaps stay after Play again. **History → Season** adds those night scores together for a date range you name. The same name, ignoring caps and extra spaces, is one player. A missed night adds nothing. Wins are nights where that name tied for first. Team nights count the team name. Dates are the UTC calendar day of the finish, so a late evening in the US can land on the next day. Deleting a season does not delete the nights.
 
 You can **Edit** a game in admin to fix questions or settings before answers exist (or after Play again). Mid-round edits are blocked.
 
@@ -113,65 +108,111 @@ By default players can join during the lobby **or** mid-game. Uncheck **Allow la
 
 Off by default. Turn on **Allow changing answers** so players can switch their pick until the question locks. Speed bonus uses the **last tap** — changing at the last second scores like a last-second answer, so you cannot bank a fast time and then swap in the correct pick.
 
-### Kick-ban
+### Remove
 
-**Remove** on the host screen deletes the player and blocks that display name for the rest of the night (case-insensitive). They can pick a different name. **Play again** clears the block list with the new join code.
+**Remove** on Controls deletes that player and blocks the display name for the rest of the night (case-insensitive). They can pick a different name. **Play again** clears the block list with the new join code.
 
 ### Named rounds
 
 Optional. On each question, set a **round name** (Movies, Science, Final). Leave it blank to stay in the previous round. The host lobby lists the sections; phones and the TV show the current round. After the last question of a named round (when more questions remain), BETWEEN shows that round’s mini-podium. Unnamed games behave as before.
 
-### Image Zoom
+### Team night
 
-Host uploads one image per question. During the round the host and watch displays show the photo (players do not). It starts tightly cropped and zooms out until time is up or the host locks. Scoring is the same as trivia: correct + faster is better.
+Off by default. Turn on **Team night** on the game. Joining then asks for a team name as well as a player name. The team shares one answer and one score: the first teammate to answer locks it in, unless **Allow changing answers** is on. The leaderboard is teams. The roster is still people. **Remove** drops that person; a teammate who is still in keeps the team’s answers. Season standings use the team name.
 
-### Picture Finish
+### Question types
 
-Same upload and crop as Image Zoom. The host and watch TVs start on a pixelated mosaic (Soft / Heavy / Extreme) that eases to sharp using the same timer curve as Image Zoom. Phones never see the photo. Scoring is unchanged.
+Each question has a type. The host and watch screens play that type. Phones are the answer pad and do not receive the photo, the audio file, or the puzzle text. Scoring is the usual correct-and-faster formula unless the question is a [wager](#wager) or a [closest number](#closest-number).
 
-### Silhouette
+#### Trivia
 
-Same upload as Image Zoom. The host and watch TVs start on a solid dark shape and fill back in with color (Soft / Heavy / Extreme controls how long the shape holds). A subject on a plain background reads more clearly. Phones never see the photo.
+The default. Write a prompt and 2–6 choices, or use **True / False**. Mark the correct choice with the radio button. The prompt and the choices show on the host, the watch screen, and the phones. Players tap a letter. A correct answer scores base points plus a speed bonus; a wrong answer scores 0.
 
-### Unscramble
+#### Image Zoom
 
-Host enters a phrase per question. During the round the host and watch screens show those letters scrambled, then lock them into place from the left as the timer runs. Spaces and punctuation stay put. A watch screen receives only the letters currently showing, not the solved phrase. Phones show the prompt and answer buttons only.
+Upload one JPEG, PNG, WebP, or GIF (5 MB max). Crop it square with the subject in the center. **Starting crop** is Close, Tight, or Extreme: how far in the photo starts. During the question the host and watch screens zoom out until the timer ends or the host locks. Phones show the prompt, the timer, and the answer buttons. They never get the image.
 
-### Finish the Line
+#### Picture Finish
 
-Host enters a lyric, quote, or sentence. The first word is visible when the question opens; the remaining words appear in order over the timer. Phones never receive the line. A watch screen receives only the words that have appeared so far, until the reveal.
+Same upload and square crop as Image Zoom. **Starting mosaic** is Soft, Heavy, or Extreme: how chunky the photo is when the timer starts. The host and watch screens ease from that mosaic to a sharp photo over the question timer. Phones never see the photo.
 
-### Guess the Song
+#### Silhouette
 
-Host uploads a short snippet per question (chop it first — about 12–20 seconds). Audio plays on the host system, not on player phones. A second watch TV can play the clip locally after the host taps **Play** — that does not start (or restart) the round clock. The clip starts sped up and eases toward normal speed over the timer. The round clock starts when the host taps **Play** (so autoplay restrictions don’t fire before the room is ready).
+Same upload as Image Zoom. A subject on a plain background reads more clearly. **Starting shape** is Soft, Heavy, or Extreme: how long the photo stays a solid shape before the color comes back. The host and watch screens play that fill-in. Phones never see the photo.
 
-### Backwards Song
+#### Unscramble
 
-Same upload as Guess the Song. The host taps **Play** and the clip loops fully reversed on the room speakers; the round clock starts with that tap. A watch TV can play the reversed clip locally after that, without starting the clock. On reveal, **Replay forwards** plays the original direction once. Phones never receive the audio file.
+Type the phrase to unscramble. During the question the host screen shows those letters jumbled, then locks them into place from the left as the timer runs. Spaces and punctuation stay put. A watch screen receives only the letters currently showing, and the solved phrase only at reveal. Phones show the prompt and the answer buttons, not the phrase.
+
+#### Finish the Line
+
+Type a lyric, quote, or sentence. The first word is on the host screen when the question opens. The remaining words appear in order over the timer. A watch screen receives only the words that have appeared so far, until the reveal. Phones never receive the line.
+
+#### Guess the Song
+
+Upload one short clip per question. Chop it first, about 12–20 seconds. Accepted files are MP3, M4A, WAV, OGG, or AAC, up to 10 MB. **Starting speed** is Easy 1.5×, Fast 2×, or Extreme 2.5×. The clip starts at that speed and eases to normal over the question timer.
+
+The host taps **Play snippet** on the big screen. That starts the clip on the room speakers and starts the round clock, so the browser’s autoplay rules don’t fire before the room is ready. A watch TV can then play the clip locally. That listen does not start or restart the clock. Phones never receive the audio file. Pause and Add 10 seconds are available only after Play has started the clock.
+
+#### Backwards Song
+
+Same upload as Guess the Song. The host taps **Play** and the clip loops fully reversed on the room speakers. The round clock starts with that tap. A watch TV can play the reversed clip locally after that, without starting the clock. On the results screen, **Replay forwards** plays the original direction once. Phones never receive the audio file.
 
 **Only use audio you have the right to host.** A short clip is not automatically fair use, and a venue’s ASCAP/BMI/SESAC license covers playing music in the room — not copying files into this app. Use clips you created, recordings in the public domain, Creative Commons (or similar) licenses that allow this use, or a library whose license covers hosting and playback at your event. Do not upload commercial tracks from Spotify, YouTube, or a ripped CD unless you have a separate license that allows it.
 
-Uploads (images and audio) are stored on disk (`UPLOAD_DIR`, default `data/uploads` locally or `/app/data/uploads` in Docker). Deleting a game (or replacing a saved file) removes the files that belonged to it.
+Uploads (images and audio) are stored on disk (`UPLOAD_DIR`, default `data/uploads` locally or `/app/data/uploads` in Docker). Deleting a game, or replacing a saved file, removes the files that belonged to it.
+
+### Answer styles
+
+These are checkboxes on a question, not separate types. They change how phones answer. The question’s type still controls the host screen. **Closest number** cannot be combined with **Typed answer** or **Wager**. Typed and wager can be used together.
+
+#### Typed answer
+
+Turn on **Typed answer**. The lines you enter are the accepted answers, up to six. The line marked with the radio is the one shown at reveal. Extra lines are other answers that also count, and they stay hidden.
+
+Players type on the phone. The accepted text is not on the host, the watch screen, or the phones until reveal. Matching ignores capitals, accents, punctuation, and a leading The, A, or An. `&` counts as “and”. The typo allowance uses the longer of the guess and the accepted answer: none at 3 characters or fewer, one character up to 6, and two after that.
+
+#### Closest number
+
+Turn on **Closest number**. The choices are replaced by one **Correct number**. Players type a number on the phone. The target stays off every screen until reveal. Words are rejected; only a number is stored.
+
+Points are decided when the question locks, because the winner is not known until every guess is in. The closest guess or guesses win, and a tie means every one of those guesses wins. Winners get the normal correct-answer score, including the speed bonus from when they submitted. Everyone else scores 0. A non-number is not a guess.
+
+#### Wager
+
+Turn on **Wager**. Players pick an answer and bet a whole number of points, from 0 up to the score they have right now. A right answer adds the bet. A wrong answer subtracts it. There is no speed bonus. On the first question everyone has 0, so the only legal bet is 0.
+
+At reveal, a multiple-choice wager still shows the choices. A typed wager asks the phone for both the text and the bet.
+
+### Host controls
+
+Controls live on the host’s phone at `/remote/[code]`. The token is stored in the browser and removed from the address bar. Song **Play** stays on the big screen.
+
+- **Pause / Resume** — freezes the countdown. Answers are rejected while paused. The photo, puzzle, or song freezes with the clock and continues from that frame on resume. On a song, the clock has to be started with Play before pause is available.
+- **Add 10 seconds** — adds 10 seconds to the deadline, up to 120 extra seconds, whether or not the question is paused. Scoring uses the longer limit. The zoom, mosaic, silhouette, song-speed ease, and puzzle reveal still follow the original timer. Extra time does not stretch those animations.
+- **Skip question** — nobody keeps points for it, and the night moves on.
+- **Void · zero points** — scores already given for this question drop to 0.
+- **Void · credit everyone** — each player (or each team, on a team night) is marked correct at base points, with no speed bonus. On a wager, the credit is the bet they already placed, or 0 if they had not bet.
 
 ### Spectator / second TV
 
-`/watch/[code]` is a read-only host board for a second display. It uses the public join code (shown on the host lobby as **Second TV**, and as **Watch** in admin). It never receives `hostToken`, cannot Start / Lock / Kick / End / Play again, and does not open a draft lobby. During Unscramble and Finish the Line it receives the text that is on screen at that moment, and the solved line only when the question is revealed. After **Play again**, watch screens follow the new code.
+`/watch/[code]` is a read-only host board for a second display. It uses the public join code (shown on the host lobby as **Second TV**, and as **Watch** in admin). It never receives `hostToken`, cannot Start, Lock, Remove, End, or Play again, and does not open a draft lobby. During Unscramble and Finish the Line it receives the text that is on screen at that moment, and the solved line only when the question is revealed. After **Play again**, watch screens follow the new code.
 
 ### Routes
 
 | Path | Who | Purpose |
 |------|-----|---------|
 | `/` | Anyone | Landing |
-| `/admin` | Host / super-admin | Build/edit games, import/export packs, past winners; super-admin also manages hosts |
+| `/admin` | Host / super-admin | Build and edit games, banks, pack import/export, past winners, seasons; super-admin also manages hosts |
 | `/host/[code]?token=…` | Host display | Live board for the room. Song rounds still start with Play on this screen |
-| `/remote/[code]?token=…` | Host phone | Start, Lock, Continue, Kick, Skip, Void, Pause, and Add 10 seconds. The token is stored and removed from the address bar |
+| `/remote/[code]?token=…` | Host phone | Start, Lock, Continue, Remove, Skip, Void, Pause, and Add 10 seconds. The token is stored and removed from the address bar |
 | `/watch/[code]` | Spectator TV | Same live board and media, no controls |
 | `/join` | Players | Enter code + name (`?code=` prefill from QR) |
 | `/play/[code]` | Players | Answer questions |
 
 ## Scoring
 
-Only correct answers score. Faster is better:
+On a normal question, only a correct answer scores, and a faster one scores higher:
 
 ```text
 points = base + timeBonus × (1 − elapsed / timeLimit)
@@ -184,7 +225,9 @@ Per-question flags in the builder:
 - **Double points** — the usual formula, then ×2.
 - **Lightning** — time bonus is ignored; a correct answer scores base points only.
 
-Elapsed time is measured on the **server** from question open to the answer that counts. Per-question base/bonus can be set in the admin builder. If **Allow changing answers** is on, players may switch their pick until the clock hits zero; speed bonus is recalculated from that later tap (a last-second change does not keep an early speed bonus).
+Elapsed time is measured on the **server** from question open (or from **Play**, on a song) to the answer that counts. Per-question base and bonus can be set in the admin builder. If **Allow changing answers** is on, players may switch their pick until the clock hits zero; speed bonus is recalculated from that later tap (a last-second change does not keep an early speed bonus).
+
+A [closest number](#closest-number) uses this formula only for the winning guess or guesses, and only once the question locks. A [wager](#wager) ignores it: the points are the bet, added or subtracted. A [typed answer](#typed-answer) uses the formula when the text matches an accepted line.
 
 After reveal, between questions, and at the finish, the boards call out the longest current streak of **3 or more** correct answers. If two or more players share the top score at the end, they are co-winners (the recap lists them as `Ada & Ben`). There is no extra sudden-death question.
 
@@ -210,6 +253,7 @@ Copy from `.env.example`:
 | `NEXT_PUBLIC_SOCKET_URL` | Leave empty when UI and sockets share the same origin | _(empty)_ |
 | `NEXT_PUBLIC_PUBLIC_URL` | Public HTTPS origin for host QR / join URLs | _(browser origin)_ |
 | `UPLOAD_DIR` | Directory for photo and song uploads | `data/uploads` (Compose: `/app/data/uploads`) |
+| `BACKUP_DIR` | Host folder for `scripts/backup.sh` | `./backups` |
 
 ## Scripts
 
@@ -235,6 +279,7 @@ npm run test:night-recap # unit checks for finish-time recap + CSV
 npm run test:bans        # banned display-name matching
 npm run smoke        # live join + answer burst (app must be running; not part of test:unit)
 npm run live         # live play of every question type (app must be running)
+npm run test:score-race # 200-answer lock race (needs DATABASE_URL; writes throwaway games, then deletes them)
 ```
 
 Smoke test options (set real admin creds against production):
@@ -264,7 +309,7 @@ src/app/          Next.js pages (admin, host, play, join) + API routes
 src/components/   Logo, QR, countdown, question editor, zoom image, sped-up and reversed audio
 src/lib/          DB, scoring, game manager, auth helpers, media uploads
 prisma/           Schema + migrations
-scripts/          Smoke test + scoring/zoom/audio tests + admin bootstrap
+scripts/          Live suite, smoke test, unit tests, backup, admin bootstrap
 docker-compose.yml
 Dockerfile
 ```
