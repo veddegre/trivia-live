@@ -262,6 +262,35 @@ function HostQuestionImage({
   );
 }
 
+function ControlsLink({
+  code,
+  token,
+  prominent = false,
+}: {
+  code: string;
+  token: string;
+  prominent?: boolean;
+}) {
+  if (!token) return null;
+  return (
+    <a
+      href={`/remote/${encodeURIComponent(code)}?token=${encodeURIComponent(token)}`}
+      target="_blank"
+      rel="noreferrer"
+      className={
+        prominent
+          ? "rounded-2xl px-6 py-3 text-sm font-extrabold uppercase tracking-[0.14em]"
+          : "text-xs font-bold uppercase tracking-[0.16em] text-muted hover:text-amber"
+      }
+      style={
+        prominent ? { background: "var(--amber)", color: "#1a1200" } : undefined
+      }
+    >
+      Open controls
+    </a>
+  );
+}
+
 export function HostScreen({
   code,
   variant,
@@ -420,28 +449,6 @@ export function HostScreen({
     return Math.round((100 * n) / state.playerCount);
   }, [state]);
 
-  function emit(event: string) {
-    const socket = getSocket();
-    socket.emit(event, (res: { ok?: boolean; message?: string }) => {
-      if (res && res.ok === false) setError(res.message || "Action failed");
-    });
-  }
-
-  function kickPlayer(row: LeaderboardEntry) {
-    if (!confirm(
-      `Remove “${row.name}” from the game?\n\nThey won’t be able to rejoin with that name until Play again.`
-    ))
-      return;
-    const socket = getSocket();
-    socket.emit(
-      "host:kick",
-      { playerId: row.playerId },
-      (res: { ok?: boolean; message?: string }) => {
-        if (res && res.ok === false) setError(res.message || "Could not remove player");
-      }
-    );
-  }
-
   function startClock(): Promise<void> {
     const socket = getSocket();
     return new Promise((resolve, reject) => {
@@ -472,36 +479,6 @@ export function HostScreen({
         }
       );
     });
-  }
-
-  function playAgain() {
-    if (
-      !confirm(
-        "Play again? This clears players and scores, keeps the questions, and issues a new join code."
-      )
-    ) {
-      return;
-    }
-    const socket = getSocket();
-    socket.emit(
-      "host:reset",
-      (res: {
-        ok?: boolean;
-        message?: string;
-        code?: string;
-        hostToken?: string;
-      }) => {
-        if (res && res.ok === false) {
-          setError(res.message || "Reset failed");
-          return;
-        }
-        if (res?.code && res.hostToken) {
-          clearHostToken(code);
-          storeHostToken(res.code, res.hostToken);
-          router.replace(`/host/${encodeURIComponent(res.code)}`);
-        }
-      }
-    );
   }
 
   if (!state) {
@@ -667,12 +644,7 @@ export function HostScreen({
 
           {isHost && (
             <div className="flex shrink-0 justify-center py-3 md:py-4">
-              <button
-                className="btn btn-ghost uppercase tracking-wide"
-                onClick={() => emit("host:lock")}
-              >
-                Lock now
-              </button>
+              <ControlsLink code={liveCode} token={hostToken} />
             </div>
           )}
         </main>
@@ -814,7 +786,7 @@ export function HostScreen({
                 rows={top}
                 showDeltas
                 title="In the lead"
-                onRemove={isHost ? kickPlayer : undefined}
+                onRemove={undefined}
               />
               <p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-amber">
                 Points earned this round
@@ -825,14 +797,7 @@ export function HostScreen({
 
           {isHost && (
             <div className="flex shrink-0 justify-center py-4">
-              <button
-                className="btn border-2 border-amber bg-transparent px-14 text-base uppercase tracking-[0.16em] text-amber hover:bg-amber/10"
-                onClick={() => emit("host:next")}
-              >
-                {state.questionIndex + 1 >= state.questionTotal
-                  ? "Show winner"
-                  : "Continue"}
-              </button>
+              <ControlsLink code={liveCode} token={hostToken} />
             </div>
           )}
         </main>
@@ -917,15 +882,9 @@ export function HostScreen({
               <HotStreakNote streak={state.hotStreak} className="mt-6" />
 
               {isHost && (
-                <button
-                  className="btn btn-primary anim-glow mt-10 px-10 text-base uppercase tracking-wide"
-                  onClick={() => emit("host:openQuestion")}
-                >
-                  ▶{" "}
-                  {state.round?.questionInRound === 0
-                    ? `Start ${state.round.title}`
-                    : `Start question ${state.questionIndex + 1}`}
-                </button>
+                <div className="mt-10">
+                  <ControlsLink code={liveCode} token={hostToken} />
+                </div>
               )}
             </section>
 
@@ -935,7 +894,7 @@ export function HostScreen({
                   <StandingsList
                     rows={roundTop}
                     title={`${state.endedRound.title} leaders`}
-                    onRemove={isHost ? kickPlayer : undefined}
+                    onRemove={undefined}
                   />
                   <p className="mt-6 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-muted">
                     Points from this round only
@@ -946,7 +905,7 @@ export function HostScreen({
                   <StandingsList
                     rows={top}
                     title="Leaderboard"
-                    onRemove={isHost ? kickPlayer : undefined}
+                    onRemove={undefined}
                   />
                   <p className="mt-6 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-muted">
                     Points update after each question
@@ -1010,12 +969,7 @@ export function HostScreen({
 
             {isHost && (
               <div className="mt-8 flex flex-col items-center gap-3 pb-4">
-                <button
-                  className="btn btn-primary px-10 text-base uppercase tracking-wide"
-                  onClick={playAgain}
-                >
-                  ▶ Play again
-                </button>
+                <ControlsLink code={liveCode} token={hostToken} prominent />
                 <Link
                   href="/admin?tab=games"
                   className="text-sm font-semibold uppercase tracking-[0.14em] text-muted transition hover:text-chalk"
@@ -1033,7 +987,6 @@ export function HostScreen({
   // ── LOBBY / DRAFT (big-screen layout) ──
   const amber = "var(--amber)";
   const line = "var(--line)";
-  const nextQ = Math.max(1, (state.questionIndex ?? 0) + 1);
 
   return (
     <BrandProvider brand={brand}>
@@ -1090,13 +1043,7 @@ export function HostScreen({
 
             {isHost && state.status === "DRAFT" && (
               <div className="mt-6 flex justify-center">
-                <button
-                  className="rounded-2xl px-7 py-3.5 text-sm font-extrabold uppercase tracking-[0.14em]"
-                  style={{ background: amber, color: "#1a1200" }}
-                  onClick={() => emit("host:start")}
-                >
-                  Open lobby
-                </button>
+                <ControlsLink code={liveCode} token={hostToken} />
               </div>
             )}
 
@@ -1260,47 +1207,14 @@ export function HostScreen({
                     <span className="min-w-0 flex-1 truncate text-base font-semibold text-chalk">
                       {row.name}
                     </span>
-                    {isHost && (
-                      <button
-                        type="button"
-                        className="shrink-0 text-xs font-semibold text-muted hover:text-bad"
-                        onClick={() => kickPlayer(row)}
-                      >
-                        Remove
-                      </button>
-                    )}
                   </li>
                 ))}
               </ul>
             </div>
 
             {isHost ? (
-              <div className="mt-auto flex flex-col gap-3.5 pt-8">
-                <button
-                  className="condensed flex w-full items-center justify-center gap-2.5 rounded-2xl py-[1.05rem] text-[15px] font-bold uppercase tracking-[0.14em] disabled:opacity-40"
-                  style={{ background: amber, color: "#1a1200" }}
-                  onClick={() => emit("host:openQuestion")}
-                  disabled={state.status === "DRAFT"}
-                >
-                  <span aria-hidden className="text-base leading-none">
-                    ▶
-                  </span>
-                  Start question {nextQ}
-                </button>
-                <button
-                  className="condensed flex w-full items-center justify-center gap-2.5 rounded-2xl border-[1.5px] py-[1.05rem] text-[15px] font-bold uppercase tracking-[0.14em]"
-                  style={{
-                    borderColor: amber,
-                    color: amber,
-                    background: "transparent",
-                  }}
-                  onClick={() => emit("host:finish")}
-                >
-                  <span aria-hidden className="text-sm leading-none">
-                    ■
-                  </span>
-                  End game
-                </button>
+              <div className="mt-auto flex flex-col items-start gap-2 pt-8">
+                <ControlsLink code={liveCode} token={hostToken} prominent />
               </div>
             ) : (
               <p className="mt-auto pt-8 text-xs font-bold uppercase tracking-[0.16em] text-muted">

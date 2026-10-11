@@ -705,6 +705,87 @@ export async function lockQuestion(code: string): Promise<{ locked: boolean }> {
 }
 
 /**
+ * Replace this question's points, then rebuild totals from the sum.
+ * Zero drops the round. Credit gives every player a correct answer at base points.
+ */
+export async function voidQuestion(code: string, mode: "zero" | "credit") {
+  const game = await loadGame(code);
+  if (!game) throw new Error("Game not found");
+  const q = game.questions[game.currentQuestionIndex];
+  if (!q) throw new Error("No active question");
+  if (game.status !== "QUESTION" && game.status !== "REVEAL") {
+    throw new Error("No question to void");
+  }
+  clearQuestionTimer(game.code);
+
+  const credited = scoreAnswer({
+    isCorrect: true,
+    elapsedMs: q.timeLimitSec * 1000,
+    timeLimitSec: q.timeLimitSec,
+    basePoints: q.basePoints,
+    timeBonus: q.timeBonus,
+    bonus: questionBonus(q),
+  });
+
+  await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<Array<{ status: string }>>`
+      SELECT CAST(status AS text) AS status
+      FROM "Game"
+      WHERE id = ${game.id}
+      FOR UPDATE
+    `;
+    const status = rows[0]?.status;
+    if (status !== "QUESTION" && status !== "REVEAL") {
+      throw new Error("No question to void");
+    }
+    if (status === "QUESTION") {
+      await tx.game.update({
+        where: { id: game.id },
+        data: { status: "REVEAL" },
+      });
+    }
+    if (mode === "zero") {
+      await tx.answer.updateMany({
+        where: { questionId: q.id },
+        data: { points: 0, isCorrect: false },
+      });
+    } else {
+      const players = await tx.player.findMany({
+        where: { gameId: game.id },
+        select: { id: true },
+      });
+      for (const player of players) {
+        await tx.answer.upsert({
+          where: {
+            playerId_questionId: { playerId: player.id, questionId: q.id },
+          },
+          create: {
+            playerId: player.id,
+            questionId: q.id,
+            choiceIndex: q.correctIndex,
+            answeredAt: new Date(),
+            isCorrect: true,
+            points: credited,
+          },
+          update: {
+            choiceIndex: q.correctIndex,
+            isCorrect: true,
+            points: credited,
+          },
+        });
+      }
+    }
+    await recomputeTotals(tx, game.id);
+  }, { maxWait: 30_000, timeout: 30_000 });
+}
+
+/** Drop this question's points and move on. */
+export async function skipQuestion(code: string) {
+  await voidQuestion(code, "zero");
+  return nextQuestion(code);
+}
+
+/**
  * Snapshot the podium when a night ends. Survives Play again (players are wiped).
  * Idempotent per gameId + join code so double-finish doesn’t duplicate.
  */

@@ -20,7 +20,9 @@ import {
   scheduleQuestionAutoLockMs,
   shouldThrottleBroadcast,
   startQuestionClock,
+  skipQuestion,
   submitAnswer,
+  voidQuestion,
   withoutQuestionMedia,
 } from "@/lib/game-manager";
 import { assertDisplayName } from "@/lib/display-name";
@@ -558,6 +560,37 @@ export function createSocketServer(httpServer: HttpServer) {
         if (data.role !== "host" || !data.code) throw new Error("Not authorized");
         const result = await nextQuestion(data.code);
         clearQuestionTimer(data.code);
+        await broadcastState(io, data.code, true);
+        ack?.({ ok: true, ...result });
+        void refreshPlayers(io, data.code);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Failed";
+        ack?.({ ok: false, message });
+        socket.emit("error", { message });
+      }
+    });
+
+    socket.on("host:void", async (payload: { mode?: "zero" | "credit" } | undefined, ack?: (r: unknown) => void) => {
+      try {
+        if (data.role !== "host" || !data.code) throw new Error("Not authorized");
+        const mode = payload?.mode === "credit" ? "credit" : "zero";
+        clearQuestionTimer(data.code);
+        await voidQuestion(data.code, mode);
+        await broadcastState(io, data.code, true);
+        ack?.({ ok: true });
+        void refreshPlayers(io, data.code);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Failed";
+        ack?.({ ok: false, message });
+        socket.emit("error", { message });
+      }
+    });
+
+    socket.on("host:skip", async (ack?: (r: unknown) => void) => {
+      try {
+        if (data.role !== "host" || !data.code) throw new Error("Not authorized");
+        clearQuestionTimer(data.code);
+        const result = await skipQuestion(data.code);
         await broadcastState(io, data.code, true);
         ack?.({ ok: true, ...result });
         void refreshPlayers(io, data.code);

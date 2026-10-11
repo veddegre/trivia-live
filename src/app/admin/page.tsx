@@ -1858,6 +1858,13 @@ function AdminInner() {
                         </Link>
                         <Link
                           className="btn btn-ghost"
+                          href={`/remote/${g.code}?token=${encodeURIComponent(g.hostToken)}`}
+                          target="_blank"
+                        >
+                          Controls
+                        </Link>
+                        <Link
+                          className="btn btn-ghost"
                           href={`/watch/${g.code}`}
                           target="_blank"
                         >
