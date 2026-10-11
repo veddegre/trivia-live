@@ -13,6 +13,7 @@ import {
   gameTypeUsesAudio,
   gameTypeUsesImage,
   gameTypeUsesRevealText,
+  questionTypeOf,
   type GameType,
 } from "@/lib/types";
 import { isQuestionBonus } from "@/lib/scoring";
@@ -29,6 +30,7 @@ export const gameTypeSchema = z.enum([
 ]);
 
 export const questionSchema = z.object({
+  gameType: gameTypeSchema.optional(),
   prompt: z.string().min(1).max(500),
   options: z.array(z.string().min(1).max(200)).min(1).max(6),
   typed: z.boolean().optional().default(false),
@@ -84,31 +86,24 @@ export function assertQuestionsForGameType(
     }
   }
 
-  if (gameTypeUsesImage(gameType)) {
-    for (const q of questions) {
-      if (!q.imageKey) {
-        return "Each photo question needs an uploaded image";
-      }
+  for (const q of questions) {
+    const type = questionTypeOf(q, gameType);
+    if (gameTypeUsesImage(type)) {
+      if (!q.imageKey) return "Each photo question needs an uploaded image";
       if (!mediaFileExists(q.imageKey)) {
         return "An image is missing — re-upload it and try again";
       }
     }
-  }
-
-  if (gameTypeUsesRevealText(gameType)) {
-    for (const q of questions) {
+    if (gameTypeUsesRevealText(type)) {
       if (!q.revealText?.trim()) {
-        return gameType === "UNSCRAMBLE"
+        return type === "UNSCRAMBLE"
           ? "Each Unscramble question needs a phrase"
           : "Each Finish the Line question needs a line";
       }
     }
-  }
-
-  if (gameTypeUsesAudio(gameType)) {
-    for (const q of questions) {
+    if (gameTypeUsesAudio(type)) {
       if (!q.audioKey) {
-        return gameType === "AUDIO_REVERSE"
+        return type === "AUDIO_REVERSE"
           ? "Each Backwards Song question needs an uploaded audio clip"
           : "Each Guess the Song question needs an uploaded audio clip";
       }
@@ -125,8 +120,10 @@ export function questionCreateData(
   order: number,
   gameType: GameType
 ) {
+  const type = questionTypeOf(q, gameType);
   return {
     order,
+    gameType: type,
     prompt: q.prompt,
     options: q.options,
     correctIndex: q.correctIndex,
@@ -134,11 +131,11 @@ export function questionCreateData(
     timeLimitSec: q.timeLimitSec,
     basePoints: q.basePoints,
     timeBonus: q.timeBonus,
-    imageKey: gameTypeUsesImage(gameType) ? q.imageKey || null : null,
+    imageKey: gameTypeUsesImage(type) ? q.imageKey || null : null,
     startZoom: q.startZoom ?? START_ZOOM_DEFAULT,
-    audioKey: gameTypeUsesAudio(gameType) ? q.audioKey || null : null,
+    audioKey: gameTypeUsesAudio(type) ? q.audioKey || null : null,
     startSpeed: q.startSpeed ?? START_SPEED_DEFAULT,
-    revealText: gameTypeUsesRevealText(gameType)
+    revealText: gameTypeUsesRevealText(type)
       ? (q.revealText ?? "").trim().slice(0, 300)
       : "",
     roundTitle: (q.roundTitle ?? "").trim().slice(0, ROUND_TITLE_MAX),

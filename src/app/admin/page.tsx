@@ -56,6 +56,7 @@ type GameListItem = {
   code: string;
   status: string;
   gameType?: GameType;
+  questions?: { gameType?: GameType }[];
   hostToken: string;
   allowLateJoin: boolean;
   allowAnswerChange?: boolean;
@@ -136,6 +137,19 @@ function serializeQuestions(questions: DraftQuestion[]) {
     ...q,
     options: q.options.map((o) => o.trim()).filter(Boolean),
   }));
+}
+
+function nightTypeLabel(g: GameListItem): string | null {
+  const fromQuestions = (g.questions ?? [])
+    .map((q) => q.gameType)
+    .filter((t): t is GameType => !!t && isGameType(t));
+  const types = fromQuestions.length
+    ? fromQuestions
+    : [g.gameType && isGameType(g.gameType) ? g.gameType : "TRIVIA"];
+  const unique = [...new Set(types)];
+  if (unique.length > 1) return "Mixed";
+  if (unique[0] === "TRIVIA") return null;
+  return GAME_TYPE_LABEL[unique[0]];
 }
 
 function NavButton({
@@ -224,7 +238,6 @@ function AdminInner() {
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
-  const [gameType, setGameType] = useState<GameType>("TRIVIA");
   const [questions, setQuestions] = useState<DraftQuestion[]>([
     emptyQuestion("TRIVIA"),
   ]);
@@ -386,7 +399,6 @@ function AdminInner() {
   function resetForm() {
     setEditingId(null);
     setTitle("");
-    setGameType("TRIVIA");
     setQuestions([emptyQuestion("TRIVIA")]);
     setAllowLateJoin(true);
     setAllowAnswerChange(false);
@@ -397,31 +409,6 @@ function AdminInner() {
     setEditingBankId(null);
     setBankTitle("");
     setBankQuestions([emptyQuestion("TRIVIA")]);
-  }
-
-  function chooseGameType(next: GameType) {
-    if (next === gameType) return;
-    const hasContent = questions.some(
-      (q) =>
-        (q.prompt.trim() &&
-          q.prompt.trim() !== "What is this?" &&
-          q.prompt.trim() !== "Who is this?" &&
-          q.prompt.trim() !== "Name that tune" &&
-          q.prompt.trim() !== "What's playing backwards?" &&
-          q.prompt.trim() !== "Unscramble this" &&
-          q.prompt.trim() !== "Name that line") ||
-        q.imageKey ||
-        q.audioKey ||
-        q.options.some((o) => o.trim())
-    );
-    if (
-      hasContent &&
-      !confirm("Switching game type clears the current questions. Continue?")
-    ) {
-      return;
-    }
-    setGameType(next);
-    setQuestions([emptyQuestion(next)]);
   }
 
   function resetHostForm() {
@@ -584,10 +571,10 @@ function AdminInner() {
       const loadedType: GameType = isGameType(g.gameType)
         ? g.gameType
         : "TRIVIA";
-      setGameType(loadedType);
       setQuestions(
         (g.questions || []).map(
           (q: {
+            gameType?: string;
             prompt: string;
             options: string[];
             correctIndex: number;
@@ -603,6 +590,7 @@ function AdminInner() {
             bonus?: "NONE" | "DOUBLE" | "LIGHTNING";
             typed?: boolean;
           }) => ({
+            gameType: isGameType(q.gameType) ? q.gameType : loadedType,
             prompt: q.prompt,
             options: Array.isArray(q.options) ? [...q.options] : ["", ""],
             correctIndex: q.correctIndex,
@@ -633,7 +621,7 @@ function AdminInner() {
     try {
       const payload = {
         title,
-        gameType,
+        gameType: questions[0]?.gameType ?? "TRIVIA",
         allowLateJoin,
         allowAnswerChange,
         teamMode,
@@ -1180,7 +1168,12 @@ function AdminInner() {
             g.title,
             g.code,
             g.status,
-            GAME_TYPE_LABEL[g.gameType ?? "TRIVIA"],
+            nightTypeLabel(g),
+            ...(g.questions ?? []).map((q) =>
+              q.gameType && isGameType(q.gameType)
+                ? GAME_TYPE_LABEL[q.gameType]
+                : ""
+            ),
             g.owner?.name,
             g.owner?.email,
           ]
@@ -1231,12 +1224,13 @@ function AdminInner() {
         opts.length >= (q.typed ? 1 : 2) &&
         q.correctIndex < opts.length;
       if (!basics) return false;
-      if (gameTypeUsesImage(gameType) && !q.imageKey) return false;
-      if (gameTypeUsesAudio(gameType) && !q.audioKey) return false;
-      if (gameTypeUsesRevealText(gameType) && !q.revealText.trim()) return false;
+      const type = q.gameType ?? "TRIVIA";
+      if (gameTypeUsesImage(type) && !q.imageKey) return false;
+      if (gameTypeUsesAudio(type) && !q.audioKey) return false;
+      if (gameTypeUsesRevealText(type) && !q.revealText.trim()) return false;
       return true;
     });
-  }, [title, questions, gameType]);
+  }, [title, questions]);
 
   const canSubmitBank = useMemo(() => {
     if (!bankTitle.trim()) return false;
@@ -1466,21 +1460,7 @@ function AdminInner() {
                 {editingId ? "Edit game" : "Create a game"}
               </h1>
               <p className="mt-1 text-sm text-muted">
-                {gameType === "IMAGE_ZOOM"
-                  ? "Upload photos that start zoomed in and slowly reveal as the timer runs down"
-                  : gameType === "PICTURE_FINISH"
-                    ? "Upload photos that start as a mosaic and sharpen as the timer runs down"
-                    : gameType === "AUDIO_SPEED"
-                      ? "Upload short clips that start sped up and ease to normal as the timer runs"
-                      : gameType === "AUDIO_REVERSE"
-                        ? "Upload short clips that play backwards until the answer is revealed"
-                        : gameType === "UNSCRAMBLE"
-                          ? "A phrase starts scrambled on the host screen and locks into place as the timer runs"
-                          : gameType === "FINISH_LINE"
-                            ? "A lyric or quote appears word by word on the host screen"
-                            : gameType === "SILHOUETTE"
-                              ? "Upload photos that start as a solid shape and fill in with color"
-                              : "Build your Trivia Live game"}
+                Each question has its own type, so a night can mix trivia, photos, and songs.
               </p>
 
               <form onSubmit={saveGame} className="mt-8 space-y-5">
@@ -1497,91 +1477,11 @@ function AdminInner() {
                   />
                 </label>
 
-                <fieldset className="space-y-2">
-                  <legend className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
-                    Game type
-                  </legend>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {(
-                      [
-                        {
-                          id: "TRIVIA" as const,
-                          title: "Trivia",
-                          blurb: "Classic multiple-choice questions",
-                        },
-                        {
-                          id: "IMAGE_ZOOM" as const,
-                          title: "Image Zoom",
-                          blurb: "A photo starts cropped in tight, then slowly opens",
-                        },
-                        {
-                          id: "PICTURE_FINISH" as const,
-                          title: "Picture Finish",
-                          blurb: "A photo starts pixelated, then sharpens",
-                        },
-                        {
-                          id: "AUDIO_SPEED" as const,
-                          title: "Guess the Song",
-                          blurb: "A clip starts fast, then eases to normal speed",
-                        },
-                        {
-                          id: "AUDIO_REVERSE" as const,
-                          title: "Backwards Song",
-                          blurb: "A clip plays backwards until you reveal the answer",
-                        },
-                        {
-                          id: "SILHOUETTE" as const,
-                          title: "Silhouette",
-                          blurb: "A photo starts as a solid shape, then fills in with color",
-                        },
-                        {
-                          id: "UNSCRAMBLE" as const,
-                          title: "Unscramble",
-                          blurb: "A phrase starts jumbled, then locks into place",
-                        },
-                        {
-                          id: "FINISH_LINE" as const,
-                          title: "Finish the Line",
-                          blurb: "A lyric or quote appears one word at a time",
-                        },
-                      ] as const
-                    ).map((opt) => {
-                      const on = gameType === opt.id;
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => chooseGameType(opt.id)}
-                          className="rounded-2xl border px-4 py-4 text-left transition"
-                          style={
-                            on
-                              ? {
-                                  borderColor: "var(--amber)",
-                                  background:
-                                    "color-mix(in srgb, var(--amber) 12%, var(--panel))",
-                                }
-                              : {
-                                  borderColor: "var(--line)",
-                                  background: "var(--panel)",
-                                }
-                          }
-                        >
-                          <div className="text-sm font-bold text-chalk">
-                            {opt.title}
-                          </div>
-                          <div className="mt-1 text-xs text-muted">{opt.blurb}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-
                 {questions.map((q, qi) => (
                   <QuestionEditor
                     key={qi}
                     question={q}
                     index={qi}
-                    gameType={gameType}
                     canRemove={questions.length > 1}
                     onChange={(next) =>
                       setQuestions((prev) =>
@@ -1615,28 +1515,29 @@ function AdminInner() {
                     color: "var(--amber)",
                   }}
                   onClick={() =>
-                    setQuestions((prev) => [...prev, emptyQuestion(gameType)])
+                    setQuestions((prev) => [
+                      ...prev,
+                      emptyQuestion(prev[prev.length - 1]?.gameType ?? "TRIVIA"),
+                    ])
                   }
                 >
                   + Add question
                 </button>
-                {gameType === "TRIVIA" && (
-                  <button
-                    type="button"
-                    className="w-full rounded-xl border border-dashed py-3.5 text-sm font-bold"
-                    style={{
-                      borderColor:
-                        "color-mix(in srgb, var(--amber) 50%, var(--line))",
-                      color: "var(--amber)",
-                    }}
-                    onClick={() => {
-                      void loadBanks();
-                      setShowBankPicker(true);
-                    }}
-                  >
-                    + Add from bank
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="w-full rounded-xl border border-dashed py-3.5 text-sm font-bold"
+                  style={{
+                    borderColor:
+                      "color-mix(in srgb, var(--amber) 50%, var(--line))",
+                    color: "var(--amber)",
+                  }}
+                  onClick={() => {
+                    void loadBanks();
+                    setShowBankPicker(true);
+                  }}
+                >
+                  + Add from bank
+                </button>
 
                 <div className="flex flex-wrap justify-end gap-3 pt-2">
                   {editingId && (
@@ -1788,9 +1689,9 @@ function AdminInner() {
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="text-xl font-bold">{g.title}</div>
-                          {(g.gameType && g.gameType !== "TRIVIA") && (
+                          {nightTypeLabel(g) && (
                             <span className="rounded bg-ink-2 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber">
-                              {GAME_TYPE_LABEL[g.gameType]}
+                              {nightTypeLabel(g)}
                             </span>
                           )}
                         </div>
@@ -1995,6 +1896,7 @@ function AdminInner() {
                     gameType="TRIVIA"
                     hideRound
                     showTyped={false}
+                    showType={false}
                     canRemove={bankQuestions.length > 1}
                     onChange={(next) =>
                       setBankQuestions((prev) =>

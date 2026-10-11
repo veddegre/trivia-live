@@ -10,6 +10,7 @@ import {
   questionCreateData,
   questionSchema,
 } from "@/lib/question-schema";
+import { questionTypeOf } from "@/lib/types";
 
 const createSchema = z.object({
   title: z.string().min(1).max(120),
@@ -30,6 +31,7 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
     include: {
       owner: { select: { id: true, name: true, email: true } },
+      questions: { select: { gameType: true }, orderBy: { order: "asc" } },
       _count: { select: { questions: true, players: true } },
     },
   });
@@ -56,13 +58,17 @@ export async function POST(req: NextRequest) {
   }
 
   const code = await allocateJoinCode();
+  const nightType = questionTypeOf(
+    parsed.data.questions[0],
+    parsed.data.gameType
+  );
 
   const game = await prisma.game.create({
     data: {
       title: parsed.data.title,
       code,
       status: "DRAFT",
-      gameType: parsed.data.gameType,
+      gameType: nightType,
       allowLateJoin: parsed.data.allowLateJoin,
       allowAnswerChange: parsed.data.allowAnswerChange,
       teamMode: parsed.data.teamMode,

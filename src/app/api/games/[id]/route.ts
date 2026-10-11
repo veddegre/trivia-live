@@ -9,7 +9,11 @@ import {
   questionCreateData,
   questionSchema,
 } from "@/lib/question-schema";
-import { gameTypeUsesAudio, gameTypeUsesImage } from "@/lib/types";
+import {
+  gameTypeUsesAudio,
+  gameTypeUsesImage,
+  questionTypeOf,
+} from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -107,9 +111,10 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     );
     const nextKeys = new Set(
       questions.flatMap((q) => {
+        const type = questionTypeOf(q, nextType);
         const keys: string[] = [];
-        if (gameTypeUsesImage(nextType) && q.imageKey) keys.push(q.imageKey);
-        if (gameTypeUsesAudio(nextType) && q.audioKey) keys.push(q.audioKey);
+        if (gameTypeUsesImage(type) && q.imageKey) keys.push(q.imageKey);
+        if (gameTypeUsesAudio(type) && q.audioKey) keys.push(q.audioKey);
         return keys;
       })
     );
@@ -142,7 +147,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
     data.teamMode = teamMode;
   }
-  if (gameType !== undefined) data.gameType = gameType;
+  if (questions) data.gameType = questionTypeOf(questions[0], nextType);
+  else if (gameType !== undefined) data.gameType = gameType;
 
   const game = await prisma.game.update({
     where: { id },

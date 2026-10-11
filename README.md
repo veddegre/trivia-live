@@ -6,7 +6,7 @@
 
 Live trivia for up to **200 players**. Build games ahead of time, open a host screen on a big display, and let people answer from their phones. Scores update live; correct + faster answers rank higher.
 
-Pick a **game type** when you create a night: classic multiple-choice **Trivia**, **Image Zoom**, **Picture Finish**, **Silhouette**, **Guess the Song**, **Backwards Song**, **Unscramble**, or **Finish the Line**. A game is one type only — types are not mixed in a single night.
+Each question picks its own type: classic multiple-choice **Trivia**, **Image Zoom**, **Picture Finish**, **Silhouette**, **Guess the Song**, **Backwards Song**, **Unscramble**, or **Finish the Line**. A night can mix them.
 
 ## Features
 
@@ -88,7 +88,7 @@ Login is **email + password** (not a shared single password).
 
 ## How a game works
 
-1. Sign in at **`/admin`** with a host or super-admin account and create a game. Choose a game type, then add questions (or **Add from bank** on trivia). Mark the correct option with the radio next to each choice. Optionally set base points, speed bonus, a **Double points** or **Lightning** flag, timer, **Allow late joins**, **Allow changing answers**, and **round names** (leave blank to stay in the previous round). Use **Preview as player** to see the phone layout without revealing media or the answer. Banks live in **Admin → Banks**; first setup also creates a **Starter pack**.
+1. Sign in at **`/admin`** with a host or super-admin account and create a game. Each question has a type. Add questions (or **Add from bank** for trivia). Mark the correct option with the radio next to each choice. Optionally set base points, speed bonus, a **Double points** or **Lightning** flag, timer, **Allow late joins**, **Allow changing answers**, and **round names** (leave blank to stay in the previous round). Use **Preview as player** to see the phone layout without revealing media or the answer. Banks live in **Admin → Banks**; first setup also creates a **Starter pack**.
 2. Open **Host screen** (big display). The lobby opens when that page connects; you can also click **Open lobby** from the games list first. For a second display, open **Watch** (same join code, no host token).
 3. Players scan the **QR** (opens `/join` with the code filled in) or open the join URL shown on the host and enter the code, then pick a name.
 4. Host presses **Start question 1** → players answer against the countdown → auto-lock at 0 (or **Lock now**) → reveal the correct answer, how many players picked each option, and the standings. On Image Zoom, the host and watch photos start zoomed in and open at a steady rate until lock/reveal. On Picture Finish, they start as a mosaic and sharpen on the same timer curve. On Guess the Song, the host taps **Play** so the clip starts fast on the room speakers and the round clock starts with it. On Backwards Song, **Play** starts the same clip reversed. A watch TV waits for that Play, then can listen locally without starting the clock. On Unscramble, letters lock in from the left. On Finish the Line, words appear in order. On Silhouette, a solid shape fills in with color.

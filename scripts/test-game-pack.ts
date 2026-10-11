@@ -7,6 +7,7 @@ import {
   packFilename,
   parseImportBytes,
   parsePackJson,
+  questionsFromPack,
   type SourceGame,
 } from "../src/lib/game-pack";
 
@@ -38,6 +39,7 @@ const trivia: SourceGame = {
 const { pack } = gameToPack(trivia);
 assert.equal(pack.version, 1);
 assert.equal(pack.gameType, "TRIVIA");
+assert.equal(pack.questions[0].gameType, "TRIVIA");
 assert.equal(pack.questions[0].media, undefined);
 assert.equal(pack.questions[0].bonus, "DOUBLE");
 assert.deepEqual(parsePackJson(pack), pack);
@@ -110,6 +112,48 @@ async function main() {
   });
   assert.equal(finishPack.gameType, "PICTURE_FINISH");
   assert.equal(finishPack.questions[0].bonus, "NONE");
+
+  const fromOldPack = questionsFromPack(parsedZip.pack, ["photo.jpg"]);
+  assert.equal(fromOldPack[0].gameType, "IMAGE_ZOOM");
+  assert.equal(fromOldPack[0].imageKey, "photo.jpg");
+  assert.equal(fromOldPack[0].audioKey, null);
+
+  const mixed = parsePackJson({
+    version: 1,
+    title: "Mixed night",
+    gameType: "TRIVIA",
+    questions: [
+      {
+        prompt: "Capital of France?",
+        options: ["Paris", "Lyon"],
+        correctIndex: 0,
+      },
+      {
+        gameType: "UNSCRAMBLE",
+        prompt: "Unscramble this",
+        options: ["Beatles"],
+        correctIndex: 0,
+        typed: true,
+        revealText: "Beatles",
+      },
+      {
+        gameType: "AUDIO_REVERSE",
+        prompt: "What's playing backwards?",
+        options: ["Yesterday", "Help"],
+        correctIndex: 0,
+        media: "q-02.mp3",
+      },
+    ],
+  });
+  const mixedQuestions = questionsFromPack(mixed, [null, null, "clip.mp3"]);
+  assert.equal(mixedQuestions[0].gameType, "TRIVIA");
+  assert.equal(mixedQuestions[0].imageKey, null);
+  assert.equal(mixedQuestions[0].audioKey, null);
+  assert.equal(mixedQuestions[1].gameType, "UNSCRAMBLE");
+  assert.equal(mixedQuestions[1].audioKey, null);
+  assert.equal(mixedQuestions[2].gameType, "AUDIO_REVERSE");
+  assert.equal(mixedQuestions[2].audioKey, "clip.mp3");
+  assert.equal(mixedQuestions[2].imageKey, null);
 
   assert.equal(copyTitle("Bass"), "Bass (copy)");
 

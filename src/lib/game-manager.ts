@@ -41,6 +41,7 @@ import {
   gameTypeUsesAudio,
   gameTypeUsesImage,
   gameTypeUsesRevealText,
+  questionTypeOf,
 } from "@/lib/types";
 
 type GamePlayer = Player & { team: { id: string; name: string } | null };
@@ -327,24 +328,26 @@ export async function buildPublicState(
     if (phase === "reveal") rt.answerCount = picks.length;
   }
 
+  const activeType = questionTypeOf(q, game.gameType);
   let question: PublicQuestion | null = null;
   if (q && (phase === "question" || phase === "reveal" || phase === "finished")) {
     question = {
       id: q.id,
       order: q.order,
+      gameType: activeType,
       prompt: q.prompt,
       options: q.typed && phase === "question" ? [] : q.options,
       timeLimitSec: q.timeLimitSec,
       ...(q.typed ? { typed: true } : {}),
-      imageUrl: gameTypeUsesImage(game.gameType)
+      imageUrl: gameTypeUsesImage(activeType)
         ? mediaPublicUrl(q.imageKey)
         : null,
-      startZoom: gameTypeUsesImage(game.gameType) ? q.startZoom : undefined,
-      audioUrl: gameTypeUsesAudio(game.gameType)
+      startZoom: gameTypeUsesImage(activeType) ? q.startZoom : undefined,
+      audioUrl: gameTypeUsesAudio(activeType)
         ? mediaPublicUrl(q.audioKey)
         : null,
-      startSpeed: game.gameType === "AUDIO_SPEED" ? q.startSpeed : undefined,
-      revealText: gameTypeUsesRevealText(game.gameType)
+      startSpeed: activeType === "AUDIO_SPEED" ? q.startSpeed : undefined,
+      revealText: gameTypeUsesRevealText(activeType)
         ? q.revealText
         : undefined,
       bonus: questionBonus(q) === "NONE" ? undefined : questionBonus(q),
@@ -411,7 +414,11 @@ export async function buildPublicState(
   return {
     code: game.code,
     title: game.title,
-    gameType: game.gameType,
+    gameType: activeType,
+    mixedTypes:
+      new Set(
+        game.questions.map((item) => questionTypeOf(item, game.gameType))
+      ).size > 1,
     phase,
     status: game.status,
     playerCount: game.players.length,
@@ -577,7 +584,7 @@ export async function openQuestion(code: string, index?: number) {
   }
 
   const q = game.questions[nextIndex];
-  const deferClock = gameTypeUsesAudio(game.gameType);
+  const deferClock = gameTypeUsesAudio(questionTypeOf(q, game.gameType));
   const openedAt = deferClock ? null : new Date();
   await prisma.game.update({
     where: { id: game.id },
@@ -1230,7 +1237,7 @@ export async function recordGameResult(code: string) {
       }))
     : answers;
   const recap = buildNightRecap({
-    gameType: game.gameType,
+    gameType: questionTypeOf(game.questions[0], game.gameType),
     questions: game.questions,
     players: recapPlayers,
     answers: recapAnswers,

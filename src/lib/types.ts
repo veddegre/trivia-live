@@ -34,6 +34,8 @@ export type PublicQuestion = {
   /** Watch payload: revealText is the on-screen text, not the solved phrase. */
   revealSnapshot?: boolean;
   bonus?: QuestionBonus;
+  /** Type of the question on screen. */
+  gameType?: GameType;
 };
 
 export type LeaderboardEntry = {
@@ -51,6 +53,8 @@ export type GamePublicState = {
   code: string;
   title: string;
   gameType: GameType;
+  /** True when the night uses more than one question type. */
+  mixedTypes?: boolean;
   phase: GamePhase;
   status: string;
   playerCount: number;
@@ -130,6 +134,15 @@ export function isGameType(value: unknown): value is GameType {
     typeof value === "string" &&
     Object.prototype.hasOwnProperty.call(GAME_TYPE_LABEL, value)
   );
+}
+
+export function questionTypeOf(
+  question: { gameType?: string | null } | null | undefined,
+  fallback: GameType = "TRIVIA"
+): GameType {
+  return question?.gameType && isGameType(question.gameType)
+    ? question.gameType
+    : fallback;
 }
 
 export function gameTypeUsesImage(type: GameType): boolean {

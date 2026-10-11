@@ -19,11 +19,12 @@ import {
   questionCreateData,
   type QuestionInput,
 } from "@/lib/question-schema";
-import type { GameType } from "@/lib/types";
 import {
   gameTypeUsesAudio,
   gameTypeUsesImage,
   gameTypeUsesRevealText,
+  questionTypeOf,
+  type GameType,
 } from "@/lib/types";
 import { isQuestionBonus } from "@/lib/scoring";
 
@@ -57,7 +58,7 @@ async function insertDraftGame(opts: {
       title: opts.title,
       code,
       status: "DRAFT",
-      gameType: opts.gameType,
+      gameType: questionTypeOf(opts.questions[0], opts.gameType),
       allowLateJoin: opts.allowLateJoin,
       allowAnswerChange: opts.allowAnswerChange,
       teamMode: opts.teamMode,
@@ -86,9 +87,8 @@ export async function createGameFromPack(opts: {
   try {
     const mediaKeys: (string | null)[] = [];
     for (const q of opts.pack.questions) {
-      const needsMedia =
-        gameTypeUsesImage(opts.pack.gameType) ||
-        gameTypeUsesAudio(opts.pack.gameType);
+      const type = questionTypeOf(q, opts.pack.gameType);
+      const needsMedia = gameTypeUsesImage(type) || gameTypeUsesAudio(type);
       if (!needsMedia) {
         mediaKeys.push(null);
         continue;
@@ -129,13 +129,15 @@ export async function cloneGame(opts: {
   try {
     const questions: QuestionInput[] = [];
     for (const q of opts.source.questions) {
-      const key = mediaKeyForQuestion(opts.source.gameType, q);
+      const type = questionTypeOf(q, opts.source.gameType);
+      const key = mediaKeyForQuestion(type, q);
       let nextKey: string | null = null;
       if (key) {
         nextKey = await copyMediaFile(key);
         written.push(nextKey);
       }
       questions.push({
+        gameType: type,
         prompt: q.prompt,
         options: q.options,
         correctIndex: q.correctIndex,
@@ -144,11 +146,9 @@ export async function cloneGame(opts: {
         timeBonus: q.timeBonus,
         startZoom: q.startZoom,
         startSpeed: q.startSpeed,
-        imageKey: gameTypeUsesImage(opts.source.gameType) ? nextKey : null,
-        audioKey: gameTypeUsesAudio(opts.source.gameType) ? nextKey : null,
-        revealText: gameTypeUsesRevealText(opts.source.gameType)
-          ? q.revealText
-          : "",
+        imageKey: gameTypeUsesImage(type) ? nextKey : null,
+        audioKey: gameTypeUsesAudio(type) ? nextKey : null,
+        revealText: gameTypeUsesRevealText(type) ? q.revealText : "",
         roundTitle: q.roundTitle,
         bonus: isQuestionBonus(q.bonus) ? q.bonus : "NONE",
         typed: q.typed === true,

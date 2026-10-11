@@ -11,6 +11,7 @@ import {
   START_ZOOM_MIN,
   gameTypeUsesAudio,
   gameTypeUsesImage,
+  questionTypeOf,
   type GameType,
 } from "@/lib/types";
 import { resolveUploadPath } from "@/lib/media";
@@ -22,6 +23,7 @@ export const GAME_PACK_VERSION = 1;
 export const MAX_PACK_BYTES = 80 * 1024 * 1024;
 
 const packQuestionSchema = z.object({
+  gameType: gameTypeSchema.optional(),
   prompt: z.string().min(1).max(500),
   options: z.array(z.string().min(1).max(200)).min(1).max(6),
   typed: z.boolean().optional().default(false),
@@ -81,6 +83,7 @@ export type SourceGame = {
     roundTitle: string;
     bonus: string;
     typed?: boolean;
+    gameType?: GameType;
   }[];
 };
 
@@ -136,10 +139,12 @@ export function gameToPack(game: SourceGame): {
 } {
   const files: PackMediaFile[] = [];
   const questions = game.questions.map((q, order) => {
-    const key = mediaKeyForQuestion(game.gameType, q);
+    const type = questionTypeOf(q, game.gameType);
+    const key = mediaKeyForQuestion(type, q);
     const zipName = key ? zipNameForKey(order, key) : undefined;
     if (key && zipName) files.push({ zipName, key });
     return {
+      gameType: type,
       prompt: q.prompt,
       options: q.options,
       correctIndex: q.correctIndex,
@@ -159,7 +164,7 @@ export function gameToPack(game: SourceGame): {
     pack: {
       version: GAME_PACK_VERSION,
       title: game.title,
-      gameType: game.gameType,
+      gameType: questionTypeOf(game.questions[0], game.gameType),
       allowLateJoin: game.allowLateJoin,
       allowAnswerChange: game.allowAnswerChange,
       teamMode: game.teamMode,
@@ -224,22 +229,26 @@ export function questionsFromPack(
   pack: GamePack,
   mediaKeys: (string | null)[]
 ): QuestionInput[] {
-  return pack.questions.map((q, i) => ({
-    prompt: q.prompt,
-    options: q.options,
-    correctIndex: q.correctIndex,
-    timeLimitSec: q.timeLimitSec ?? 30,
-    basePoints: q.basePoints ?? SCORE_BASE_DEFAULT,
-    timeBonus: q.timeBonus ?? SCORE_TIME_BONUS_DEFAULT,
-    startZoom: q.startZoom ?? START_ZOOM_DEFAULT,
-    startSpeed: q.startSpeed ?? START_SPEED_DEFAULT,
-    revealText: q.revealText ?? "",
-    imageKey: gameTypeUsesImage(pack.gameType) ? mediaKeys[i] ?? null : null,
-    audioKey: gameTypeUsesAudio(pack.gameType) ? mediaKeys[i] ?? null : null,
-    roundTitle: q.roundTitle ?? "",
-    bonus: q.bonus ?? "NONE",
-    typed: q.typed === true,
-  }));
+  return pack.questions.map((q, i) => {
+    const type = questionTypeOf(q, pack.gameType);
+    return {
+      gameType: type,
+      prompt: q.prompt,
+      options: q.options,
+      correctIndex: q.correctIndex,
+      timeLimitSec: q.timeLimitSec ?? 30,
+      basePoints: q.basePoints ?? SCORE_BASE_DEFAULT,
+      timeBonus: q.timeBonus ?? SCORE_TIME_BONUS_DEFAULT,
+      startZoom: q.startZoom ?? START_ZOOM_DEFAULT,
+      startSpeed: q.startSpeed ?? START_SPEED_DEFAULT,
+      revealText: q.revealText ?? "",
+      imageKey: gameTypeUsesImage(type) ? mediaKeys[i] ?? null : null,
+      audioKey: gameTypeUsesAudio(type) ? mediaKeys[i] ?? null : null,
+      roundTitle: q.roundTitle ?? "",
+      bonus: q.bonus ?? "NONE",
+      typed: q.typed === true,
+    };
+  });
 }
 
 export async function buildExportBytes(game: SourceGame): Promise<{

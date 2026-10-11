@@ -8,9 +8,11 @@ import {
   SCORE_TIME_BONUS_DEFAULT,
   START_SPEED_DEFAULT,
   START_ZOOM_DEFAULT,
+  GAME_TYPE_LABEL,
   gameTypeUsesAudio,
   gameTypeUsesImage,
   gameTypeUsesRevealText,
+  isGameType,
   type GameType,
 } from "@/lib/types";
 import {
@@ -21,6 +23,7 @@ import { ROUND_TITLE_MAX } from "@/lib/rounds";
 import { mediaPublicUrl } from "@/lib/zoom";
 
 export type DraftQuestion = {
+  gameType: GameType;
   prompt: string;
   options: string[];
   correctIndex: number;
@@ -39,6 +42,7 @@ export type DraftQuestion = {
 
 export function emptyQuestion(gameType: GameType = "TRIVIA"): DraftQuestion {
   return {
+    gameType,
     prompt:
       gameType === "IMAGE_ZOOM" || gameType === "SILHOUETTE"
         ? "What is this?"
@@ -93,12 +97,14 @@ type Props = {
   hideRound?: boolean;
   /** Bank editor keeps multiple choice. */
   showTyped?: boolean;
+  /** Bank editor stays trivia. */
+  showType?: boolean;
 };
 
 export function QuestionEditor({
   question: q,
   index: qi,
-  gameType = "TRIVIA",
+  gameType: fallbackType = "TRIVIA",
   canRemove,
   onChange,
   onRemove,
@@ -111,7 +117,9 @@ export function QuestionEditor({
   previousRoundTitle = "",
   hideRound = false,
   showTyped = true,
+  showType = true,
 }: Props) {
+  const gameType = q.gameType ?? fallbackType;
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [showPlayerPreview, setShowPlayerPreview] = useState(false);
@@ -245,6 +253,33 @@ export function QuestionEditor({
     });
   }
 
+  function switchType(next: GameType) {
+    if (next === gameType) return;
+    const fresh = emptyQuestion(gameType);
+    const dirty =
+      (q.prompt.trim() && q.prompt.trim() !== fresh.prompt) ||
+      !!q.imageKey ||
+      !!q.audioKey ||
+      !!q.revealText.trim() ||
+      q.options.some((o) => o.trim());
+    if (
+      dirty &&
+      !confirm(
+        "Switching this question's type clears its prompt, choices, and media. Continue?"
+      )
+    ) {
+      return;
+    }
+    onChange({
+      ...emptyQuestion(next),
+      roundTitle: q.roundTitle,
+      basePoints: q.basePoints,
+      timeBonus: q.timeBonus,
+      bonus: q.bonus,
+      timeLimitSec: q.timeLimitSec,
+    });
+  }
+
   return (
     <div
       className="rounded-2xl border border-line bg-panel p-5 md:p-6"
@@ -286,6 +321,27 @@ export function QuestionEditor({
           )}
         </div>
       </div>
+
+      {showType && (
+        <label className="mt-4 block space-y-2">
+          <span className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+            Question type
+          </span>
+          <select
+            className="field"
+            value={gameType}
+            onChange={(e) => {
+              if (isGameType(e.target.value)) switchType(e.target.value);
+            }}
+          >
+            {(Object.keys(GAME_TYPE_LABEL) as GameType[]).map((id) => (
+              <option key={id} value={id}>
+                {GAME_TYPE_LABEL[id]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <div className="mt-5 grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
         <div className="space-y-4">

@@ -1060,7 +1060,7 @@ export function HostScreen({
                 aria-hidden
               />
             </div>
-            {state.gameType !== "TRIVIA" && (
+            {!state.mixedTypes && state.gameType !== "TRIVIA" && (
               <p
                 className="mt-3 text-center text-xs font-bold uppercase tracking-[0.2em] md:text-sm"
                 style={{ color: amber }}

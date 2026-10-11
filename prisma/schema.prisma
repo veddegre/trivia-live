@@ -108,6 +108,7 @@ model Question {
   gameId        String
   game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
   order         Int
+  gameType      GameType @default(TRIVIA)
   prompt        String
   options       String[]
   correctIndex  Int

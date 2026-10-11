@@ -20,6 +20,7 @@ export const bankQuestionSchema = questionSchema.omit({
   revealText: true,
   roundTitle: true,
   typed: true,
+  gameType: true,
 });
 
 export const bankWriteSchema = z.object({

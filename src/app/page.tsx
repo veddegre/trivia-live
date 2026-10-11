@@ -98,7 +98,7 @@ export default function HomePage() {
           {[
             [
               "Create a game",
-              "In Admin, pick Trivia, Image Zoom, Picture Finish, Silhouette, Guess the Song, Backwards Song, Unscramble, or Finish the Line. Add questions, timers, and scoring — or drop in a trivia bank as a named round. A night is one type — types are not mixed.",
+              "In Admin, each question is Trivia, Image Zoom, Picture Finish, Silhouette, Guess the Song, Backwards Song, Unscramble, or Finish the Line. A night can mix them. Add timers and scoring, or drop in a trivia bank as a named round.",
             ],
             [
               "Open the lobby",
