@@ -131,6 +131,10 @@ model Question {
   revealText    String   @default("")
   /** Players type an answer. Every option is accepted; correctIndex is the one shown on reveal. */
   typed         Boolean  @default(false)
+  /** Players type a number. The closest guesses win when the question locks. */
+  closest       Boolean  @default(false)
+  /** Players bet up to their current score. No speed bonus. */
+  wager         Boolean  @default(false)
   answers       Answer[]
 
   @@unique([gameId, order])
@@ -174,6 +178,8 @@ model Answer {
   choiceIndex Int
   /** What the player typed. Empty for a multiple-choice tap. */
   text        String   @default("")
+  /** Points bet on a wager question. 0 otherwise. */
+  wager       Int      @default(0)
   answeredAt  DateTime @default(now())
   points      Int      @default(0)
   isCorrect   Boolean  @default(false)

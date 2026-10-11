@@ -38,6 +38,8 @@ export type DraftQuestion = {
   revealText: string;
   roundTitle: string;
   typed: boolean;
+  closest: boolean;
+  wager: boolean;
 };
 
 export function emptyQuestion(gameType: GameType = "TRIVIA"): DraftQuestion {
@@ -75,6 +77,8 @@ export function emptyQuestion(gameType: GameType = "TRIVIA"): DraftQuestion {
     revealText: "",
     roundTitle: "",
     typed: false,
+    closest: false,
+    wager: false,
   };
 }
 
@@ -584,24 +588,102 @@ export function QuestionEditor({
           </label>
 
           {showTyped && (
-            <label className="flex items-start gap-3">
-              <input
-                type="checkbox"
-                className="mt-1 h-4 w-4 accent-[var(--amber)]"
-                checked={q.typed}
-                onChange={(e) => onChange({ ...q, typed: e.target.checked })}
-              />
-              <span>
-                <span className="block text-sm font-semibold text-amber">
-                  Typed answer
+            <div className="space-y-3">
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 accent-[var(--amber)]"
+                  checked={q.closest}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      onChange({
+                        ...q,
+                        closest: true,
+                        typed: false,
+                        wager: false,
+                        options: [q.options[q.correctIndex]?.trim() || ""],
+                        correctIndex: 0,
+                      });
+                      return;
+                    }
+                    onChange({
+                      ...q,
+                      closest: false,
+                      options: ["", "", "", ""],
+                      correctIndex: 0,
+                    });
+                  }}
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-amber">
+                    Closest number
+                  </span>
+                  <span className="text-xs text-muted">
+                    Players type a number. When time is up, the closest guesses get the points. Ties all win.
+                  </span>
                 </span>
-                <span className="text-xs text-muted">
-                  Players type it. Small typos still count, and a leading The, A, or An is ignored. The marked line is the one shown when you reveal. Extra lines are other accepted answers.
-                </span>
-              </span>
-            </label>
+              </label>
+              {!q.closest && (
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 accent-[var(--amber)]"
+                    checked={q.typed}
+                    onChange={(e) =>
+                      onChange({
+                        ...q,
+                        typed: e.target.checked,
+                        closest: false,
+                      })
+                    }
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-amber">
+                      Typed answer
+                    </span>
+                    <span className="text-xs text-muted">
+                      Players type it. Small typos still count, and a leading The, A, or An is ignored. The marked line is the one shown when you reveal. Extra lines are other accepted answers.
+                    </span>
+                  </span>
+                </label>
+              )}
+              {!q.closest && (
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 accent-[var(--amber)]"
+                    checked={q.wager}
+                    onChange={(e) => onChange({ ...q, wager: e.target.checked })}
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-amber">
+                      Wager
+                    </span>
+                    <span className="text-xs text-muted">
+                      Players bet up to the score they have now. A right answer adds the bet. A wrong answer subtracts it. Speed bonus does not apply.
+                    </span>
+                  </span>
+                </label>
+              )}
+            </div>
           )}
 
+          {q.closest ? (
+            <label className="block space-y-2">
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+                Correct number
+              </span>
+              <input
+                className="field"
+                inputMode="decimal"
+                placeholder="100"
+                value={q.options[0] ?? ""}
+                onChange={(e) =>
+                  onChange({ ...q, options: [e.target.value], correctIndex: 0 })
+                }
+              />
+            </label>
+          ) : (
           <div>
             <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
               {q.typed ? "Accepted answers" : "Options"}
@@ -653,6 +735,7 @@ export function QuestionEditor({
               </button>
             )}
           </div>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -1014,6 +1097,9 @@ export function QuestionEditor({
           options={q.options}
           timeLimitSec={q.timeLimitSec}
           gameType={gameType}
+          typed={q.typed}
+          closest={q.closest}
+          wager={q.wager}
           roundLabel={
             (q.roundTitle.trim() || previousRoundTitle) || undefined
           }

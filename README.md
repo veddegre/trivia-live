@@ -6,7 +6,7 @@
 
 Live trivia for up to **200 players**. Build games ahead of time, open a host screen on a big display, and let people answer from their phones. Scores update live; correct + faster answers rank higher.
 
-Each question picks its own type: classic multiple-choice **Trivia**, **Image Zoom**, **Picture Finish**, **Silhouette**, **Guess the Song**, **Backwards Song**, **Unscramble**, or **Finish the Line**. A night can mix them.
+Each question picks its own type: classic multiple-choice **Trivia**, **Image Zoom**, **Picture Finish**, **Silhouette**, **Guess the Song**, **Backwards Song**, **Unscramble**, or **Finish the Line**. A night can mix them. A question can also be a **closest number** (nearest guess wins, ties included) or a **wager** (players bet up to their current score; a miss subtracts the bet).
 
 ## Features
 

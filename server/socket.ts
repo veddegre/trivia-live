@@ -40,7 +40,7 @@ import { gameTypeUsesRevealText, type GamePublicState } from "@/lib/types";
 type JoinHostPayload = { code: string; hostToken: string };
 type JoinPlayerPayload = { code: string; name: string; teamName?: string };
 type ReconnectPayload = { code: string; token: string };
-type AnswerPayload = { choiceIndex?: number; text?: string };
+type AnswerPayload = { choiceIndex?: number; text?: string; wager?: number };
 
 type SocketData = {
   role?: "host" | "player" | "spectator";
@@ -745,6 +745,7 @@ export function createSocketServer(httpServer: HttpServer) {
           playerToken: data.playerToken,
           choiceIndex: payload.choiceIndex,
           text: payload.text,
+          wager: payload.wager,
         });
         await emitPlayer(socket, data.code, data.playerId);
         if (result.team) await refreshPlayers(io, data.code);

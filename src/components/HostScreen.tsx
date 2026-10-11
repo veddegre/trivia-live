@@ -639,12 +639,18 @@ export function HostScreen({
               />
             )}
 
-            {state.question.typed && (
+            {(state.question.typed || state.question.closest || state.question.wager) && (
               <p className="mt-6 text-center text-lg font-semibold text-muted">
-                Type your answer on your phone
+                {state.question.closest
+                  ? "Enter a number on your phone. Closest wins."
+                  : state.question.wager && state.question.typed
+                    ? "Type an answer and wager points on your phone"
+                    : state.question.wager
+                      ? "Wager points on your phone"
+                      : "Type your answer on your phone"}
               </p>
             )}
-            {!state.question.typed && (
+            {!state.question.typed && !state.question.closest && (
             <ol
               className={`mx-auto grid w-full max-w-4xl shrink-0 gap-3 md:grid-cols-2 ${
                 hasMedia ? "mt-4" : "mt-8"
@@ -747,7 +753,7 @@ export function HostScreen({
                   className="mt-3 w-full shrink-0"
                 />
               )}
-              {state.question.typed ? (
+              {state.question.typed || state.question.closest ? (
                 <p className="display mt-4 text-center text-4xl text-chalk md:text-5xl">
                   {state.question.options[state.question.correctIndex ?? 0] ?? "—"}
                 </p>

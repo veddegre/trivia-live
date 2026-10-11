@@ -19,6 +19,7 @@ import {
   type DraftQuestion,
 } from "@/components/QuestionEditor";
 import { BankPicker, type PickerBank } from "@/components/BankPicker";
+import { parseGuess } from "@/lib/closest-wager";
 import { padDraftOptions } from "@/lib/question-draft";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password";
 import type { NightRecap } from "@/lib/night-recap";
@@ -589,6 +590,8 @@ function AdminInner() {
             roundTitle?: string;
             bonus?: "NONE" | "DOUBLE" | "LIGHTNING";
             typed?: boolean;
+            closest?: boolean;
+            wager?: boolean;
           }) => ({
             gameType: isGameType(q.gameType) ? q.gameType : loadedType,
             prompt: q.prompt,
@@ -605,6 +608,8 @@ function AdminInner() {
             roundTitle: q.roundTitle ?? "",
             bonus: q.bonus === "DOUBLE" || q.bonus === "LIGHTNING" ? q.bonus : "NONE",
             typed: q.typed === true,
+            closest: q.closest === true,
+            wager: q.wager === true,
           })
         )
       );
@@ -1221,8 +1226,9 @@ function AdminInner() {
       const opts = q.options.map((o) => o.trim()).filter(Boolean);
       const basics =
         q.prompt.trim() &&
-        opts.length >= (q.typed ? 1 : 2) &&
-        q.correctIndex < opts.length;
+        opts.length >= (q.typed || q.closest ? 1 : 2) &&
+        q.correctIndex < opts.length &&
+        (!q.closest || parseGuess(opts[q.correctIndex] ?? "") != null);
       if (!basics) return false;
       const type = q.gameType ?? "TRIVIA";
       if (gameTypeUsesImage(type) && !q.imageKey) return false;
@@ -1460,7 +1466,7 @@ function AdminInner() {
                 {editingId ? "Edit game" : "Create a game"}
               </h1>
               <p className="mt-1 text-sm text-muted">
-                Each question has its own type, so a night can mix trivia, photos, and songs.
+                Each question has its own type, so a night can mix trivia, photos, and songs. A question can also be a closest number or a wager.
               </p>
 
               <form onSubmit={saveGame} className="mt-8 space-y-5">

@@ -27,6 +27,8 @@ const packQuestionSchema = z.object({
   prompt: z.string().min(1).max(500),
   options: z.array(z.string().min(1).max(200)).min(1).max(6),
   typed: z.boolean().optional().default(false),
+  closest: z.boolean().optional().default(false),
+  wager: z.boolean().optional().default(false),
   correctIndex: z.number().int().min(0),
   timeLimitSec: z.number().int().min(5).max(300).optional(),
   basePoints: z.number().int().min(0).max(10000).optional(),
@@ -83,6 +85,8 @@ export type SourceGame = {
     roundTitle: string;
     bonus: string;
     typed?: boolean;
+    closest?: boolean;
+    wager?: boolean;
     gameType?: GameType;
   }[];
 };
@@ -157,6 +161,8 @@ export function gameToPack(game: SourceGame): {
       roundTitle: q.roundTitle.trim(),
       bonus: isQuestionBonus(q.bonus) ? q.bonus : "NONE",
       typed: q.typed === true,
+      closest: q.closest === true,
+      wager: q.wager === true,
       ...(zipName ? { media: zipName } : {}),
     };
   });
@@ -247,6 +253,8 @@ export function questionsFromPack(
       roundTitle: q.roundTitle ?? "",
       bonus: q.bonus ?? "NONE",
       typed: q.typed === true,
+      closest: q.closest === true,
+      wager: q.wager === true,
     };
   });
 }

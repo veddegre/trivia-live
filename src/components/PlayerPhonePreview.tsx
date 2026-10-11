@@ -19,6 +19,9 @@ type Props = {
   roundLabel?: string;
   questionLabel: string;
   bonus?: QuestionBonus;
+  typed?: boolean;
+  closest?: boolean;
+  wager?: boolean;
   onClose: () => void;
 };
 
@@ -31,6 +34,9 @@ export function PlayerPhonePreview({
   roundLabel,
   questionLabel,
   bonus,
+  typed = false,
+  closest = false,
+  wager = false,
   onClose,
 }: Props) {
   const visible = options.map((opt) => opt.trim()).filter(Boolean);
@@ -98,6 +104,16 @@ export function PlayerPhonePreview({
                 : "Listen on the host speakers"}
             </p>
           )}
+          {wager && (
+            <p className="mt-4 text-center text-sm text-muted">
+              Wager up to your score. Right adds it, wrong subtracts it.
+            </p>
+          )}
+          {closest || typed ? (
+            <div className="mt-7 rounded-2xl border border-line bg-panel px-4 py-4 text-[19px] font-semibold text-muted">
+              {closest ? "Enter a number" : "Type your answer"}
+            </div>
+          ) : (
           <div className="mt-7 grid gap-3">
             {(visible.length > 0 ? visible : ["Option A", "Option B"]).map(
               (opt, i) => (
@@ -119,6 +135,7 @@ export function PlayerPhonePreview({
               )
             )}
           </div>
+          )}
           <p className="mt-6 text-center text-xs text-muted">
             Phones never show the photo, clip, or correct answer
           </p>

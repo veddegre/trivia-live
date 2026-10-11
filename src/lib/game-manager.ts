@@ -35,6 +35,7 @@ import {
 } from "@/lib/question-clock";
 import { questionRecoveryPlan } from "@/lib/question-recovery";
 import { secretToken } from "@/lib/secret-token";
+import { closestAnswerIds, parseGuess, wagerPoints } from "@/lib/closest-wager";
 import { matchTypedAnswer } from "@/lib/fuzzy-answer";
 import { playerRoster, teamLeaderboard, teamNameKey } from "@/lib/teams";
 import {
@@ -336,9 +337,11 @@ export async function buildPublicState(
       order: q.order,
       gameType: activeType,
       prompt: q.prompt,
-      options: q.typed && phase === "question" ? [] : q.options,
+      options: (q.typed || q.closest) && phase === "question" ? [] : q.options,
       timeLimitSec: q.timeLimitSec,
       ...(q.typed ? { typed: true } : {}),
+      ...(q.closest ? { closest: true } : {}),
+      ...(q.wager ? { wager: true } : {}),
       imageUrl: gameTypeUsesImage(activeType)
         ? mediaPublicUrl(q.imageKey)
         : null,
@@ -505,6 +508,7 @@ export async function buildPlayerViews(code: string): Promise<Map<string, Player
           playerId: true,
           choiceIndex: true,
           text: true,
+          wager: true,
           isCorrect: true,
           points: true,
         },
@@ -535,6 +539,7 @@ export async function buildPlayerViews(code: string): Promise<Map<string, Player
       teamName: player.team?.name ?? null,
       totalScore: player.totalScore,
       answerText: answer?.text ? answer.text : null,
+      answerWager: answer && answerQuestion?.wager ? answer.wager : null,
       hasAnswered,
       selectedChoice: answer ? answer.choiceIndex : null,
       lastResult:
@@ -851,6 +856,7 @@ export async function submitAnswer(opts: {
   playerToken: string;
   choiceIndex?: number;
   text?: string;
+  wager?: number;
 }) {
   const game = await loadGame(opts.code);
   if (!game) throw new Error("Game not found");
@@ -863,7 +869,11 @@ export async function submitAnswer(opts: {
 
   let pick = -1;
   let answerText = "";
-  if (q.typed) {
+  if (q.closest) {
+    const guess = parseGuess(opts.text ?? "");
+    if (guess == null) throw new Error("Enter a number");
+    answerText = String(guess);
+  } else if (q.typed) {
     answerText = (opts.text ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
     if (!answerText) throw new Error("Type an answer");
     pick = matchTypedAnswer(answerText, q.options);
@@ -881,8 +891,10 @@ export async function submitAnswer(opts: {
     throw new Error(closedQuestionMessage(game.status, game.questionOpenedAt));
   }
 
-  const scored = (elapsedMs: number, limitMs: number) => {
+  const scored = (elapsedMs: number, limitMs: number, wagerAmount: number) => {
+    if (q.closest) return { isCorrect: false, points: 0 };
     const isCorrect = q.typed ? pick >= 0 : pick === q.correctIndex;
+    if (q.wager) return { isCorrect, points: wagerPoints(isCorrect, wagerAmount) };
     const points = scoreAnswer({
       isCorrect,
       elapsedMs,
@@ -917,11 +929,21 @@ export async function submitAnswer(opts: {
 
     const stillPlaying = await tx.player.findUnique({
       where: { id: player.id },
-      select: { id: true, teamId: true },
+      select: { id: true, teamId: true, totalScore: true },
     });
     if (!stillPlaying) throw new Error("Player not found");
     if (game.teamMode && !stillPlaying.teamId) {
       throw new Error("Join a team first");
+    }
+
+    let wagerAmount = 0;
+    if (q.wager && !q.closest) {
+      const cap = Math.max(0, stillPlaying.totalScore);
+      if (opts.wager == null || !Number.isInteger(opts.wager) || opts.wager < 0) {
+        throw new Error("Enter a whole number of points to wager");
+      }
+      if (opts.wager > cap) throw new Error(`You can only wager up to ${cap}`);
+      wagerAmount = opts.wager;
     }
 
     const answeredAt = new Date();
@@ -930,10 +952,11 @@ export async function submitAnswer(opts: {
     if (elapsedMs > limitMs) {
       throw new Error("Time is up");
     }
-    const { isCorrect, points } = scored(elapsedMs, limitMs);
+    const { isCorrect, points } = scored(elapsedMs, limitMs, wagerAmount);
     const data = {
       choiceIndex: pick,
       text: answerText,
+      wager: wagerAmount,
       answeredAt,
       isCorrect,
       points,
@@ -950,7 +973,12 @@ export async function submitAnswer(opts: {
       : "Already answered";
     if (existing) {
       if (!game.allowAnswerChange) throw new Error(closedMessage);
-      if (q.typed ? existing.text === answerText : existing.choiceIndex === pick) {
+      const samePick = q.closest
+        ? existing.text === answerText
+        : q.typed
+          ? existing.text === answerText
+          : existing.choiceIndex === pick;
+      if (samePick && (!q.wager || existing.wager === wagerAmount)) {
         return "unchanged" as const;
       }
       await tx.answer.update({ where: { id: existing.id }, data });
@@ -992,6 +1020,55 @@ export async function submitAnswer(opts: {
 }
 
 /**
+ * Closest-number points are unknown until every guess is in.
+ * Call this while the game row is locked and still QUESTION.
+ */
+async function applyClosestScores(
+  tx: Prisma.TransactionClient,
+  question: {
+    id: string;
+    closest: boolean;
+    options: string[];
+    correctIndex: number;
+    timeLimitSec: number;
+    basePoints: number;
+    timeBonus: number;
+    bonus: string;
+  },
+  openedAt: Date,
+  extraMs: number
+) {
+  if (!question.closest) return;
+  const target = parseGuess(question.options[question.correctIndex] ?? "");
+  const answers = await tx.answer.findMany({
+    where: { questionId: question.id },
+    select: { id: true, text: true, answeredAt: true },
+  });
+  const winners = new Set(
+    target == null ? [] : closestAnswerIds(target, answers)
+  );
+  const limitMs = question.timeLimitSec * 1000 + extraMs;
+  for (const answer of answers) {
+    const won = winners.has(answer.id);
+    const elapsedMs = answer.answeredAt.getTime() - openedAt.getTime();
+    const points = won
+      ? scoreAnswer({
+          isCorrect: true,
+          elapsedMs,
+          timeLimitSec: limitMs / 1000,
+          basePoints: question.basePoints,
+          timeBonus: question.timeBonus,
+          bonus: questionBonus(question),
+        })
+      : 0;
+    await tx.answer.update({
+      where: { id: answer.id },
+      data: { isCorrect: won, points },
+    });
+  }
+}
+
+/**
  * Claim QUESTION → next status. Only the call that wins the row adds scores.
  * Totals are replaced with SUM(answer points), so a second winner cannot double them.
  */
@@ -1000,8 +1077,39 @@ async function claimQuestionAndScore(
   next: "REVEAL" | "FINISHED"
 ): Promise<boolean> {
   return prisma.$transaction(async (tx) => {
-    const claimed = await tx.game.updateMany({
-      where: { id: gameId, status: "QUESTION" },
+    const rows = await tx.$queryRaw<
+      Array<{
+        status: string;
+        currentQuestionIndex: number;
+        questionOpenedAt: Date | null;
+        questionExtraMs: number;
+      }>
+    >`
+      SELECT CAST(status AS text) AS status,
+             "currentQuestionIndex",
+             "questionOpenedAt",
+             "questionExtraMs"
+      FROM "Game"
+      WHERE id = ${gameId}
+      FOR UPDATE
+    `;
+    const row = rows[0];
+    if (!row || row.status !== "QUESTION") return false;
+    const questions = await tx.question.findMany({
+      where: { gameId },
+      orderBy: { order: "asc" },
+    });
+    const question = questions[row.currentQuestionIndex];
+    if (question?.closest && row.questionOpenedAt) {
+      await applyClosestScores(
+        tx,
+        question,
+        row.questionOpenedAt,
+        row.questionExtraMs ?? 0
+      );
+    }
+    await tx.game.update({
+      where: { id: gameId },
       data: {
         status: next,
         questionPausedAt: null,
@@ -1009,7 +1117,6 @@ async function claimQuestionAndScore(
         ...(next === "FINISHED" ? { questionOpenedAt: null } : {}),
       },
     });
-    if (claimed.count !== 1) return false;
     await recomputeTotals(tx, gameId);
     return true;
   }, { maxWait: 30_000, timeout: 30_000 });
@@ -1075,6 +1182,9 @@ async function claimExpiredQuestion(game: GameWithRelations): Promise<boolean> {
       now: Date.now(),
     });
     if (left == null || left > 500) return false;
+    if (q.closest && row.questionOpenedAt) {
+      await applyClosestScores(tx, q, row.questionOpenedAt, row.questionExtraMs ?? 0);
+    }
     await tx.game.update({
       where: { id: game.id },
       data: { status: "REVEAL", questionPausedAt: null, questionExtraMs: 0 },
@@ -1144,37 +1254,34 @@ export async function voidQuestion(code: string, mode: "zero" | "credit") {
             ? await tx.answer.findFirst({
                 where: { questionId: q.id, player: { teamId: player.teamId } },
               })
-            : null;
+            : await tx.answer.findUnique({
+                where: {
+                  playerId_questionId: { playerId: player.id, questionId: q.id },
+                },
+              });
+        const creditPoints = q.wager ? Math.max(0, existing?.wager ?? 0) : credited;
+        const creditText = q.typed || q.closest ? q.options[q.correctIndex] ?? "" : "";
         if (existing) {
           await tx.answer.update({
             where: { id: existing.id },
             data: {
               choiceIndex: q.correctIndex,
-              text: q.typed ? q.options[q.correctIndex] ?? "" : "",
+              text: creditText,
               isCorrect: true,
-              points: credited,
+              points: creditPoints,
             },
           });
           continue;
         }
-        await tx.answer.upsert({
-          where: {
-            playerId_questionId: { playerId: player.id, questionId: q.id },
-          },
-          create: {
+        await tx.answer.create({
+          data: {
             playerId: player.id,
             questionId: q.id,
             choiceIndex: q.correctIndex,
-            text: q.typed ? q.options[q.correctIndex] ?? "" : "",
+            text: creditText,
             answeredAt: new Date(),
             isCorrect: true,
-            points: credited,
-          },
-          update: {
-            choiceIndex: q.correctIndex,
-            text: q.typed ? q.options[q.correctIndex] ?? "" : "",
-            isCorrect: true,
-            points: credited,
+            points: creditPoints,
           },
         });
       }

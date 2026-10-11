@@ -152,6 +152,8 @@ export async function cloneGame(opts: {
         roundTitle: q.roundTitle,
         bonus: isQuestionBonus(q.bonus) ? q.bonus : "NONE",
         typed: q.typed === true,
+        closest: q.closest === true,
+        wager: q.wager === true,
       });
     }
 

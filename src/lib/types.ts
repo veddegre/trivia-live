@@ -22,6 +22,10 @@ export type PublicQuestion = {
   timeLimitSec: number;
   /** Players type this answer. Options stay hidden until reveal. */
   typed?: boolean;
+  /** Players type a number. The closest guesses score when time is up. */
+  closest?: boolean;
+  /** Players bet points on this question. */
+  wager?: boolean;
   // correctIndex only included after reveal / for host
   correctIndex?: number;
   /** Picks per option. Present on reveal, in the same order as options. */
@@ -102,6 +106,8 @@ export type PlayerView = {
   totalScore: number;
   /** What this player, or their team, typed. */
   answerText: string | null;
+  /** Points bet on the open wager, if this question is one. */
+  answerWager: number | null;
   hasAnswered: boolean;
   selectedChoice: number | null;
   lastResult: { isCorrect: boolean; points: number } | null;

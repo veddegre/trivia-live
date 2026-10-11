@@ -20,6 +20,8 @@ export const bankQuestionSchema = questionSchema.omit({
   revealText: true,
   roundTitle: true,
   typed: true,
+  closest: true,
+  wager: true,
   gameType: true,
 });
 

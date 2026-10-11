@@ -22,6 +22,42 @@ import { DISPLAY_NAME_KEY } from "@/lib/types";
 
 const storageKey = (code: string) => `trivia-player:${code}`;
 
+function WagerBox({
+  score,
+  value,
+  disabled,
+  sent,
+  onChange,
+}: {
+  score: number;
+  value: string;
+  disabled: boolean;
+  sent?: number | null;
+  onChange: (next: string) => void;
+}) {
+  const cap = Math.max(0, score);
+  return (
+    <label className="mt-6 block space-y-2">
+      <span className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
+        Wager · up to {cap}
+      </span>
+      {sent != null && (
+        <span className="block text-sm text-muted">Sent wager: {sent}</span>
+      )}
+      <input
+        className="w-full rounded-2xl border border-line bg-panel px-4 py-4 text-[19px] font-semibold text-chalk outline-none"
+        inputMode="numeric"
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value.replace(/[^\d]/g, "").slice(0, 7))}
+      />
+      <span className="block text-xs text-muted">
+        A right answer adds this. A wrong answer subtracts it.
+      </span>
+    </label>
+  );
+}
+
 function ordinal(n: number) {
   const v = n % 100;
   if (v >= 11 && v <= 13) return `${n}th`;
@@ -44,6 +80,7 @@ function PlayInner({ code }: { code: string }) {
   const [name, setName] = useState(presetName);
   const [teamName, setTeamName] = useState("");
   const [typedDraft, setTypedDraft] = useState("");
+  const [wagerDraft, setWagerDraft] = useState("0");
   const [teamNight, setTeamNight] = useState(false);
   const [lookupDone, setLookupDone] = useState(false);
   const [player, setPlayer] = useState<PlayerView | null>(null);
@@ -74,6 +111,11 @@ function PlayInner({ code }: { code: string }) {
     paused ||
     state?.phase !== "question" ||
     submitting;
+
+  useEffect(() => {
+    setTypedDraft("");
+    setWagerDraft("0");
+  }, [state?.question?.id]);
 
   useEffect(() => {
     if (presetName) return;
@@ -209,6 +251,8 @@ function PlayInner({ code }: { code: string }) {
                 ...prev,
                 hasAnswered: false,
                 selectedChoice: null,
+                answerText: null,
+                answerWager: null,
                 lastResult: null,
               }
             : prev
@@ -337,20 +381,45 @@ function PlayInner({ code }: { code: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lookupDone, player, gameMissing, teamNight, presetName, code]);
 
+  function wagerPayload(): { ok: true; wager?: number } | { ok: false } {
+    if (!state?.question?.wager) return { ok: true };
+    const raw = wagerDraft.trim();
+    if (!/^\d+$/.test(raw)) {
+      setError("Enter a whole number of points to wager");
+      return { ok: false };
+    }
+    return { ok: true, wager: Number(raw) };
+  }
+
   function answer(choiceIndex: number) {
-    sendAnswer({ choiceIndex }, { selectedChoice: choiceIndex });
+    const bet = wagerPayload();
+    if (!bet.ok) return;
+    sendAnswer(
+      { choiceIndex, wager: bet.wager },
+      { selectedChoice: choiceIndex }
+    );
   }
 
   function submitTyped(event: FormEvent) {
     event.preventDefault();
     const text = typedDraft.replace(/\s+/g, " ").trim();
     if (!text) return;
-    if (player?.answerText === text) return;
-    sendAnswer({ text }, { answerText: text, selectedChoice: null });
+    const bet = wagerPayload();
+    if (!bet.ok) return;
+    if (
+      player?.answerText === text &&
+      (bet.wager == null || player.answerWager === bet.wager)
+    ) {
+      return;
+    }
+    sendAnswer(
+      { text, wager: bet.wager },
+      { answerText: text, selectedChoice: null }
+    );
   }
 
   function sendAnswer(
-    payload: { choiceIndex?: number; text?: string },
+    payload: { choiceIndex?: number; text?: string; wager?: number },
     optimistic: { selectedChoice: number | null; answerText?: string }
   ) {
     if (!player || timeUp || state?.phase !== "question" || submitting) return;
@@ -358,6 +427,7 @@ function PlayInner({ code }: { code: string }) {
     const previousChoice = player.selectedChoice;
     const previousAnswered = player.hasAnswered;
     const previousText = player.answerText;
+    const previousWager = player.answerWager;
     setSubmitting(true);
     setError("");
     setPlayer((prev) =>
@@ -367,6 +437,7 @@ function PlayInner({ code }: { code: string }) {
             hasAnswered: true,
             selectedChoice: optimistic.selectedChoice,
             answerText: optimistic.answerText ?? prev.answerText,
+            answerWager: payload.wager ?? prev.answerWager,
           }
         : prev
     );
@@ -385,6 +456,7 @@ function PlayInner({ code }: { code: string }) {
                   hasAnswered: previousAnswered,
                   selectedChoice: previousChoice,
                   answerText: previousText,
+                  answerWager: previousWager,
                 }
               : prev
           );
@@ -634,19 +706,40 @@ function PlayInner({ code }: { code: string }) {
                       : "Wait for the host to play the snippet"}
                 </p>
               )}
-              {state.question.typed ? (
+              {state.question.wager && !state.question.typed && !state.question.closest && (
+                <WagerBox
+                  score={player.totalScore}
+                  value={wagerDraft}
+                  disabled={locked || (gameTypeUsesAudio(state.gameType) && !state.questionOpenedAt)}
+                  sent={player.answerWager}
+                  onChange={setWagerDraft}
+                />
+              )}
+              {state.question.typed || state.question.closest ? (
                 <form onSubmit={submitTyped} className="mt-7 space-y-3">
                   {player.answerText && (
                     <p className="text-center text-sm text-muted">
                       Sent: {player.answerText}
+                      {state.question.wager && player.answerWager != null
+                        ? ` · wager ${player.answerWager}`
+                        : ""}
                     </p>
+                  )}
+                  {state.question.wager && (
+                    <WagerBox
+                      score={player.totalScore}
+                      value={wagerDraft}
+                      disabled={locked || (gameTypeUsesAudio(state.gameType) && !state.questionOpenedAt)}
+                      onChange={setWagerDraft}
+                    />
                   )}
                   <input
                     className="w-full rounded-2xl border border-line bg-panel px-4 py-4 text-[19px] font-semibold text-chalk outline-none"
                     value={typedDraft}
                     onChange={(e) => setTypedDraft(e.target.value)}
                     maxLength={80}
-                    placeholder="Type your answer"
+                    inputMode={state.question.closest ? "decimal" : "text"}
+                    placeholder={state.question.closest ? "Enter a number" : "Type your answer"}
                     disabled={
                       locked ||
                       (gameTypeUsesAudio(state.gameType) && !state.questionOpenedAt)
@@ -677,6 +770,9 @@ function PlayInner({ code }: { code: string }) {
                   const waitingForMusic =
                     gameTypeUsesAudio(state.gameType) && !state.questionOpenedAt;
                   const held = !!state.questionPausedAt;
+                  const sameWager =
+                    !state.question.wager ||
+                    player.answerWager === Number(wagerDraft);
                   return (
                     <button
                       key={i}
@@ -698,7 +794,7 @@ function PlayInner({ code }: { code: string }) {
                         locked ||
                         waitingForMusic ||
                         held ||
-                        player.selectedChoice === i
+                        (player.selectedChoice === i && sameWager)
                       }
                       onClick={() => answer(i)}
                     >
@@ -717,7 +813,11 @@ function PlayInner({ code }: { code: string }) {
                 })}
               </div>
               )}
-              {player.hasAnswered && canChange && !timeUp && !state.question.typed && (
+              {player.hasAnswered &&
+                canChange &&
+                !timeUp &&
+                !state.question.typed &&
+                !state.question.closest && (
                 <p className="mt-8 text-center text-sm text-muted">
                   {state.question.bonus === "LIGHTNING"
                     ? "Tap another option to change. Lightning scores base points only."

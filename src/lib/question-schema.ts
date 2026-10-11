@@ -16,6 +16,7 @@ import {
   questionTypeOf,
   type GameType,
 } from "@/lib/types";
+import { parseGuess } from "@/lib/closest-wager";
 import { isQuestionBonus } from "@/lib/scoring";
 
 export const gameTypeSchema = z.enum([
@@ -34,6 +35,8 @@ export const questionSchema = z.object({
   prompt: z.string().min(1).max(500),
   options: z.array(z.string().min(1).max(200)).min(1).max(6),
   typed: z.boolean().optional().default(false),
+  closest: z.boolean().optional().default(false),
+  wager: z.boolean().optional().default(false),
   correctIndex: z.number().int().min(0),
   timeLimitSec: z.number().int().min(5).max(300).default(30),
   basePoints: z.number().int().min(0).max(10000).default(SCORE_BASE_DEFAULT),
@@ -79,7 +82,15 @@ export function assertQuestionsForGameType(
   const indexErr = assertCorrectIndexes(questions);
   if (indexErr) return indexErr;
   for (const q of questions) {
-    if (q.typed) {
+    if (q.closest && q.wager) {
+      return "A question can't be both a wager and a closest number";
+    }
+    if (q.closest) {
+      const target = q.options[q.correctIndex] ?? "";
+      if (parseGuess(target) == null) {
+        return "Each closest-number question needs a number";
+      }
+    } else if (q.typed) {
       if (q.options.length < 1) return "Each typed question needs an accepted answer";
     } else if (q.options.length < 2) {
       return "Each question needs at least two options";
@@ -127,7 +138,9 @@ export function questionCreateData(
     prompt: q.prompt,
     options: q.options,
     correctIndex: q.correctIndex,
-    typed: q.typed === true,
+    typed: q.typed === true && q.closest !== true,
+    closest: q.closest === true,
+    wager: q.wager === true && q.closest !== true,
     timeLimitSec: q.timeLimitSec,
     basePoints: q.basePoints,
     timeBonus: q.timeBonus,
