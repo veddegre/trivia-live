@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { assertCorrectIndexes } from "@/lib/question-schema";
 import {
-  MAX_BANKS,
-  bankQuestionCreateData,
   bankWriteSchema,
   banksOwnedBy,
+  createQuestionBank,
 } from "@/lib/question-bank";
 
 export async function GET() {
@@ -37,34 +35,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const indexErr = assertCorrectIndexes(parsed.data.questions);
+  const indexErr = parsed.data.questions.some(
+    (q) => q.correctIndex >= q.options.length
+  );
   if (indexErr) {
-    return NextResponse.json({ error: indexErr }, { status: 400 });
-  }
-
-  const count = await prisma.questionBank.count({ where: { ownerId: user.id } });
-  if (count >= MAX_BANKS) {
     return NextResponse.json(
-      { error: `You can keep up to ${MAX_BANKS} banks` },
+      { error: "A question's correct answer is out of range" },
       { status: 400 }
     );
   }
 
-  const bank = await prisma.questionBank.create({
-    data: {
-      title: parsed.data.title.trim(),
+  try {
+    const bank = await createQuestionBank({
       ownerId: user.id,
-      questions: {
-        create: parsed.data.questions.map((q, order) =>
-          bankQuestionCreateData(q, order)
-        ),
-      },
-    },
-    include: {
-      questions: { orderBy: { order: "asc" } },
-      owner: { select: { id: true, name: true, email: true } },
-    },
-  });
-
-  return NextResponse.json({ bank }, { status: 201 });
+      title: parsed.data.title,
+      questions: parsed.data.questions,
+    });
+    return NextResponse.json({ bank }, { status: 201 });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Could not save bank";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 }

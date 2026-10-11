@@ -253,6 +253,7 @@ function AdminInner() {
   const [shareTargetId, setShareTargetId] = useState("");
   const [recapDetail, setRecapDetail] = useState<RecapDetail | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const bankImportInputRef = useRef<HTMLInputElement>(null);
   const [banks, setBanks] = useState<BankListItem[]>([]);
   const [editingBankId, setEditingBankId] = useState<string | null>(null);
   const [bankTitle, setBankTitle] = useState("");
@@ -824,6 +825,60 @@ function AdminInner() {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exportBank(id: string, bankTitleText: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch(`/api/banks/${id}/export`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showMessage(
+          typeof data.error === "string" ? data.error : "Could not export bank",
+          "bad"
+        );
+        return;
+      }
+      const blob = await res.blob();
+      const header = res.headers.get("content-disposition") || "";
+      const match = header.match(/filename="([^"]+)"/);
+      const filename = match?.[1] || `${bankTitleText}.json`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      showMessage(`Exported “${bankTitleText}”`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importBank(file: File) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/banks/import", { method: "POST", body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showMessage(
+          typeof data.error === "string" ? data.error : "Could not import bank",
+          "bad"
+        );
+        return;
+      }
+      const importedTitle = data.bank?.title as string | undefined;
+      showMessage(
+        importedTitle ? `Imported bank “${importedTitle}”` : "Imported bank"
+      );
+      await loadBanks();
     } finally {
       setBusy(false);
     }
@@ -1858,10 +1913,30 @@ function AdminInner() {
                   </h1>
                   <p className="mt-1 text-sm text-muted">
                     Trivia pools you can drop into a night. The bank name
-                    becomes the round name.
+                    becomes the round name. Import a JSON bank or a CSV with
+                    columns prompt, A, B, C, D, and correct.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <input
+                    ref={bankImportInputRef}
+                    type="file"
+                    accept=".json,.csv,text/csv,application/json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) void importBank(file);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    disabled={busy}
+                    onClick={() => bankImportInputRef.current?.click()}
+                  >
+                    Import bank
+                  </button>
                   <button
                     type="button"
                     className="btn btn-ghost"
@@ -1967,7 +2042,7 @@ function AdminInner() {
                 </h2>
                 {banks.length === 0 && (
                   <p className="text-muted">
-                    No banks yet — save one above or add the starter pack.
+                    No banks yet — save one above, import a file, or add the starter pack.
                   </p>
                 )}
                 {banks.map((b) => (
@@ -1988,6 +2063,13 @@ function AdminInner() {
                         onClick={() => startEditBank(b)}
                       >
                         Edit
+                      </button>
+                      <button
+                        className="btn btn-ghost"
+                        disabled={busy}
+                        onClick={() => void exportBank(b.id, b.title)}
+                      >
+                        Export
                       </button>
                       <button
                         className="btn btn-danger"

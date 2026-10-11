@@ -2,7 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { ROUND_TITLE_MAX } from "@/lib/rounds";
 import { isQuestionBonus } from "@/lib/scoring";
-import { questionSchema } from "@/lib/question-schema";
+import { assertCorrectIndexes, questionSchema } from "@/lib/question-schema";
 import { SCORE_BASE_DEFAULT, SCORE_TIME_BONUS_DEFAULT } from "@/lib/types";
 import type { SessionUser } from "@/lib/auth";
 
@@ -132,6 +132,36 @@ export const STARTER_BANK_QUESTIONS: BankQuestionInput[] = [
     bonus: "NONE",
   },
 ];
+
+export async function createQuestionBank(opts: {
+  ownerId: string;
+  title: string;
+  questions: BankQuestionInput[];
+}) {
+  const title = opts.title.trim();
+  if (!title) throw new Error("Bank name is required");
+  const indexErr = assertCorrectIndexes(opts.questions);
+  if (indexErr) throw new Error("A question's correct answer is out of range");
+
+  const count = await prisma.questionBank.count({ where: { ownerId: opts.ownerId } });
+  if (count >= MAX_BANKS) {
+    throw new Error(`You can keep up to ${MAX_BANKS} banks`);
+  }
+
+  return prisma.questionBank.create({
+    data: {
+      title,
+      ownerId: opts.ownerId,
+      questions: {
+        create: opts.questions.map((q, order) => bankQuestionCreateData(q, order)),
+      },
+    },
+    include: {
+      questions: { orderBy: { order: "asc" } },
+      owner: { select: { id: true, name: true, email: true } },
+    },
+  });
+}
 
 export async function ensureStarterBank(ownerId: string) {
   const existing = await prisma.questionBank.findFirst({
