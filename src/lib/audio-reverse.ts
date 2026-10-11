@@ -21,10 +21,9 @@ export function reverseAudioBuffer(
     source.sampleRate
   );
   for (let channel = 0; channel < source.numberOfChannels; channel++) {
-    reversed.copyToChannel(
-      reverseChannelData(source.getChannelData(channel)),
-      channel
-    );
+    reversed
+      .getChannelData(channel)
+      .set(reverseChannelData(source.getChannelData(channel)));
   }
   return reversed;
 }

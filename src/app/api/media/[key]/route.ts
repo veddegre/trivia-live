@@ -67,7 +67,11 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   }
 
   const partial = range !== "all";
-  return new NextResponse(new Uint8Array(data), {
+  // A view into Node's buffer pool can report the wrong length. Safari then
+  // plays the first packet and stops. Hand it a buffer that is exactly the body.
+  const body = new ArrayBuffer(length);
+  if (length > 0) new Uint8Array(body).set(data);
+  return new NextResponse(body, {
     status: partial ? 206 : 200,
     headers: {
       ...baseHeaders,

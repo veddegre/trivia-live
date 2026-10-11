@@ -267,32 +267,104 @@ function HostQuestionImage({
   );
 }
 
-function ControlsLink({
-  code,
-  token,
-  prominent = false,
-}: {
-  code: string;
-  token: string;
-  prominent?: boolean;
-}) {
+function ControlsLink({ code, token }: { code: string; token: string }) {
   if (!token) return null;
   return (
     <a
       href={`/remote/${encodeURIComponent(code)}?token=${encodeURIComponent(token)}`}
       target="_blank"
       rel="noreferrer"
-      className={
-        prominent
-          ? "rounded-2xl px-6 py-3 text-sm font-extrabold uppercase tracking-[0.14em]"
-          : "text-xs font-bold uppercase tracking-[0.16em] text-muted hover:text-amber"
-      }
-      style={
-        prominent ? { background: "var(--amber)", color: "#1a1200" } : undefined
-      }
+      className="text-xs font-bold uppercase tracking-[0.16em] text-muted hover:text-amber"
     >
-      Open controls
+      Phone controls
     </a>
+  );
+}
+
+function HostButton({
+  children,
+  onClick,
+  tone = "primary",
+}: {
+  children: string;
+  onClick: () => void;
+  tone?: "primary" | "ghost";
+}) {
+  return (
+    <button
+      type="button"
+      className={`btn uppercase tracking-wide ${tone === "primary" ? "btn-primary" : "btn-ghost"}`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function HostNightControls({
+  state,
+  code,
+  token,
+  onAction,
+}: {
+  state: GamePublicState;
+  code: string;
+  token: string;
+  onAction: (event: string, payload?: unknown) => void;
+}) {
+  const phase = state.phase;
+  const clockRunning = phase === "question" && !!state.questionOpenedAt;
+  const last = state.questionIndex + 1 >= state.questionTotal;
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-3">
+      {state.status === "DRAFT" && (
+        <HostButton onClick={() => onAction("host:start")}>Open lobby</HostButton>
+      )}
+      {(phase === "lobby" || phase === "between") && state.status !== "DRAFT" && (
+        <HostButton onClick={() => onAction("host:openQuestion")}>
+          {`Start question ${state.questionIndex + 1}`}
+        </HostButton>
+      )}
+      {phase === "question" && (
+        <HostButton onClick={() => onAction("host:lock")}>Lock now</HostButton>
+      )}
+      {clockRunning && (
+        <>
+          <HostButton
+            tone="ghost"
+            onClick={() =>
+              onAction(state.questionPausedAt ? "host:resume" : "host:pause")
+            }
+          >
+            {state.questionPausedAt ? "Resume" : "Pause"}
+          </HostButton>
+          <HostButton tone="ghost" onClick={() => onAction("host:extend")}>
+            Add 10 seconds
+          </HostButton>
+        </>
+      )}
+      {phase === "reveal" && (
+        <HostButton onClick={() => onAction("host:next")}>
+          {last ? "Show winner" : "Continue"}
+        </HostButton>
+      )}
+      {phase === "finished" && (
+        <HostButton
+          onClick={() => {
+            if (
+              confirm(
+                "Play again? This clears players and scores, keeps the questions, and issues a new join code."
+              )
+            ) {
+              onAction("host:reset");
+            }
+          }}
+        >
+          Play again
+        </HostButton>
+      )}
+      <ControlsLink code={code} token={token} />
+    </div>
   );
 }
 
@@ -457,6 +529,16 @@ export function HostScreen({
     const n = state.leaderboard.filter((r) => (r.lastPoints ?? 0) > 0).length;
     return Math.round((100 * n) / denom);
   }, [state]);
+
+  function hostEmit(event: string, payload?: unknown) {
+    const socket = getSocket();
+    const done = (res: { ok?: boolean; message?: string }) => {
+      if (res && res.ok === false) setError(res.message || "Action failed");
+      else setError("");
+    };
+    if (payload === undefined) socket.emit(event, done);
+    else socket.emit(event, payload, done);
+  }
 
   function startClock(): Promise<void> {
     const socket = getSocket();
@@ -677,7 +759,12 @@ export function HostScreen({
 
           {isHost && (
             <div className="flex shrink-0 justify-center py-3 md:py-4">
-              <ControlsLink code={liveCode} token={hostToken} />
+              <HostNightControls
+                state={state}
+                code={liveCode}
+                token={hostToken}
+                onAction={hostEmit}
+              />
             </div>
           )}
         </main>
@@ -836,7 +923,12 @@ export function HostScreen({
 
           {isHost && (
             <div className="flex shrink-0 justify-center py-4">
-              <ControlsLink code={liveCode} token={hostToken} />
+              <HostNightControls
+                state={state}
+                code={liveCode}
+                token={hostToken}
+                onAction={hostEmit}
+              />
             </div>
           )}
         </main>
@@ -922,7 +1014,12 @@ export function HostScreen({
 
               {isHost && (
                 <div className="mt-10">
-                  <ControlsLink code={liveCode} token={hostToken} />
+                  <HostNightControls
+                    state={state}
+                    code={liveCode}
+                    token={hostToken}
+                    onAction={hostEmit}
+                  />
                 </div>
               )}
             </section>
@@ -1008,7 +1105,12 @@ export function HostScreen({
 
             {isHost && (
               <div className="mt-8 flex flex-col items-center gap-3 pb-4">
-                <ControlsLink code={liveCode} token={hostToken} prominent />
+                <HostNightControls
+                  state={state}
+                  code={liveCode}
+                  token={hostToken}
+                  onAction={hostEmit}
+                />
                 <Link
                   href="/admin?tab=games"
                   className="text-sm font-semibold uppercase tracking-[0.14em] text-muted transition hover:text-chalk"
@@ -1078,12 +1180,6 @@ export function HostScreen({
               <p className="mt-3 text-center text-xs font-bold uppercase tracking-[0.18em] text-muted md:text-sm">
                 {state.rounds.map((r) => r.title).join(" · ")}
               </p>
-            )}
-
-            {isHost && state.status === "DRAFT" && (
-              <div className="mt-6 flex justify-center">
-                <ControlsLink code={liveCode} token={hostToken} />
-              </div>
             )}
 
             <div className="flex min-h-0 flex-1 items-center py-8">
@@ -1255,8 +1351,13 @@ export function HostScreen({
             </div>
 
             {isHost ? (
-              <div className="mt-auto flex flex-col items-start gap-2 pt-8">
-                <ControlsLink code={liveCode} token={hostToken} prominent />
+              <div className="mt-auto flex flex-col items-start gap-3 pt-8">
+                <HostNightControls
+                  state={state}
+                  code={liveCode}
+                  token={hostToken}
+                  onAction={hostEmit}
+                />
               </div>
             ) : (
               <p className="mt-auto pt-8 text-xs font-bold uppercase tracking-[0.16em] text-muted">

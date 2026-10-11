@@ -2,8 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { playbackRate } from "@/lib/audio-speed";
-import { holdPlaybackSession } from "@/lib/audio-output";
 import { visualNowMs } from "@/lib/question-clock";
+import {
+  decodeAudioBuffer,
+  pokeAudioContext,
+  startClip,
+  type ArmedContext,
+  type LiveClip,
+} from "@/lib/web-audio-clip";
 
 type Props = {
   src: string;
@@ -19,6 +25,14 @@ type Props = {
   className?: string;
 };
 
+function createAudioContext(): AudioContext {
+  const Ctx =
+    window.AudioContext ??
+    (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) throw new Error("Audio is not supported in this browser");
+  return new Ctx();
+}
+
 export function SpeedRevealAudio({
   src,
   startSpeed = 2,
@@ -30,199 +44,242 @@ export function SpeedRevealAudio({
   onPlayRequest,
   className = "",
 }: Props) {
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const ctxRef = useRef<AudioContext | null>(null);
+  const clipRef = useRef<LiveClip | null>(null);
+  const holdRef = useRef<ArmedContext | null>(null);
+  const bufferRef = useRef<AudioBuffer | null>(null);
+  const bytesRef = useRef<ArrayBuffer | null>(null);
+  const offsetRef = useRef(0);
   const resumeAfterHold = useRef(false);
-  const wantPlay = useRef(false);
   const pausedAtRef = useRef(pausedAt);
   const clockOffsetRef = useRef(clockOffsetMs);
-  const appliedRate = useRef<number | null>(null);
-  const lastKick = useRef(0);
+  const openedAtRef = useRef(openedAt);
+  const [attempt, setAttempt] = useState(0);
+  const [loaded, setLoaded] = useState(false);
   const [playing, setPlaying] = useState(false);
-  pausedAtRef.current = pausedAt;
-  clockOffsetRef.current = clockOffsetMs;
   const [error, setError] = useState("");
   const [rateLabel, setRateLabel] = useState(revealed ? 1 : startSpeed);
+  pausedAtRef.current = pausedAt;
+  clockOffsetRef.current = clockOffsetMs;
+  openedAtRef.current = openedAt;
+
+  function context(): AudioContext {
+    if (!ctxRef.current || ctxRef.current.state === "closed") {
+      ctxRef.current = createAudioContext();
+    }
+    return ctxRef.current;
+  }
+
+  function stopClip() {
+    clipRef.current?.stop();
+    clipRef.current = null;
+  }
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    let cancelled = false;
+    setLoaded(false);
+    setPlaying(false);
+    setError("");
+    bufferRef.current = null;
+    bytesRef.current = null;
+    offsetRef.current = 0;
+    resumeAfterHold.current = false;
+    stopClip();
 
-    if (revealed) {
-      audio.playbackRate = 1;
-      setRateLabel(1);
-      return;
-    }
-
-    if (!openedAt || !playing) {
-      if (audio.paused) {
-        audio.playbackRate = startSpeed;
-        setRateLabel(startSpeed);
+    (async () => {
+      try {
+        const res = await fetch(src);
+        if (!res.ok) throw new Error("Could not load the clip");
+        const bytes = await res.arrayBuffer();
+        if (cancelled) return;
+        bytesRef.current = bytes;
+        setLoaded(true);
+        const ctx = context();
+        try {
+          const decoded = await decodeAudioBuffer(ctx, bytes);
+          if (cancelled) return;
+          bufferRef.current = decoded;
+        } catch {
+          if (cancelled || ctx.state === "suspended") return;
+          throw new Error("Could not prepare this clip");
+        }
+      } catch {
+        if (!cancelled) setError("Could not prepare this clip");
       }
-      return;
-    }
+    })();
 
-    const opened = new Date(openedAt).getTime();
-    const limit = timeLimitSec ?? 30;
-    const apply = (rate: number) => {
-      const next = Math.round(rate * 100) / 100;
-      if (appliedRate.current === next) return;
-      appliedRate.current = next;
-      audio.playbackRate = next;
-      setRateLabel(next);
+    return () => {
+      cancelled = true;
+      stopClip();
     };
-    apply(
-      playbackRate({
-        startSpeed,
-        elapsedMs: visualNowMs(Date.now(), clockOffsetRef.current, pausedAt) - opened,
-        timeLimitSec: limit,
-      })
-    );
-    // Safari stalls if playbackRate is rewritten every frame.
-    const id = window.setInterval(() => {
-      if (pausedAtRef.current) return;
-      apply(
-        playbackRate({
-          startSpeed,
-          elapsedMs:
-            visualNowMs(Date.now(), clockOffsetRef.current, pausedAtRef.current) - opened,
-          timeLimitSec: limit,
-        })
-      );
-    }, 200);
-    return () => window.clearInterval(id);
-  }, [src, startSpeed, openedAt, timeLimitSec, revealed, playing, pausedAt]);
+  }, [src, attempt]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    const opened = openedAt ? new Date(openedAt).getTime() : 0;
+    const limit = timeLimitSec ?? 30;
+    if (revealed || !openedAt || !playing || pausedAt) return;
+    const apply = () => {
+      const clip = clipRef.current;
+      if (!clip || pausedAtRef.current) return;
+      const rate = playbackRate({
+        startSpeed,
+        elapsedMs: visualNowMs(Date.now(), clockOffsetRef.current, pausedAtRef.current) - opened,
+        timeLimitSec: limit,
+      });
+      clip.setRate(rate);
+      const shown = Math.round(rate * 100) / 100;
+      setRateLabel((prev) => (prev === shown ? prev : shown));
+    };
+    apply();
+    const id = window.setInterval(apply, 250);
+    return () => window.clearInterval(id);
+  }, [startSpeed, openedAt, timeLimitSec, revealed, playing, pausedAt]);
+
+  useEffect(() => {
     if (pausedAt) {
-      if (!audio.paused) {
-        audio.pause();
-        resumeAfterHold.current = true;
-      }
+      const clip = clipRef.current;
+      if (!clip) return;
+      offsetRef.current = clip.position();
+      stopClip();
+      resumeAfterHold.current = true;
+      setPlaying(false);
       return;
     }
     if (!resumeAfterHold.current) return;
     resumeAfterHold.current = false;
-    void audio.play().catch(() => setPlaying(false));
-  }, [pausedAt, playing]);
+    const buffer = bufferRef.current;
+    const ctx = ctxRef.current;
+    if (!buffer || !ctx) return;
+    const opened = openedAtRef.current ? new Date(openedAtRef.current).getTime() : 0;
+    const rate = revealed
+      ? 1
+      : playbackRate({
+          startSpeed,
+          elapsedMs: opened
+            ? visualNowMs(Date.now(), clockOffsetRef.current, null) - opened
+            : 0,
+          timeLimitSec: timeLimitSec ?? 30,
+        });
+    clipRef.current = startClip(ctx, buffer, {
+      offset: offsetRef.current,
+      rate,
+      loop: false,
+      onEnded: () => {
+        clipRef.current = null;
+        setPlaying(false);
+      },
+    });
+    setPlaying(true);
+    setRateLabel(Math.round(rate * 100) / 100);
+  }, [pausedAt, revealed, startSpeed, timeLimitSec]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    wantPlay.current = false;
-    appliedRate.current = null;
-    audio.pause();
-    audio.currentTime = 0;
-    resumeAfterHold.current = false;
-    setPlaying(false);
-    setError("");
-  }, [src]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
     return () => {
-      audio?.pause();
+      stopClip();
+      holdRef.current?.release();
+      holdRef.current = null;
+      void ctxRef.current?.close();
+      ctxRef.current = null;
     };
   }, []);
 
+  async function ensureBuffer(ctx: AudioContext) {
+    if (bufferRef.current) return bufferRef.current;
+    if (!bytesRef.current) return null;
+    const decoded = await decodeAudioBuffer(ctx, bytesRef.current);
+    bufferRef.current = decoded;
+    return decoded;
+  }
+
   async function handlePlay() {
-    const audio = audioRef.current;
-    if (!audio || pausedAt) return;
+    if (pausedAt || clipRef.current) return;
     setError("");
-    holdPlaybackSession();
-    audio.playbackRate = revealed ? 1 : startSpeed;
-    wantPlay.current = true;
-    const started = audio.play();
+    const ctx = context();
+    // resume() has to be called in this tap. Safari drops a clip started
+    // while the context is still suspended, so wait for that before start.
+    const hold = pokeAudioContext(ctx, holdRef.current);
+    holdRef.current = hold;
     try {
-      if (onPlayRequest) await onPlayRequest();
+      if (ctx.state !== "running") await hold.resumed;
+      const buffer = await ensureBuffer(ctx);
+      if (!buffer) {
+        setError(bytesRef.current ? "Could not prepare this clip" : "Clip is still loading");
+        return;
+      }
+      const rate = revealed ? 1 : startSpeed;
+      stopClip();
+      clipRef.current = startClip(ctx, buffer, {
+        offset: 0,
+        rate,
+        loop: false,
+        onEnded: () => {
+          clipRef.current = null;
+          setPlaying(false);
+        },
+      });
+      offsetRef.current = 0;
+      setPlaying(true);
+      setRateLabel(Math.round(rate * 100) / 100);
+      if (!revealed && onPlayRequest) await onPlayRequest();
     } catch (err) {
-      wantPlay.current = false;
-      audio.pause();
+      stopClip();
       setPlaying(false);
-      setError(err instanceof Error ? err.message : "Could not start the timer");
-      return;
-    }
-    try {
-      await started;
-      setPlaying(true);
-    } catch {
-      wantPlay.current = false;
-      setError("Could not play — check the host volume / browser autoplay");
-      setPlaying(false);
+      setError(
+        err instanceof Error && err.message && !err.message.includes("decode")
+          ? err.message
+          : "Could not play — check the host volume / browser autoplay"
+      );
     }
   }
 
-  async function handleReplay() {
-    const audio = audioRef.current;
-    if (!audio) return;
-    setError("");
-    holdPlaybackSession();
-    audio.playbackRate = 1;
-    audio.currentTime = 0;
-    wantPlay.current = true;
-    try {
-      await audio.play();
-      setPlaying(true);
-    } catch {
-      wantPlay.current = false;
-      setError("Could not play");
-      setPlaying(false);
-    }
-  }
-
-  function resumeIfInterrupted() {
-    const audio = audioRef.current;
-    if (!audio || !wantPlay.current || pausedAtRef.current || audio.ended) return;
-    const now = Date.now();
-    if (now - lastKick.current < 400) return;
-    lastKick.current = now;
-    void audio.play().catch(() => {
-      wantPlay.current = false;
-      setPlaying(false);
-    });
-  }
+  const waitingForHost = !revealed && !openedAt && !onPlayRequest;
 
   return (
     <div
       className={`flex flex-col items-center justify-center rounded-2xl border border-line bg-ink-2/70 px-6 py-8 ${className}`}
     >
-      <audio
-        ref={audioRef}
-        src={src}
-        preload="auto"
-        playsInline
-        onEnded={() => {
-          wantPlay.current = false;
-          setPlaying(false);
-        }}
-        onPause={resumeIfInterrupted}
-      />
       <div className="text-xs font-bold uppercase tracking-[0.18em] text-amber">
         {revealed ? "Full speed" : `${rateLabel.toFixed(2)}×`}
       </div>
       <p className="mt-2 text-center text-sm text-muted">
-        {revealed
-          ? "Replay the snippet at normal speed"
-            : pausedAt
-              ? "Paused"
-            : playing
-              ? "Listening…"
-              : onPlayRequest
-                ? "Tap play to start the snippet and the timer"
-                : openedAt
-                  ? "Tap play to listen on this screen"
-                  : "Waiting for the host to play"}
+        {error
+          ? error
+          : !loaded
+            ? "Preparing clip…"
+            : revealed
+              ? "Replay the snippet at normal speed"
+              : pausedAt
+                ? "Paused"
+                : playing
+                  ? "Listening…"
+                  : onPlayRequest
+                    ? "Tap play to start the snippet and the timer"
+                    : openedAt
+                      ? "Tap play to listen on this screen"
+                      : "Waiting for the host to play"}
       </p>
       <button
         type="button"
         className="btn mt-5 px-10 uppercase tracking-wide"
-        disabled={!!pausedAt || (!revealed && !openedAt && !onPlayRequest)}
-        onClick={() => void (revealed ? handleReplay() : handlePlay())}
+        disabled={!!pausedAt || (!error && (waitingForHost || !loaded))}
+        onClick={() => {
+          if (error && !bufferRef.current && !bytesRef.current) {
+            setAttempt((n) => n + 1);
+            return;
+          }
+          void handlePlay();
+        }}
       >
-        {revealed ? "Replay" : pausedAt ? "Paused" : playing ? "Playing…" : "Play snippet"}
+        {error && !loaded
+          ? "Try again"
+          : revealed
+            ? "Replay"
+            : pausedAt
+              ? "Paused"
+              : playing
+                ? "Playing…"
+                : "Play snippet"}
       </button>
-      {error && <p className="mt-3 text-sm text-bad">{error}</p>}
     </div>
   );
 }

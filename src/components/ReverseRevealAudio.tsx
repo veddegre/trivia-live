@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { reverseAudioBuffer } from "@/lib/audio-reverse";
-import { holdPlaybackSession, unlockAudioContext } from "@/lib/audio-output";
+import {
+  decodeAudioBuffer,
+  pokeAudioContext,
+  startClip,
+  type ArmedContext,
+  type LiveClip,
+} from "@/lib/web-audio-clip";
 
 type Props = {
   src: string;
@@ -17,8 +23,7 @@ type Props = {
 function createAudioContext(): AudioContext {
   const Ctx =
     window.AudioContext ??
-    (window as Window & { webkitAudioContext?: typeof AudioContext })
-      .webkitAudioContext;
+    (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctx) throw new Error("Audio is not supported in this browser");
   return new Ctx();
 }
@@ -32,21 +37,20 @@ export function ReverseRevealAudio({
   className = "",
 }: Props) {
   const ctxRef = useRef<AudioContext | null>(null);
-  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const anchorRef = useRef(0);
+  const clipRef = useRef<LiveClip | null>(null);
+  const holdRef = useRef<ArmedContext | null>(null);
   const offsetRef = useRef(0);
   const resumeAfterHold = useRef(false);
-  const startRef = useRef<
-    ((buffer: AudioBuffer, loop: boolean, startOffset?: number) => Promise<void>) | null
-  >(null);
   const forwardRef = useRef<AudioBuffer | null>(null);
   const backwardRef = useRef<AudioBuffer | null>(null);
   const bytesRef = useRef<ArrayBuffer | null>(null);
+  const revealedRef = useRef(revealed);
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [ready, setReady] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
+  revealedRef.current = revealed;
 
   function context(): AudioContext {
     if (!ctxRef.current || ctxRef.current.state === "closed") {
@@ -55,16 +59,14 @@ export function ReverseRevealAudio({
     return ctxRef.current;
   }
 
-  function stop() {
-    const source = sourceRef.current;
-    sourceRef.current = null;
-    if (!source) return;
-    source.onended = null;
-    try {
-      source.stop();
-    } catch {
-      /* already stopped */
-    }
+  function stopClip() {
+    clipRef.current?.stop();
+    clipRef.current = null;
+  }
+
+  async function buffersFrom(ctx: AudioContext, bytes: ArrayBuffer) {
+    const decoded = await decodeAudioBuffer(ctx, bytes);
+    return { forward: decoded, backward: reverseAudioBuffer(ctx, decoded) };
   }
 
   useEffect(() => {
@@ -78,7 +80,7 @@ export function ReverseRevealAudio({
     bytesRef.current = null;
     offsetRef.current = 0;
     resumeAfterHold.current = false;
-    stop();
+    stopClip();
 
     (async () => {
       try {
@@ -87,16 +89,15 @@ export function ReverseRevealAudio({
         const bytes = await res.arrayBuffer();
         if (cancelled) return;
         bytesRef.current = bytes;
-        if (!cancelled) setLoaded(true);
+        setLoaded(true);
         const ctx = context();
         try {
-          const decoded = await decodeClip(ctx, bytes);
+          const decoded = await buffersFrom(ctx, bytes);
           if (cancelled) return;
           forwardRef.current = decoded.forward;
           backwardRef.current = decoded.backward;
           setReady(true);
         } catch {
-          // Safari rejects decodeAudioData until the context is resumed from a tap.
           if (cancelled || ctx.state === "suspended") return;
           throw new Error("Could not prepare this clip");
         }
@@ -107,12 +108,12 @@ export function ReverseRevealAudio({
 
     return () => {
       cancelled = true;
-      stop();
+      stopClip();
     };
   }, [src, attempt]);
 
   useEffect(() => {
-    stop();
+    stopClip();
     setPlaying(false);
     offsetRef.current = 0;
     resumeAfterHold.current = false;
@@ -120,78 +121,51 @@ export function ReverseRevealAudio({
 
   useEffect(() => {
     if (pausedAt) {
-      const ctx = ctxRef.current;
-      const source = sourceRef.current;
-      if (!ctx || !source) return;
-      const duration = source.buffer?.duration ?? 0;
-      let offset = ctx.currentTime - anchorRef.current;
-      if (duration > 0) offset = offset % duration;
-      offsetRef.current = Math.max(0, offset);
+      const clip = clipRef.current;
+      if (!clip) return;
+      offsetRef.current = clip.position();
+      stopClip();
       resumeAfterHold.current = true;
-      stop();
       setPlaying(false);
       return;
     }
     if (!resumeAfterHold.current) return;
     resumeAfterHold.current = false;
-    const buffer = revealed ? forwardRef.current : backwardRef.current;
-    if (!buffer) return;
-    void startRef.current?.(buffer, !revealed, offsetRef.current);
-  }, [pausedAt, revealed, playing]);
+    const ctx = ctxRef.current;
+    const buffer = revealedRef.current ? forwardRef.current : backwardRef.current;
+    if (!ctx || !buffer) return;
+    clipRef.current = startClip(ctx, buffer, {
+      offset: offsetRef.current,
+      rate: 1,
+      loop: !revealedRef.current,
+      onEnded: () => {
+        clipRef.current = null;
+        setPlaying(false);
+      },
+    });
+    setPlaying(true);
+  }, [pausedAt]);
 
   useEffect(() => {
     return () => {
-      stop();
+      stopClip();
+      holdRef.current?.release();
+      holdRef.current = null;
       void ctxRef.current?.close();
       ctxRef.current = null;
     };
   }, []);
 
-  async function decodeClip(ctx: AudioContext, bytes: ArrayBuffer) {
-    const decoded = await ctx.decodeAudioData(bytes.slice(0));
-    return { forward: decoded, backward: reverseAudioBuffer(ctx, decoded) };
-  }
-
-  async function start(buffer: AudioBuffer, loop: boolean, startOffset = 0) {
-    const ctx = context();
-    if (ctx.state === "suspended") await ctx.resume();
-    stop();
-    const duration = buffer.duration;
-    const offset =
-      duration > 0 ? ((startOffset % duration) + duration) % duration : 0;
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.loop = loop;
-    if (loop && duration > 0) {
-      source.loopStart = 0;
-      source.loopEnd = duration;
-    }
-    source.connect(ctx.destination);
-    source.onended = () => {
-      if (sourceRef.current === source) {
-        sourceRef.current = null;
-        setPlaying(false);
-      }
-    };
-    sourceRef.current = source;
-    const when = ctx.currentTime;
-    source.start(when, offset);
-    anchorRef.current = when - offset;
-    setPlaying(true);
-  }
-
-  startRef.current = start;
-
   async function handlePlay() {
-    if (pausedAt) return;
+    if (pausedAt || clipRef.current) return;
     setError("");
-    holdPlaybackSession();
     const ctx = context();
-    const unlocked = unlockAudioContext(ctx);
+    const hold = pokeAudioContext(ctx, holdRef.current);
+    holdRef.current = hold;
     try {
+      if (ctx.state !== "running") await hold.resumed;
       if (!forwardRef.current && bytesRef.current) {
-        await unlocked;
-        const decoded = await decodeClip(ctx, bytesRef.current);
+        const decoded = await buffersFrom(ctx, bytesRef.current);
         forwardRef.current = decoded.forward;
         backwardRef.current = decoded.backward;
         setReady(true);
@@ -201,14 +175,27 @@ export function ReverseRevealAudio({
         setError(bytesRef.current ? "Could not prepare this clip" : "Clip is still loading");
         return;
       }
+      stopClip();
+      clipRef.current = startClip(ctx, buffer, {
+        offset: 0,
+        rate: 1,
+        loop: !revealed,
+        onEnded: () => {
+          clipRef.current = null;
+          setPlaying(false);
+        },
+      });
+      offsetRef.current = 0;
+      setPlaying(true);
       if (!revealed && onPlayRequest) await onPlayRequest();
-      await unlocked;
-      const next = revealed ? forwardRef.current : backwardRef.current;
-      if (!next) throw new Error("Clip is not ready");
-      await start(next, !revealed);
-    } catch {
-      setError("Could not play — check the host volume / browser autoplay");
+    } catch (err) {
+      stopClip();
       setPlaying(false);
+      setError(
+        err instanceof Error && err.message && !err.message.includes("decode")
+          ? err.message
+          : "Could not play — check the host volume / browser autoplay"
+      );
     }
   }
 
@@ -243,14 +230,14 @@ export function ReverseRevealAudio({
         className="btn mt-5 px-10 uppercase tracking-wide"
         disabled={!!pausedAt || (!error && (waitingForHost || !loaded))}
         onClick={() => {
-          if (error && !ready) {
+          if (error && !ready && !bytesRef.current) {
             setAttempt((n) => n + 1);
             return;
           }
           void handlePlay();
         }}
       >
-        {error && !ready
+        {error && !loaded
           ? "Try again"
           : revealed
             ? "Replay forwards"

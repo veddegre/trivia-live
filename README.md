@@ -13,7 +13,7 @@ Each question picks its own type: classic multiple-choice **Trivia**, **Image Zo
 - **Admin** — create and edit games. Each question has its own type, timer, and points. A night can mix types. Optional late-join lock, **Team night**, **Allow changing answers**, and named rounds (Movies, Science, Final). **Question banks** are reusable trivia pools (the bank name becomes the round). Search and sort the games list. **Preview as player** shows the phone layout without the photo, clip, puzzle text, or correct answer.
 - **Eight question types** — Trivia, Image Zoom, Picture Finish, Silhouette, Unscramble, Finish the Line, Guess the Song, and Backwards Song. Setup and what each screen shows are under [Question types](#question-types).
 - **Answer styles** — any question can instead be a typed answer, a closest number, or a wager. See [Answer styles](#answer-styles).
-- **Host screen** — join code, QR → `/join?code=…`, typed join URL, second-TV watch URL, live lobby roster, reveal, between-round standings, podium finish. Opening the host screen opens the lobby. Start, Lock, Continue, Remove, Skip, Void, Pause, and Add 10 seconds live on **Controls** (`/remote/[code]`), meant for the host’s phone. Song rounds still use Play on the big screen so the room speakers can start.
+- **Host screen** — join code, QR → `/join?code=…`, typed join URL, second-TV watch URL, live lobby roster, reveal, between-round standings, podium finish. Opening the host screen opens the lobby. Start, Lock, Continue, Pause, and Add 10 seconds are on that screen, so a night can be run from the display alone. **Phone controls** (`/remote/[code]`) is the same set plus Remove, Skip, and Void, for a second device. Song rounds still use Play on the big screen so the room speakers can start.
 - **Spectator** — `/watch/[code]` is the same big-screen board, including photos, puzzles, and song audio, with no Start, Lock, Remove, or Play again. Anyone with the join code can open it; it never includes the host token and does not open the lobby.
 - **Player phones** — join with code + name (no accounts); remembered display name; reconnect after refresh; rank and points after each round. On a team night, players also enter a team name. Names are filtered for the projector (letters, numbers, spaces, hyphen, apostrophe; obvious slurs blocked). Hosts can **Remove** a player; that name cannot rejoin until **Play again**. Answer buttons are large-type with colorblind-safe A–F letter chips.
 - **Scoring** — server timestamps only (phones can’t fake speed). The board updates on lock so mid-question standings don’t spoil answers. Optional **Double points** (2×) or **Lightning** (correct or wrong, no speed bonus). A streak of 3 or more correct answers is called out on the boards. Tied first place shares the win.
@@ -186,7 +186,7 @@ At reveal, a multiple-choice wager still shows the choices. A typed wager asks t
 
 ### Host controls
 
-Controls live on the host’s phone at `/remote/[code]`. The token is stored in the browser and removed from the address bar. Song **Play** stays on the big screen.
+Start, Lock, Continue, Pause, and Add 10 seconds are on the host screen. The same controls, plus Remove, Skip, and Void, are on the host’s phone at `/remote/[code]`. The token is stored in the browser and removed from the address bar. Song **Play** stays on the big screen.
 
 - **Pause / Resume** — freezes the countdown. Answers are rejected while paused. The photo, puzzle, or song freezes with the clock and continues from that frame on resume. On a song, the clock has to be started with Play before pause is available.
 - **Add 10 seconds** — adds 10 seconds to the deadline, up to 120 extra seconds, whether or not the question is paused. Scoring uses the longer limit. The zoom, mosaic, silhouette, song-speed ease, and puzzle reveal still follow the original timer. Extra time does not stretch those animations.
@@ -204,8 +204,8 @@ Controls live on the host’s phone at `/remote/[code]`. The token is stored in 
 |------|-----|---------|
 | `/` | Anyone | Landing |
 | `/admin` | Host / super-admin | Build and edit games, banks, pack import/export, past winners, seasons; super-admin also manages hosts |
-| `/host/[code]?token=…` | Host display | Live board for the room. Song rounds still start with Play on this screen |
-| `/remote/[code]?token=…` | Host phone | Start, Lock, Continue, Remove, Skip, Void, Pause, and Add 10 seconds. The token is stored and removed from the address bar |
+| `/host/[code]?token=…` | Host display | Live board plus Start, Lock, Continue, Pause, and Add 10 seconds. Song rounds still start with Play on this screen |
+| `/remote/[code]?token=…` | Host phone | Those controls, plus Remove, Skip, and Void. The token is stored and removed from the address bar |
 | `/watch/[code]` | Spectator TV | Same live board and media, no controls |
 | `/join` | Players | Enter code + name (`?code=` prefill from QR) |
 | `/play/[code]` | Players | Answer questions |
