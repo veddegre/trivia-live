@@ -234,6 +234,7 @@ npm run test:rounds      # unit checks for named round grouping
 npm run test:night-recap # unit checks for finish-time recap + CSV
 npm run test:bans        # banned display-name matching
 npm run smoke        # live join + answer burst (app must be running; not part of test:unit)
+npm run live         # live play of every question type (app must be running)
 ```
 
 Smoke test options (set real admin creds against production):
@@ -245,6 +246,15 @@ SMOKE_PLAYERS=50 SMOKE_BASE_URL=https://trivia-live.com \
 
 SMOKE_PLAYERS=200 SMOKE_BASE_URL=http://127.0.0.1:3000 npm run smoke
 ```
+
+Full live check (health, every question type, pause, +10s, typed answers, closest number, wager, void, skip, kick, teams, bank import, pack import, and season standings). Run it on the server so the sockets stay on localhost. It uses a handful of players, then deletes the games, bank, and season. The two finished nights stay in History under titles starting with `Live`.
+
+```bash
+SUPERADMIN_EMAIL='you@example.com' SUPERADMIN_PASSWORD='…' \
+  LIVE_BASE_URL=http://127.0.0.1:3000 npm run live
+```
+
+`npm run smoke` is still the 200-phone burst. It leaves a game titled `Smoke <timestamp>` in admin.
 
 ## Project layout
 
