@@ -35,15 +35,20 @@ import {
 } from "@/lib/question-clock";
 import { questionRecoveryPlan } from "@/lib/question-recovery";
 import { secretToken } from "@/lib/secret-token";
+import { matchTypedAnswer } from "@/lib/fuzzy-answer";
+import { playerRoster, teamLeaderboard, teamNameKey } from "@/lib/teams";
 import {
   gameTypeUsesAudio,
   gameTypeUsesImage,
   gameTypeUsesRevealText,
 } from "@/lib/types";
 
+type GamePlayer = Player & { team: { id: string; name: string } | null };
+
 type GameWithRelations = Game & {
   questions: Question[];
-  players: Player[];
+  players: GamePlayer[];
+  teams: { id: string; name: string }[];
 };
 
 type Runtime = {
@@ -171,12 +176,28 @@ async function loadGame(code: string): Promise<GameWithRelations | null> {
     where: { code: code.toUpperCase() },
     include: {
       questions: { orderBy: { order: "asc" } },
-      players: { orderBy: { totalScore: "desc" } },
+      players: { orderBy: { totalScore: "desc" }, include: { team: true } },
+      teams: { select: { id: true, name: true }, orderBy: { name: "asc" } },
     },
   });
 }
 
-function toLeaderboard(players: Player[], lastPoints?: Map<string, number>): LeaderboardEntry[] {
+function scorerRows(players: GamePlayer[]) {
+  return players.map((player) => ({
+    id: player.id,
+    name: player.name,
+    teamId: player.teamId,
+    teamName: player.team?.name ?? null,
+    totalScore: player.totalScore,
+  }));
+}
+
+function toLeaderboard(
+  players: GamePlayer[],
+  lastPoints?: Map<string, number>,
+  teamMode = false
+): LeaderboardEntry[] {
+  if (teamMode) return teamLeaderboard(scorerRows(players), lastPoints);
   return [...players]
     .sort((a, b) => b.totalScore - a.totalScore || a.name.localeCompare(b.name))
     .map((p) => ({
@@ -210,6 +231,30 @@ async function hotStreakThrough(
     }
     row.set(a.questionId, a.isCorrect);
   }
+  if (game.teamMode) {
+    const byTeam = new Map<string, { name: string; answers: Map<string, boolean> }>();
+    for (const player of game.players) {
+      if (!player.teamId || !player.team) continue;
+      let team = byTeam.get(player.teamId);
+      if (!team) {
+        team = { name: player.team.name, answers: new Map() };
+        byTeam.set(player.teamId, team);
+      }
+      const row = byPlayer.get(player.id);
+      if (!row) continue;
+      for (const [questionId, correct] of row) {
+        if (!team.answers.has(questionId)) team.answers.set(questionId, correct);
+      }
+    }
+    return hottestStreak(
+      [...byTeam.values()].map((team) => ({
+        name: team.name,
+        streak: trailingCorrectStreak(
+          completed.map((q) => team.answers.get(q.id) ?? null)
+        ),
+      }))
+    );
+  }
   return hottestStreak(
     game.players.map((p) => {
       const row = byPlayer.get(p.id);
@@ -230,6 +275,20 @@ async function roundLeaderboardFor(
     where: { questionId: { in: ids } },
     select: { playerId: true, points: true },
   });
+  if (game.teamMode) {
+    const totals = new Map<string, number>();
+    for (const answer of answers) {
+      const player = game.players.find((p) => p.id === answer.playerId);
+      if (!player?.teamId) continue;
+      totals.set(player.teamId, (totals.get(player.teamId) ?? 0) + answer.points);
+    }
+    return teamLeaderboard(
+      scorerRows(game.players).map((player) => ({
+        ...player,
+        totalScore: player.teamId ? totals.get(player.teamId) ?? 0 : 0,
+      }))
+    );
+  }
   const totals = new Map<string, number>();
   for (const a of answers) {
     totals.set(a.playerId, (totals.get(a.playerId) ?? 0) + a.points);
@@ -274,8 +333,9 @@ export async function buildPublicState(
       id: q.id,
       order: q.order,
       prompt: q.prompt,
-      options: q.options,
+      options: q.typed && phase === "question" ? [] : q.options,
       timeLimitSec: q.timeLimitSec,
+      ...(q.typed ? { typed: true } : {}),
       imageUrl: gameTypeUsesImage(game.gameType)
         ? mediaPublicUrl(q.imageKey)
         : null,
@@ -312,7 +372,7 @@ export async function buildPublicState(
     lastPoints = new Map(answers.map((a) => [a.playerId, a.points]));
   }
 
-  const leaderboard = toLeaderboard(game.players, lastPoints);
+  const leaderboard = toLeaderboard(game.players, lastPoints, game.teamMode);
   const tied = phase === "finished" ? tiedForFirst(leaderboard) : [];
   const winner =
     phase === "finished" && leaderboard.length > 0 ? leaderboard[0] : null;
@@ -356,6 +416,9 @@ export async function buildPublicState(
     status: game.status,
     playerCount: game.players.length,
     answerCount: rt.answerCount,
+    teamMode: game.teamMode,
+    teamCount: game.teams.length,
+    roster: playerRoster(scorerRows(game.players)),
     questionIndex: game.currentQuestionIndex,
     questionTotal: game.questions.length,
     question,
@@ -415,7 +478,7 @@ export async function buildPlayerViews(code: string): Promise<Map<string, Player
     where: { code: code.toUpperCase() },
     include: {
       questions: { orderBy: { order: "asc" } },
-      players: true,
+      players: { include: { team: true } },
     },
   });
   if (!game) return new Map();
@@ -434,22 +497,37 @@ export async function buildPlayerViews(code: string): Promise<Map<string, Player
         select: {
           playerId: true,
           choiceIndex: true,
+          text: true,
           isCorrect: true,
           points: true,
         },
       })
     : [];
   const byPlayer = new Map(answers.map((answer) => [answer.playerId, answer]));
+  const byTeam = new Map<string, (typeof answers)[number]>();
+  if (game.teamMode) {
+    for (const player of game.players) {
+      if (!player.teamId || byTeam.has(player.teamId)) continue;
+      const answer = byPlayer.get(player.id);
+      if (answer) byTeam.set(player.teamId, answer);
+    }
+  }
 
   const views = new Map<string, PlayerView>();
   for (const player of game.players) {
-    const answer = byPlayer.get(player.id);
+    const answer =
+      game.teamMode && player.teamId
+        ? byTeam.get(player.teamId)
+        : byPlayer.get(player.id);
     const hasAnswered = !!answer;
     views.set(player.id, {
       playerId: player.id,
       name: player.name,
       token: player.token,
+      teamId: player.teamId,
+      teamName: player.team?.name ?? null,
       totalScore: player.totalScore,
+      answerText: answer?.text ? answer.text : null,
       hasAnswered,
       selectedChoice: answer ? answer.choiceIndex : null,
       lastResult:
@@ -699,11 +777,54 @@ function isUniqueViolation(err: unknown) {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
 }
 
+/** Match an existing team by name, or create it. Same spelling with different case joins the first team. */
+export async function findOrCreateTeam(gameId: string, teamName: string) {
+  const nameKey = teamNameKey(teamName);
+  const existing = await prisma.team.findUnique({
+    where: { gameId_nameKey: { gameId, nameKey } },
+  });
+  if (existing) return existing;
+  try {
+    return await prisma.team.create({
+      data: { gameId, name: teamName, nameKey },
+    });
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    const again = await prisma.team.findUnique({
+      where: { gameId_nameKey: { gameId, nameKey } },
+    });
+    if (!again) throw err;
+    return again;
+  }
+}
+
 /**
  * Set every player's total to the sum of their answer points.
  * Safe to run more than once; a second lock cannot add the round again.
  */
 async function recomputeTotals(tx: Prisma.TransactionClient, gameId: string) {
+  const game = await tx.game.findUnique({
+    where: { id: gameId },
+    select: { teamMode: true },
+  });
+  if (game?.teamMode) {
+    await tx.$executeRaw`
+      UPDATE "Player" AS p
+      SET "totalScore" = CAST(s.points AS INTEGER)
+      FROM (
+        SELECT p2.id, COALESCE(SUM(a.points), 0) AS points
+        FROM "Player" p2
+        LEFT JOIN "Player" mate
+          ON mate."teamId" = p2."teamId"
+         AND p2."teamId" IS NOT NULL
+        LEFT JOIN "Answer" a ON a."playerId" = mate.id
+        WHERE p2."gameId" = ${gameId}
+        GROUP BY p2.id
+      ) AS s
+      WHERE p.id = s.id
+    `;
+    return;
+  }
   await tx.$executeRaw`
     UPDATE "Player" AS p
     SET "totalScore" = CAST(s.points AS INTEGER)
@@ -721,7 +842,8 @@ async function recomputeTotals(tx: Prisma.TransactionClient, gameId: string) {
 export async function submitAnswer(opts: {
   code: string;
   playerToken: string;
-  choiceIndex: number;
+  choiceIndex?: number;
+  text?: string;
 }) {
   const game = await loadGame(opts.code);
   if (!game) throw new Error("Game not found");
@@ -732,8 +854,20 @@ export async function submitAnswer(opts: {
   const q = game.questions[game.currentQuestionIndex];
   if (!q) throw new Error("No active question");
 
-  if (opts.choiceIndex < 0 || opts.choiceIndex >= q.options.length) {
+  let pick = -1;
+  let answerText = "";
+  if (q.typed) {
+    answerText = (opts.text ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+    if (!answerText) throw new Error("Type an answer");
+    pick = matchTypedAnswer(answerText, q.options);
+  } else if (
+    opts.choiceIndex == null ||
+    opts.choiceIndex < 0 ||
+    opts.choiceIndex >= q.options.length
+  ) {
     throw new Error("Invalid choice");
+  } else {
+    pick = opts.choiceIndex;
   }
 
   if (game.status !== "QUESTION" || !game.questionOpenedAt) {
@@ -741,7 +875,7 @@ export async function submitAnswer(opts: {
   }
 
   const scored = (elapsedMs: number, limitMs: number) => {
-    const isCorrect = opts.choiceIndex === q.correctIndex;
+    const isCorrect = q.typed ? pick >= 0 : pick === q.correctIndex;
     const points = scoreAnswer({
       isCorrect,
       elapsedMs,
@@ -776,9 +910,12 @@ export async function submitAnswer(opts: {
 
     const stillPlaying = await tx.player.findUnique({
       where: { id: player.id },
-      select: { id: true },
+      select: { id: true, teamId: true },
     });
     if (!stillPlaying) throw new Error("Player not found");
+    if (game.teamMode && !stillPlaying.teamId) {
+      throw new Error("Join a team first");
+    }
 
     const answeredAt = new Date();
     const elapsedMs = answeredAt.getTime() - new Date(row.questionOpenedAt).getTime();
@@ -788,20 +925,27 @@ export async function submitAnswer(opts: {
     }
     const { isCorrect, points } = scored(elapsedMs, limitMs);
     const data = {
-      choiceIndex: opts.choiceIndex,
+      choiceIndex: pick,
+      text: answerText,
       answeredAt,
       isCorrect,
       points,
     };
 
-    const existing = await tx.answer.findUnique({
-      where: {
-        playerId_questionId: { playerId: player.id, questionId: q.id },
-      },
+    const existing = await tx.answer.findFirst({
+      where:
+        game.teamMode && stillPlaying.teamId
+          ? { questionId: q.id, player: { teamId: stillPlaying.teamId } }
+          : { playerId: player.id, questionId: q.id },
     });
+    const closedMessage = game.teamMode
+      ? "Your team already answered"
+      : "Already answered";
     if (existing) {
-      if (!game.allowAnswerChange) throw new Error("Already answered");
-      if (existing.choiceIndex === opts.choiceIndex) return "unchanged" as const;
+      if (!game.allowAnswerChange) throw new Error(closedMessage);
+      if (q.typed ? existing.text === answerText : existing.choiceIndex === pick) {
+        return "unchanged" as const;
+      }
       await tx.answer.update({ where: { id: existing.id }, data });
       return "updated" as const;
     }
@@ -817,7 +961,7 @@ export async function submitAnswer(opts: {
       return "created" as const;
     } catch (err) {
       if (!isUniqueViolation(err)) throw err;
-      if (!game.allowAnswerChange) throw new Error("Already answered");
+      if (!game.allowAnswerChange) throw new Error(closedMessage);
       await tx.answer.update({
         where: {
           playerId_questionId: { playerId: player.id, questionId: q.id },
@@ -837,7 +981,7 @@ export async function submitAnswer(opts: {
   }
 
   // Don't return points/isCorrect — that would spoil the round on the phone
-  return { playerId: player.id };
+  return { playerId: player.id, team: game.teamMode };
 }
 
 /**
@@ -981,9 +1125,31 @@ export async function voidQuestion(code: string, mode: "zero" | "credit") {
     } else {
       const players = await tx.player.findMany({
         where: { gameId: game.id },
-        select: { id: true },
+        select: { id: true, teamId: true },
       });
+      const creditedPlayers = new Set<string>();
       for (const player of players) {
+        const key = game.teamMode ? player.teamId ?? player.id : player.id;
+        if (creditedPlayers.has(key)) continue;
+        creditedPlayers.add(key);
+        const existing =
+          game.teamMode && player.teamId
+            ? await tx.answer.findFirst({
+                where: { questionId: q.id, player: { teamId: player.teamId } },
+              })
+            : null;
+        if (existing) {
+          await tx.answer.update({
+            where: { id: existing.id },
+            data: {
+              choiceIndex: q.correctIndex,
+              text: q.typed ? q.options[q.correctIndex] ?? "" : "",
+              isCorrect: true,
+              points: credited,
+            },
+          });
+          continue;
+        }
         await tx.answer.upsert({
           where: {
             playerId_questionId: { playerId: player.id, questionId: q.id },
@@ -992,12 +1158,14 @@ export async function voidQuestion(code: string, mode: "zero" | "credit") {
             playerId: player.id,
             questionId: q.id,
             choiceIndex: q.correctIndex,
+            text: q.typed ? q.options[q.correctIndex] ?? "" : "",
             answeredAt: new Date(),
             isCorrect: true,
             points: credited,
           },
           update: {
             choiceIndex: q.correctIndex,
+            text: q.typed ? q.options[q.correctIndex] ?? "" : "",
             isCorrect: true,
             points: credited,
           },
@@ -1022,7 +1190,7 @@ export async function recordGameResult(code: string) {
   const game = await loadGame(code);
   if (!game || game.players.length === 0) return null;
 
-  const board = toLeaderboard(game.players);
+  const board = toLeaderboard(game.players, undefined, game.teamMode);
   const tied = tiedForFirst(board);
   const winner = tied[0];
   if (!winner) return null;
@@ -1040,15 +1208,32 @@ export async function recordGameResult(code: string) {
       playerId: true,
       questionId: true,
       choiceIndex: true,
+      text: true,
       isCorrect: true,
       points: true,
     },
   });
+  const recapPlayers = game.teamMode
+    ? game.teams.map((team) => ({
+        id: team.id,
+        name: team.name,
+        totalScore:
+          game.players.find((player) => player.teamId === team.id)?.totalScore ?? 0,
+      }))
+    : game.players;
+  const recapAnswers = game.teamMode
+    ? answers.map((answer) => ({
+        ...answer,
+        playerId:
+          game.players.find((player) => player.id === answer.playerId)?.teamId ??
+          answer.playerId,
+      }))
+    : answers;
   const recap = buildNightRecap({
     gameType: game.gameType,
     questions: game.questions,
-    players: game.players,
-    answers,
+    players: recapPlayers,
+    answers: recapAnswers,
   });
 
   try {
@@ -1165,18 +1350,50 @@ export async function kickPlayer(code: string, playerId: string) {
       id: true,
       name: true,
       gameId: true,
-      game: { select: { bannedNames: true } },
+      teamId: true,
+      game: { select: { bannedNames: true, teamMode: true } },
     },
   });
   if (!player) throw new Error("Player not found");
   const bannedNames = withBannedName(player.game.bannedNames, player.name);
-  await prisma.$transaction([
-    prisma.game.update({
+  await prisma.$transaction(async (tx) => {
+    if (player.teamId) {
+      const mate = await tx.player.findFirst({
+        where: { teamId: player.teamId, id: { not: player.id } },
+        select: { id: true },
+      });
+      if (mate) {
+        const answers = await tx.answer.findMany({ where: { playerId: player.id } });
+        for (const answer of answers) {
+          const clash = await tx.answer.findUnique({
+            where: {
+              playerId_questionId: {
+                playerId: mate.id,
+                questionId: answer.questionId,
+              },
+            },
+          });
+          if (clash) await tx.answer.delete({ where: { id: answer.id } });
+          else {
+            await tx.answer.update({
+              where: { id: answer.id },
+              data: { playerId: mate.id },
+            });
+          }
+        }
+      }
+    }
+    await tx.game.update({
       where: { id: player.gameId },
       data: { bannedNames },
-    }),
-    prisma.player.delete({ where: { id: player.id } }),
-  ]);
+    });
+    await tx.player.delete({ where: { id: player.id } });
+    if (player.teamId) {
+      const left = await tx.player.count({ where: { teamId: player.teamId } });
+      if (left === 0) await tx.team.delete({ where: { id: player.teamId } });
+    }
+    if (player.game.teamMode) await recomputeTotals(tx, player.gameId);
+  });
   return { playerId: player.id, name: player.name };
 }
 
@@ -1199,6 +1416,7 @@ export async function resetGame(gameId: string) {
       where: { player: { gameId: game.id } },
     }),
     prisma.player.deleteMany({ where: { gameId: game.id } }),
+    prisma.team.deleteMany({ where: { gameId: game.id } }),
     prisma.game.update({
       where: { id: game.id },
       data: {

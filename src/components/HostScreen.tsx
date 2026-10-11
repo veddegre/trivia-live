@@ -448,12 +448,14 @@ export function HostScreen({
     [state]
   );
   const podium = useMemo(() => state?.leaderboard.slice(0, 3) || [], [state]);
-  const roster = useMemo(() => state?.leaderboard || [], [state]);
+  const roster = useMemo(() => state?.roster || [], [state]);
 
   const correctPct = useMemo(() => {
-    if (!state?.playerCount) return 0;
+    if (!state) return 0;
+    const denom = state.teamMode ? state.teamCount : state.playerCount;
+    if (!denom) return 0;
     const n = state.leaderboard.filter((r) => (r.lastPoints ?? 0) > 0).length;
-    return Math.round((100 * n) / state.playerCount);
+    return Math.round((100 * n) / denom);
   }, [state]);
 
   function startClock(): Promise<void> {
@@ -565,7 +567,9 @@ export function HostScreen({
                 ●●
               </span>
               <span className="font-semibold text-chalk">
-                {state.answerCount} / {state.playerCount} answered
+                {state.teamMode
+                  ? `${state.answerCount} / ${state.teamCount} teams`
+                  : `${state.answerCount} / ${state.playerCount} answered`}
               </span>
             </div>
           </div>
@@ -635,6 +639,12 @@ export function HostScreen({
               />
             )}
 
+            {state.question.typed && (
+              <p className="mt-6 text-center text-lg font-semibold text-muted">
+                Type your answer on your phone
+              </p>
+            )}
+            {!state.question.typed && (
             <ol
               className={`mx-auto grid w-full max-w-4xl shrink-0 gap-3 md:grid-cols-2 ${
                 hasMedia ? "mt-4" : "mt-8"
@@ -656,6 +666,7 @@ export function HostScreen({
                 </li>
               ))}
             </ol>
+            )}
           </div>
 
           {isHost && (
@@ -736,6 +747,11 @@ export function HostScreen({
                   className="mt-3 w-full shrink-0"
                 />
               )}
+              {state.question.typed ? (
+                <p className="display mt-4 text-center text-4xl text-chalk md:text-5xl">
+                  {state.question.options[state.question.correctIndex ?? 0] ?? "—"}
+                </p>
+              ) : (
               <ol
                 className={`mt-4 space-y-2 ${
                   hasImage || hasAudio || hasText
@@ -792,8 +808,9 @@ export function HostScreen({
                   );
                 })}
               </ol>
+              )}
               <p className="mt-3 shrink-0 text-sm font-semibold text-good">
-                {correctPct}% of players answered correctly
+                {correctPct}% of {state.teamMode ? "teams" : "players"} answered correctly
               </p>
             </section>
 
@@ -1222,6 +1239,9 @@ export function HostScreen({
                     </svg>
                     <span className="min-w-0 flex-1 truncate text-base font-semibold text-chalk">
                       {row.name}
+                      {row.teamName ? (
+                        <span className="font-medium text-muted"> · {row.teamName}</span>
+                      ) : null}
                     </span>
                   </li>
                 ))}

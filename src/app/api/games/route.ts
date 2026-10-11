@@ -16,6 +16,7 @@ const createSchema = z.object({
   gameType: gameTypeSchema.optional().default("TRIVIA"),
   allowLateJoin: z.boolean().optional().default(true),
   allowAnswerChange: z.boolean().optional().default(false),
+  teamMode: z.boolean().optional().default(false),
   questions: z.array(questionSchema).min(1).max(100),
 });
 
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
       gameType: parsed.data.gameType,
       allowLateJoin: parsed.data.allowLateJoin,
       allowAnswerChange: parsed.data.allowAnswerChange,
+      teamMode: parsed.data.teamMode,
       hostToken: secretToken(),
       ownerId: user.id,
       questions: {

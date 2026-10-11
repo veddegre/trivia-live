@@ -144,7 +144,9 @@ export function HostRemote({ code }: { code: string }) {
           <div className="mt-6 flex flex-1 flex-col gap-3">
             {phase === "question" && (
               <p className="text-sm font-semibold text-chalk">
-                {state.answerCount} / {state.playerCount} answered
+                {state.teamMode
+                  ? `${state.answerCount} / ${state.teamCount} teams answered`
+                  : `${state.answerCount} / ${state.playerCount} answered`}
               </p>
             )}
             {clockRunning && remaining != null && (
@@ -262,16 +264,19 @@ export function HostRemote({ code }: { code: string }) {
                 Players · {state.playerCount}
               </h2>
               <ul className="mt-3 space-y-2">
-                {state.leaderboard.length === 0 && (
+                {state.roster.length === 0 && (
                   <li className="text-sm italic text-muted">Waiting for players…</li>
                 )}
-                {state.leaderboard.map((row) => (
+                {state.roster.map((row) => (
                   <li
                     key={row.playerId}
                     className="flex items-center gap-3 rounded-xl border border-line bg-panel px-3 py-3"
                   >
                     <span className="min-w-0 flex-1 truncate font-semibold text-chalk">
                       {row.name}
+                      {row.teamName ? (
+                        <span className="font-medium text-muted"> · {row.teamName}</span>
+                      ) : null}
                     </span>
                     <span className="text-sm font-bold tabular-nums text-amber">
                       {row.totalScore.toLocaleString()}

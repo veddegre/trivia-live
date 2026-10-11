@@ -23,7 +23,8 @@ export const MAX_PACK_BYTES = 80 * 1024 * 1024;
 
 const packQuestionSchema = z.object({
   prompt: z.string().min(1).max(500),
-  options: z.array(z.string().min(1).max(200)).min(2).max(6),
+  options: z.array(z.string().min(1).max(200)).min(1).max(6),
+  typed: z.boolean().optional().default(false),
   correctIndex: z.number().int().min(0),
   timeLimitSec: z.number().int().min(5).max(300).optional(),
   basePoints: z.number().int().min(0).max(10000).optional(),
@@ -51,6 +52,7 @@ export const gamePackSchema = z.object({
   gameType: gameTypeSchema,
   allowLateJoin: z.boolean().optional().default(true),
   allowAnswerChange: z.boolean().optional().default(false),
+  teamMode: z.boolean().optional().default(false),
   questions: z.array(packQuestionSchema).min(1).max(100),
 });
 
@@ -63,6 +65,7 @@ export type SourceGame = {
   gameType: GameType;
   allowLateJoin: boolean;
   allowAnswerChange: boolean;
+  teamMode: boolean;
   questions: {
     prompt: string;
     options: string[];
@@ -77,6 +80,7 @@ export type SourceGame = {
     revealText: string;
     roundTitle: string;
     bonus: string;
+    typed?: boolean;
   }[];
 };
 
@@ -147,6 +151,7 @@ export function gameToPack(game: SourceGame): {
       revealText: (q.revealText ?? "").trim(),
       roundTitle: q.roundTitle.trim(),
       bonus: isQuestionBonus(q.bonus) ? q.bonus : "NONE",
+      typed: q.typed === true,
       ...(zipName ? { media: zipName } : {}),
     };
   });
@@ -157,6 +162,7 @@ export function gameToPack(game: SourceGame): {
       gameType: game.gameType,
       allowLateJoin: game.allowLateJoin,
       allowAnswerChange: game.allowAnswerChange,
+      teamMode: game.teamMode,
       questions,
     },
     files,
@@ -232,6 +238,7 @@ export function questionsFromPack(
     audioKey: gameTypeUsesAudio(pack.gameType) ? mediaKeys[i] ?? null : null,
     roundTitle: q.roundTitle ?? "",
     bonus: q.bonus ?? "NONE",
+    typed: q.typed === true,
   }));
 }
 

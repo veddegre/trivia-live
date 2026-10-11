@@ -42,6 +42,10 @@ function PlayInner({ code }: { code: string }) {
   const search = useSearchParams();
   const presetName = search.get("name") || "";
   const [name, setName] = useState(presetName);
+  const [teamName, setTeamName] = useState("");
+  const [typedDraft, setTypedDraft] = useState("");
+  const [teamNight, setTeamNight] = useState(false);
+  const [lookupDone, setLookupDone] = useState(false);
   const [player, setPlayer] = useState<PlayerView | null>(null);
   const [state, setState] = useState<GamePublicState | null>(null);
   const [brand, setBrand] = useState<BrandConfig | null>(null);
@@ -101,6 +105,7 @@ function PlayInner({ code }: { code: string }) {
         if (cancelled) return;
         setGameMissing(false);
         if (data.brand) setBrand(data.brand as BrandConfig);
+        setTeamNight(data.game?.teamMode === true);
         if (
           data.game?.allowLateJoin === false &&
           data.game?.status !== "LOBBY" &&
@@ -110,6 +115,8 @@ function PlayInner({ code }: { code: string }) {
         }
       } catch {
         /* ignore */
+      } finally {
+        if (!cancelled) setLookupDone(true);
       }
     })();
     return () => {
@@ -245,10 +252,16 @@ function PlayInner({ code }: { code: string }) {
     };
   }, [player?.playerId, code, router]);
 
-  function doPlayerJoin(displayName: string) {
+  function standingKey(view: PlayerView, boardTeamMode: boolean) {
+    return boardTeamMode && view.teamId ? view.teamId : view.playerId;
+  }
+
+  function doPlayerJoin(displayName: string, teamLabel?: string) {
     let trimmed: string;
+    let trimmedTeam = "";
     try {
       trimmed = assertDisplayName(displayName);
+      if (teamNight) trimmedTeam = assertDisplayName(teamLabel || "");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Pick another display name.");
       return;
@@ -265,7 +278,7 @@ function PlayInner({ code }: { code: string }) {
     const emitJoin = () => {
       socket.emit(
         "player:join",
-        { code: code.toUpperCase(), name: trimmed },
+        { code: code.toUpperCase(), name: trimmed, teamName: trimmedTeam || undefined },
         (res: {
           ok?: boolean;
           message?: string;
@@ -300,7 +313,7 @@ function PlayInner({ code }: { code: string }) {
 
   function join(e: FormEvent) {
     e.preventDefault();
-    doPlayerJoin(name);
+    doPlayerJoin(name, teamName);
   }
 
   useEffect(() => {
@@ -308,28 +321,59 @@ function PlayInner({ code }: { code: string }) {
   }, [code]);
 
   useEffect(() => {
-    if (player || gameMissing || !presetName.trim() || autoJoinAttempted.current) return;
+    if (
+      !lookupDone ||
+      player ||
+      gameMissing ||
+      teamNight ||
+      !presetName.trim() ||
+      autoJoinAttempted.current
+    ) {
+      return;
+    }
     if (typeof window !== "undefined" && localStorage.getItem(storageKey(code))) return;
     autoJoinAttempted.current = true;
     doPlayerJoin(presetName);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [player, gameMissing, presetName, code]);
+  }, [lookupDone, player, gameMissing, teamNight, presetName, code]);
 
   function answer(choiceIndex: number) {
+    sendAnswer({ choiceIndex }, { selectedChoice: choiceIndex });
+  }
+
+  function submitTyped(event: FormEvent) {
+    event.preventDefault();
+    const text = typedDraft.replace(/\s+/g, " ").trim();
+    if (!text) return;
+    if (player?.answerText === text) return;
+    sendAnswer({ text }, { answerText: text, selectedChoice: null });
+  }
+
+  function sendAnswer(
+    payload: { choiceIndex?: number; text?: string },
+    optimistic: { selectedChoice: number | null; answerText?: string }
+  ) {
     if (!player || timeUp || state?.phase !== "question" || submitting) return;
     if (player.hasAnswered && !canChange) return;
-    if (player.selectedChoice === choiceIndex) return;
     const previousChoice = player.selectedChoice;
     const previousAnswered = player.hasAnswered;
+    const previousText = player.answerText;
     setSubmitting(true);
     setError("");
     setPlayer((prev) =>
-      prev ? { ...prev, hasAnswered: true, selectedChoice: choiceIndex } : prev
+      prev
+        ? {
+            ...prev,
+            hasAnswered: true,
+            selectedChoice: optimistic.selectedChoice,
+            answerText: optimistic.answerText ?? prev.answerText,
+          }
+        : prev
     );
     const socket = getSocket();
     socket.emit(
       "player:answer",
-      { choiceIndex },
+      payload,
       (res: { ok?: boolean; message?: string }) => {
         setSubmitting(false);
         if (res && res.ok === false) {
@@ -340,6 +384,7 @@ function PlayInner({ code }: { code: string }) {
                   ...prev,
                   hasAnswered: previousAnswered,
                   selectedChoice: previousChoice,
+                  answerText: previousText,
                 }
               : prev
           );
@@ -350,20 +395,24 @@ function PlayInner({ code }: { code: string }) {
 
   const rank = useMemo(() => {
     if (!player || !state) return null;
-    const idx = state.leaderboard.findIndex((r) => r.playerId === player.playerId);
+    const idx = state.leaderboard.findIndex(
+      (r) => r.playerId === standingKey(player, state.teamMode)
+    );
     return idx >= 0 ? idx + 1 : null;
   }, [player, state]);
 
   const roundPoints = useMemo(() => {
     if (!player || !state) return null;
-    const row = state.leaderboard.find((r) => r.playerId === player.playerId);
+    const row = state.leaderboard.find(
+      (r) => r.playerId === standingKey(player, state.teamMode)
+    );
     return row?.lastPoints ?? player.lastResult?.points ?? null;
   }, [player, state]);
 
   const endedRoundStanding = useMemo(() => {
     if (!player || !state?.endedRound) return null;
     const i = state.endedRound.leaderboard.findIndex(
-      (r) => r.playerId === player.playerId
+      (r) => r.playerId === standingKey(player, state.teamMode)
     );
     return {
       rank: i >= 0 ? i + 1 : null,
@@ -431,6 +480,27 @@ function PlayInner({ code }: { code: string }) {
                   Letters, numbers, and spaces — keep it friendly for the room.
                 </span>
               </label>
+              {teamNight && (
+                <label className="block space-y-2">
+                  <span
+                    className="block text-[11px] font-bold uppercase tracking-[0.2em]"
+                    style={{ color: amber }}
+                  >
+                    Team name
+                  </span>
+                  <input
+                    className="w-full rounded-xl border border-line bg-panel px-4 py-3.5 text-[17px] font-semibold text-chalk outline-none"
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    maxLength={24}
+                    placeholder="Your team"
+                    required
+                  />
+                  <span className="block text-xs text-muted">
+                    Use the same team name as the rest of your table. You share one answer and one score.
+                  </span>
+                </label>
+              )}
               {error && <p className="text-sm text-bad">{error}</p>}
               <button
                 className="w-full rounded-xl py-4 text-base font-extrabold uppercase tracking-[0.12em] disabled:opacity-50"
@@ -467,6 +537,9 @@ function PlayInner({ code }: { code: string }) {
             </span>
             <div className="min-w-0">
               <div className="truncate font-semibold text-chalk">{player.name}</div>
+              {player.teamName && (
+                <div className="truncate text-xs text-muted">{player.teamName}</div>
+              )}
               <div className="mt-0.5 flex items-center gap-1.5 text-sm font-bold" style={{ color: amber }}>
                 <span aria-hidden>★</span>
                 <span>{player.totalScore.toLocaleString()}</span>
@@ -561,6 +634,42 @@ function PlayInner({ code }: { code: string }) {
                       : "Wait for the host to play the snippet"}
                 </p>
               )}
+              {state.question.typed ? (
+                <form onSubmit={submitTyped} className="mt-7 space-y-3">
+                  {player.answerText && (
+                    <p className="text-center text-sm text-muted">
+                      Sent: {player.answerText}
+                    </p>
+                  )}
+                  <input
+                    className="w-full rounded-2xl border border-line bg-panel px-4 py-4 text-[19px] font-semibold text-chalk outline-none"
+                    value={typedDraft}
+                    onChange={(e) => setTypedDraft(e.target.value)}
+                    maxLength={80}
+                    placeholder="Type your answer"
+                    disabled={
+                      locked ||
+                      (gameTypeUsesAudio(state.gameType) && !state.questionOpenedAt)
+                    }
+                    autoComplete="off"
+                    enterKeyHint="send"
+                  />
+                  <button
+                    className="w-full rounded-2xl py-4 text-sm font-extrabold uppercase tracking-[0.12em] disabled:opacity-50"
+                    style={{
+                      background: "linear-gradient(180deg, var(--amber-hot), var(--amber))",
+                      color: "#1a1200",
+                    }}
+                    disabled={
+                      locked ||
+                      !typedDraft.trim() ||
+                      (gameTypeUsesAudio(state.gameType) && !state.questionOpenedAt)
+                    }
+                  >
+                    {player.hasAnswered && canChange ? "Update answer" : "Submit answer"}
+                  </button>
+                </form>
+              ) : (
               <div className="mt-7 grid gap-3">
                 {state.question.options.map((opt, i) => {
                   const selected = player.selectedChoice === i;
@@ -607,7 +716,8 @@ function PlayInner({ code }: { code: string }) {
                   );
                 })}
               </div>
-              {player.hasAnswered && canChange && !timeUp && (
+              )}
+              {player.hasAnswered && canChange && !timeUp && !state.question.typed && (
                 <p className="mt-8 text-center text-sm text-muted">
                   {state.question.bonus === "LIGHTNING"
                     ? "Tap another option to change. Lightning scores base points only."
@@ -804,7 +914,7 @@ function PlayInner({ code }: { code: string }) {
                     key={row.playerId}
                     className="flex justify-between rounded-xl border px-3 py-2.5 text-sm"
                     style={
-                      row.playerId === player.playerId
+                      row.playerId === standingKey(player, state.teamMode)
                         ? {
                             borderColor: "color-mix(in srgb, var(--amber) 50%, var(--line))",
                             background: "color-mix(in srgb, var(--amber) 10%, var(--panel))",

@@ -15,6 +15,7 @@ const trivia: SourceGame = {
   gameType: "TRIVIA",
   allowLateJoin: true,
   allowAnswerChange: false,
+  teamMode: false,
   questions: [
     {
       prompt: "Capital of France?",

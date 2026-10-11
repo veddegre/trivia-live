@@ -44,6 +44,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
         code: game.code,
         status: game.status,
         allowLateJoin: game.allowLateJoin,
+        teamMode: game.teamMode,
         questionCount,
         playerCount,
         ...(includeHost ? { hostToken: game.hostToken } : {}),

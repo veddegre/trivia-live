@@ -20,6 +20,8 @@ export type PublicQuestion = {
   prompt: string;
   options: string[];
   timeLimitSec: number;
+  /** Players type this answer. Options stay hidden until reveal. */
+  typed?: boolean;
   // correctIndex only included after reveal / for host
   correctIndex?: number;
   /** Picks per option. Present on reveal, in the same order as options. */
@@ -39,6 +41,10 @@ export type LeaderboardEntry = {
   name: string;
   totalScore: number;
   lastPoints?: number;
+  /** Set on a team row. */
+  members?: number;
+  /** Set on a person in the roster during a team night. */
+  teamName?: string;
 };
 
 export type GamePublicState = {
@@ -49,6 +55,11 @@ export type GamePublicState = {
   status: string;
   playerCount: number;
   answerCount: number;
+  /** When true, the leaderboard is teams and phones share one answer. */
+  teamMode: boolean;
+  teamCount: number;
+  /** People in the room. Kick uses this list. */
+  roster: LeaderboardEntry[];
   questionIndex: number;
   questionTotal: number;
   question: PublicQuestion | null;
@@ -82,7 +93,11 @@ export type PlayerView = {
   playerId: string;
   name: string;
   token: string;
+  teamId: string | null;
+  teamName: string | null;
   totalScore: number;
+  /** What this player, or their team, typed. */
+  answerText: string | null;
   hasAnswered: boolean;
   selectedChoice: number | null;
   lastResult: { isCorrect: boolean; points: number } | null;

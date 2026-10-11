@@ -90,6 +90,9 @@ const board = {
   status: "QUESTION",
   playerCount: 0,
   answerCount: 0,
+  teamMode: false,
+  teamCount: 0,
+  roster: [],
   questionIndex: 0,
   questionTotal: 1,
   question: {

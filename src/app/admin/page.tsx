@@ -59,6 +59,7 @@ type GameListItem = {
   hostToken: string;
   allowLateJoin: boolean;
   allowAnswerChange?: boolean;
+  teamMode?: boolean;
   createdAt?: string;
   updatedAt?: string;
   owner?: { id: string; name: string; email: string } | null;
@@ -229,6 +230,7 @@ function AdminInner() {
   ]);
   const [allowLateJoin, setAllowLateJoin] = useState(true);
   const [allowAnswerChange, setAllowAnswerChange] = useState(false);
+  const [teamMode, setTeamMode] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"good" | "bad">("good");
@@ -388,6 +390,7 @@ function AdminInner() {
     setQuestions([emptyQuestion("TRIVIA")]);
     setAllowLateJoin(true);
     setAllowAnswerChange(false);
+    setTeamMode(false);
   }
 
   function resetBankForm() {
@@ -577,6 +580,7 @@ function AdminInner() {
       setTitle(g.title || "");
       setAllowLateJoin(g.allowLateJoin !== false);
       setAllowAnswerChange(g.allowAnswerChange === true);
+      setTeamMode(g.teamMode === true);
       const loadedType: GameType = isGameType(g.gameType)
         ? g.gameType
         : "TRIVIA";
@@ -597,6 +601,7 @@ function AdminInner() {
             revealText?: string;
             roundTitle?: string;
             bonus?: "NONE" | "DOUBLE" | "LIGHTNING";
+            typed?: boolean;
           }) => ({
             prompt: q.prompt,
             options: Array.isArray(q.options) ? [...q.options] : ["", ""],
@@ -611,6 +616,7 @@ function AdminInner() {
             revealText: q.revealText ?? "",
             roundTitle: q.roundTitle ?? "",
             bonus: q.bonus === "DOUBLE" || q.bonus === "LIGHTNING" ? q.bonus : "NONE",
+            typed: q.typed === true,
           })
         )
       );
@@ -630,6 +636,7 @@ function AdminInner() {
         gameType,
         allowLateJoin,
         allowAnswerChange,
+        teamMode,
         questions: serializeQuestions(questions),
       };
 
@@ -1220,7 +1227,9 @@ function AdminInner() {
     return questions.every((q) => {
       const opts = q.options.map((o) => o.trim()).filter(Boolean);
       const basics =
-        q.prompt.trim() && opts.length >= 2 && q.correctIndex < opts.length;
+        q.prompt.trim() &&
+        opts.length >= (q.typed ? 1 : 2) &&
+        q.correctIndex < opts.length;
       if (!basics) return false;
       if (gameTypeUsesImage(gameType) && !q.imageKey) return false;
       if (gameTypeUsesAudio(gameType) && !q.audioKey) return false;
@@ -1586,6 +1595,8 @@ function AdminInner() {
                     onAllowLateJoinChange={setAllowLateJoin}
                     allowAnswerChange={allowAnswerChange}
                     onAllowAnswerChangeChange={setAllowAnswerChange}
+                    teamMode={teamMode}
+                    onTeamModeChange={setTeamMode}
                     previousRoundTitle={
                       qi === 0
                         ? ""
@@ -1789,6 +1800,7 @@ function AdminInner() {
                           players · {g.status}
                           {g.allowLateJoin === false ? " · no late joins" : ""}
                           {g.allowAnswerChange ? " · can change answers" : ""}
+                          {g.teamMode ? " · teams" : ""}
                           {isSuper && g.owner ? ` · ${g.owner.name}` : ""}
                         </div>
                       </div>
@@ -1982,6 +1994,7 @@ function AdminInner() {
                     index={qi}
                     gameType="TRIVIA"
                     hideRound
+                    showTyped={false}
                     canRemove={bankQuestions.length > 1}
                     onChange={(next) =>
                       setBankQuestions((prev) =>

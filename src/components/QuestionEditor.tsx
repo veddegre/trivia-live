@@ -34,6 +34,7 @@ export type DraftQuestion = {
   startSpeed: number;
   revealText: string;
   roundTitle: string;
+  typed: boolean;
 };
 
 export function emptyQuestion(gameType: GameType = "TRIVIA"): DraftQuestion {
@@ -69,6 +70,7 @@ export function emptyQuestion(gameType: GameType = "TRIVIA"): DraftQuestion {
     startSpeed: START_SPEED_DEFAULT,
     revealText: "",
     roundTitle: "",
+    typed: false,
   };
 }
 
@@ -84,9 +86,13 @@ type Props = {
   onAllowLateJoinChange?: (next: boolean) => void;
   allowAnswerChange?: boolean;
   onAllowAnswerChangeChange?: (next: boolean) => void;
+  teamMode?: boolean;
+  onTeamModeChange?: (next: boolean) => void;
   previousRoundTitle?: string;
   /** Hide round-name field (bank editor — the bank title is the category). */
   hideRound?: boolean;
+  /** Bank editor keeps multiple choice. */
+  showTyped?: boolean;
 };
 
 export function QuestionEditor({
@@ -100,8 +106,11 @@ export function QuestionEditor({
   onAllowLateJoinChange,
   allowAnswerChange,
   onAllowAnswerChangeChange,
+  teamMode,
+  onTeamModeChange,
   previousRoundTitle = "",
   hideRound = false,
+  showTyped = true,
 }: Props) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -215,7 +224,7 @@ export function QuestionEditor({
   }
 
   function removeOption(oi: number) {
-    if (q.options.length <= 2) return;
+    if (q.options.length <= (q.typed ? 1 : 2)) return;
     const options = q.options.filter((_, i) => i !== oi);
     const correctIndex =
       q.correctIndex >= options.length
@@ -518,9 +527,28 @@ export function QuestionEditor({
             />
           </label>
 
+          {showTyped && (
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 accent-[var(--amber)]"
+                checked={q.typed}
+                onChange={(e) => onChange({ ...q, typed: e.target.checked })}
+              />
+              <span>
+                <span className="block text-sm font-semibold text-amber">
+                  Typed answer
+                </span>
+                <span className="text-xs text-muted">
+                  Players type it. Small typos still count, and a leading The, A, or An is ignored. The marked line is the one shown when you reveal. Extra lines are other accepted answers.
+                </span>
+              </span>
+            </label>
+          )}
+
           <div>
             <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber">
-              Options
+              {q.typed ? "Accepted answers" : "Options"}
             </div>
             <div className="mt-2 space-y-2">
               {q.options.map((opt, oi) => (
@@ -535,14 +563,18 @@ export function QuestionEditor({
                   <input
                     className="field"
                     placeholder={
-                      oi === q.correctIndex
-                        ? `Option ${oi + 1} (correct answer)`
-                        : `Option ${oi + 1}`
+                      q.typed
+                        ? oi === q.correctIndex
+                          ? "Shown on reveal"
+                          : "Also accepted"
+                        : oi === q.correctIndex
+                          ? `Option ${oi + 1} (correct answer)`
+                          : `Option ${oi + 1}`
                     }
                     value={opt}
                     onChange={(e) => setOption(oi, e.target.value)}
                   />
-                  {q.options.length > 2 && (
+                  {q.options.length > (q.typed ? 1 : 2) && (
                     <button
                       type="button"
                       className="shrink-0 text-xs text-muted"
@@ -561,7 +593,7 @@ export function QuestionEditor({
                 className="mt-2 text-sm font-semibold text-amber"
                 onClick={addOption}
               >
-                + Add option
+                {q.typed ? "+ Add another accepted answer" : "+ Add option"}
               </button>
             )}
           </div>
@@ -875,6 +907,25 @@ export function QuestionEditor({
                 </span>
                 <span className="text-xs text-muted">
                   Players can join after the game has started.
+                </span>
+              </span>
+            </label>
+          )}
+
+          {qi === 0 && onTeamModeChange && (
+            <label className="flex items-start gap-3 pt-1">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 accent-[var(--amber)]"
+                checked={!!teamMode}
+                onChange={(e) => onTeamModeChange(e.target.checked)}
+              />
+              <span>
+                <span className="block text-sm font-semibold text-amber">
+                  Team night
+                </span>
+                <span className="text-xs text-muted">
+                  Players join a team. The team shares one answer and one score.
                 </span>
               </span>
             </label>

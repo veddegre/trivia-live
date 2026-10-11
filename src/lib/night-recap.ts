@@ -6,6 +6,7 @@ export const NIGHT_RECAP_VERSION = 1;
 export type RecapAnswer = {
   name: string;
   choiceIndex: number | null;
+  text?: string;
   isCorrect: boolean;
   points: number;
 };
@@ -50,6 +51,7 @@ export type RecapSourceAnswer = {
   playerId: string;
   questionId: string;
   choiceIndex: number;
+  text?: string;
   isCorrect: boolean;
   points: number;
 };
@@ -97,6 +99,7 @@ export function buildNightRecap(opts: {
         return {
           name: p.name,
           choiceIndex: hit.choiceIndex,
+          text: hit.text || undefined,
           isCorrect: hit.isCorrect,
           points: hit.points,
         };
@@ -179,7 +182,10 @@ export function recapToCsv(recap: NightRecap): string {
   for (const q of recap.questions) {
     for (const a of q.answers) {
       const choice =
-        a.choiceIndex == null ? "" : (q.options[a.choiceIndex] ?? "");
+        a.text ||
+        (a.choiceIndex == null || a.choiceIndex < 0
+          ? ""
+          : (q.options[a.choiceIndex] ?? ""));
       lines.push(
         [
           q.order + 1,

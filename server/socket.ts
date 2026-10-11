@@ -14,6 +14,7 @@ import {
   nextQuestion,
   openLobby,
   extendQuestion,
+  findOrCreateTeam,
   openQuestion,
   pauseQuestion,
   recoverOpenQuestions,
@@ -37,9 +38,9 @@ import { visiblePuzzleText } from "@/lib/text-reveal";
 import { gameTypeUsesRevealText, type GamePublicState } from "@/lib/types";
 
 type JoinHostPayload = { code: string; hostToken: string };
-type JoinPlayerPayload = { code: string; name: string };
+type JoinPlayerPayload = { code: string; name: string; teamName?: string };
 type ReconnectPayload = { code: string; token: string };
-type AnswerPayload = { choiceIndex: number };
+type AnswerPayload = { choiceIndex?: number; text?: string };
 
 type SocketData = {
   role?: "host" | "player" | "spectator";
@@ -444,8 +445,15 @@ export function createSocketServer(httpServer: HttpServer) {
         );
         if (existing) throw new Error("Name already taken — pick another");
 
+        let teamId: string | undefined;
+        if (game.teamMode) {
+          const teamName = assertDisplayName(payload.teamName || "");
+          const team = await findOrCreateTeam(game.id, teamName);
+          teamId = team.id;
+        }
+
         const player = await prisma.player.create({
-          data: { gameId: game.id, name, token: secretToken() },
+          data: { gameId: game.id, name, token: secretToken(), teamId },
         });
 
         data.role = "player";
@@ -736,8 +744,10 @@ export function createSocketServer(httpServer: HttpServer) {
           code: data.code,
           playerToken: data.playerToken,
           choiceIndex: payload.choiceIndex,
+          text: payload.text,
         });
         await emitPlayer(socket, data.code, data.playerId);
+        if (result.team) await refreshPlayers(io, data.code);
         scheduleAnswerBroadcast(io, data.code);
         ack?.({ ok: true, ...result });
       } catch (e) {

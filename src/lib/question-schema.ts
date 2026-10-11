@@ -30,7 +30,8 @@ export const gameTypeSchema = z.enum([
 
 export const questionSchema = z.object({
   prompt: z.string().min(1).max(500),
-  options: z.array(z.string().min(1).max(200)).min(2).max(6),
+  options: z.array(z.string().min(1).max(200)).min(1).max(6),
+  typed: z.boolean().optional().default(false),
   correctIndex: z.number().int().min(0),
   timeLimitSec: z.number().int().min(5).max(300).default(30),
   basePoints: z.number().int().min(0).max(10000).default(SCORE_BASE_DEFAULT),
@@ -75,6 +76,13 @@ export function assertQuestionsForGameType(
 ) {
   const indexErr = assertCorrectIndexes(questions);
   if (indexErr) return indexErr;
+  for (const q of questions) {
+    if (q.typed) {
+      if (q.options.length < 1) return "Each typed question needs an accepted answer";
+    } else if (q.options.length < 2) {
+      return "Each question needs at least two options";
+    }
+  }
 
   if (gameTypeUsesImage(gameType)) {
     for (const q of questions) {
@@ -122,6 +130,7 @@ export function questionCreateData(
     prompt: q.prompt,
     options: q.options,
     correctIndex: q.correctIndex,
+    typed: q.typed === true,
     timeLimitSec: q.timeLimitSec,
     basePoints: q.basePoints,
     timeBonus: q.timeBonus,

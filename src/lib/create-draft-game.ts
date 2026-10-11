@@ -44,6 +44,7 @@ async function insertDraftGame(opts: {
   gameType: GameType;
   allowLateJoin: boolean;
   allowAnswerChange: boolean;
+  teamMode: boolean;
   ownerId: string;
   questions: QuestionInput[];
 }) {
@@ -59,6 +60,7 @@ async function insertDraftGame(opts: {
       gameType: opts.gameType,
       allowLateJoin: opts.allowLateJoin,
       allowAnswerChange: opts.allowAnswerChange,
+      teamMode: opts.teamMode,
       hostToken: secretToken(),
       ownerId: opts.ownerId,
       questions: {
@@ -108,6 +110,7 @@ export async function createGameFromPack(opts: {
       gameType: opts.pack.gameType,
       allowLateJoin: opts.pack.allowLateJoin,
       allowAnswerChange: opts.pack.allowAnswerChange,
+      teamMode: opts.pack.teamMode,
       ownerId: opts.ownerId,
       questions: questionsFromPack(opts.pack, mediaKeys),
     });
@@ -148,6 +151,7 @@ export async function cloneGame(opts: {
           : "",
         roundTitle: q.roundTitle,
         bonus: isQuestionBonus(q.bonus) ? q.bonus : "NONE",
+        typed: q.typed === true,
       });
     }
 
@@ -156,6 +160,7 @@ export async function cloneGame(opts: {
       gameType: opts.source.gameType,
       allowLateJoin: opts.source.allowLateJoin,
       allowAnswerChange: opts.source.allowAnswerChange,
+      teamMode: opts.source.teamMode,
       ownerId: opts.ownerId,
       questions,
     });

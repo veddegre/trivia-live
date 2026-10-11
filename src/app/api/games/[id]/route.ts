@@ -39,6 +39,7 @@ const patchSchema = z.object({
   status: z.enum(["DRAFT", "LOBBY"]).optional(),
   allowLateJoin: z.boolean().optional(),
   allowAnswerChange: z.boolean().optional(),
+  teamMode: z.boolean().optional(),
   questions: z.array(questionSchema).min(1).max(100).optional(),
 });
 
@@ -58,7 +59,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const { title, status, allowLateJoin, allowAnswerChange, questions, gameType } =
+  const { title, status, allowLateJoin, allowAnswerChange, teamMode, questions, gameType } =
     parsed.data;
   const nextType = gameType ?? existing.gameType;
 
@@ -131,6 +132,16 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   if (status !== undefined) data.status = status;
   if (allowLateJoin !== undefined) data.allowLateJoin = allowLateJoin;
   if (allowAnswerChange !== undefined) data.allowAnswerChange = allowAnswerChange;
+  if (teamMode !== undefined && teamMode !== existing.teamMode) {
+    const joined = await prisma.player.count({ where: { gameId: id } });
+    if (joined > 0) {
+      return NextResponse.json(
+        { error: "Team mode can’t change after players have joined" },
+        { status: 400 }
+      );
+    }
+    data.teamMode = teamMode;
+  }
   if (gameType !== undefined) data.gameType = gameType;
 
   const game = await prisma.game.update({

@@ -64,6 +64,8 @@ model Game {
   allowLateJoin        Boolean      @default(true)
   /** When true, players may change their pick until lock; speed uses the latest tap. */
   allowAnswerChange    Boolean      @default(false)
+  /** Players join a team. One answer and one score per team. */
+  teamMode             Boolean      @default(false)
   /** Display names blocked from joining until Play again. */
   bannedNames          String[]     @default([])
   ownerId              String?
@@ -72,6 +74,7 @@ model Game {
   updatedAt            DateTime     @updatedAt
   questions            Question[]
   players              Player[]
+  teams                Team[]
   results              GameResult[]
 
   @@index([ownerId])
@@ -125,15 +128,32 @@ model Question {
   startSpeed    Float    @default(2)
   /** Phrase or quote revealed on the host screen for Unscramble and Finish the Line. */
   revealText    String   @default("")
+  /** Players type an answer. Every option is accepted; correctIndex is the one shown on reveal. */
+  typed         Boolean  @default(false)
   answers       Answer[]
 
   @@unique([gameId, order])
+}
+
+model Team {
+  id      String   @id @default(cuid())
+  gameId  String
+  game    Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  name    String
+  /** Lowercased name so "The Dogs" and "the dogs" are one team. */
+  nameKey String
+  players Player[]
+
+  @@unique([gameId, nameKey])
+  @@index([gameId])
 }
 
 model Player {
   id         String   @id @default(cuid())
   gameId     String
   game       Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  teamId     String?
+  team       Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
   name       String
   token      String   @unique @default(cuid())
   totalScore Int      @default(0)
@@ -141,6 +161,7 @@ model Player {
   answers    Answer[]
 
   @@unique([gameId, name])
+  @@index([teamId])
 }
 
 model Answer {
@@ -150,6 +171,8 @@ model Answer {
   questionId  String
   question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
   choiceIndex Int
+  /** What the player typed. Empty for a multiple-choice tap. */
+  text        String   @default("")
   answeredAt  DateTime @default(now())
   points      Int      @default(0)
   isCorrect   Boolean  @default(false)

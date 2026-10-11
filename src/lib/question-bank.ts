@@ -19,6 +19,7 @@ export const bankQuestionSchema = questionSchema.omit({
   startSpeed: true,
   revealText: true,
   roundTitle: true,
+  typed: true,
 });
 
 export const bankWriteSchema = z.object({
