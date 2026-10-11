@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { createServer } from "http";
 import next from "next";
+import { log } from "@/lib/log";
 import { assertProductionSecrets } from "../src/lib/production-secrets";
 import { createSocketServer } from "./socket";
 
@@ -22,11 +23,13 @@ async function main() {
   createSocketServer(httpServer);
 
   httpServer.listen(port, hostname, () => {
-    console.log(`> Trivia Live ready on http://${hostname}:${port}`);
+    log.info("ready", { host: hostname, port });
   });
 }
 
 main().catch((err) => {
-  console.error(err);
+  log.error("server failed", {
+    err: err instanceof Error ? err.message : "startup failed",
+  });
   process.exit(1);
 });

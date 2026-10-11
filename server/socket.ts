@@ -2,6 +2,7 @@ import type { Server as HttpServer } from "http";
 import { Server, Socket } from "socket.io";
 import { safeEqualString } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { log } from "@/lib/log";
 import {
   buildPlayerView,
   buildPlayerViews,
@@ -334,14 +335,19 @@ export function createSocketServer(httpServer: HttpServer) {
     });
   })
     .then((summary) => {
-        if (summary.locked || summary.armed || summary.waiting || summary.paused) {
-        console.log(
-          `Recovered open questions: locked ${summary.locked}, re-armed ${summary.armed}, waiting for play ${summary.waiting}, paused ${summary.paused}`
-        );
+      if (summary.locked || summary.armed || summary.waiting || summary.paused) {
+        log.info("recovered open questions", {
+          locked: summary.locked,
+          armed: summary.armed,
+          waiting: summary.waiting,
+          paused: summary.paused,
+        });
       }
     })
     .catch((err) => {
-      console.error("Failed to recover open questions", err);
+      log.error("failed to recover open questions", {
+        err: err instanceof Error ? err.message : "recovery failed",
+      });
     });
 
   io.on("connection", (socket: Socket) => {

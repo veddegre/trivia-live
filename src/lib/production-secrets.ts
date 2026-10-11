@@ -1,3 +1,5 @@
+import { log } from "@/lib/log";
+
 /**
  * Production env checks that are safe to import from the custom Node server
  * (must not pull in `next/headers` / AsyncLocalStorage).
@@ -19,19 +21,16 @@ export function assertProductionSecrets() {
     "trivia-local-session-secret-change-me",
   ]);
   if (secret.length < 24 || weak.has(secret)) {
-    console.error(
-      "[trivia-live] WARNING: SESSION_SECRET is missing or weak. " +
-        "Using an ephemeral secret for this process — set SESSION_SECRET " +
-        "(24+ random chars) and restart so sessions survive restarts."
+    log.warn(
+      "SESSION_SECRET is missing or weak. Using an ephemeral secret for this process. Set SESSION_SECRET (24+ random characters) and restart so sessions survive restarts."
     );
   }
   if (
     !(process.env.SETUP_TOKEN || "").trim() &&
     process.env.SUPERADMIN_BOOTSTRAP !== "1"
   ) {
-    console.error(
-      "[trivia-live] WARNING: SETUP_TOKEN is not set. First-time /admin setup " +
-        "will fail until you set SETUP_TOKEN (or SUPERADMIN_BOOTSTRAP=1)."
+    log.warn(
+      "SETUP_TOKEN is not set. First-time admin setup will fail until you set SETUP_TOKEN or SUPERADMIN_BOOTSTRAP=1."
     );
   }
 }

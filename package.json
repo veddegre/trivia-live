@@ -12,7 +12,7 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx scripts/seed-superadmin.ts",
     "smoke": "tsx scripts/smoke-test.ts",
-    "test:unit": "npm run test:scoring && npm run test:zoom && npm run test:picture-finish && npm run test:image-crop && npm run test:audio-speed && npm run test:audio-reverse && npm run test:text-reveal && npm run test:display-name && npm run test:game-pack && npm run test:rounds && npm run test:night-recap && npm run test:bans && npm run test:question-bank && npm run test:recovery && npm run test:byte-range && npm run test:session && npm run test:choice-counts && npm run test:teams && npm run test:fuzzy && npm run test:closest && npm run test:bank-pack && npm run test:season",
+    "test:unit": "npm run test:scoring && npm run test:zoom && npm run test:picture-finish && npm run test:image-crop && npm run test:audio-speed && npm run test:audio-reverse && npm run test:text-reveal && npm run test:display-name && npm run test:game-pack && npm run test:rounds && npm run test:night-recap && npm run test:bans && npm run test:question-bank && npm run test:recovery && npm run test:byte-range && npm run test:session && npm run test:choice-counts && npm run test:teams && npm run test:fuzzy && npm run test:closest && npm run test:bank-pack && npm run test:season && npm run test:ops",
     "test:all": "npm run test:unit",
     "test:scoring": "tsx scripts/test-scoring.ts",
     "test:zoom": "tsx scripts/test-zoom.ts",
@@ -36,6 +36,7 @@
     "test:closest": "tsx scripts/test-closest-wager.ts",
     "test:bank-pack": "tsx scripts/test-bank-pack.ts",
     "test:season": "tsx scripts/test-season.ts",
+    "test:ops": "tsx scripts/test-ops.ts",
     "test:score-race": "tsx scripts/test-score-race.ts"
   },
   "dependencies": {

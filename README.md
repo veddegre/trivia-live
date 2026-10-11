@@ -346,6 +346,37 @@ docker compose up --build -d
 
 Migrations run automatically on container start (`prisma migrate deploy` in the entrypoint). If that fails, the container exits instead of rewriting the schema. Postgres data in the `trivia_pg` volume and media uploads in `trivia_uploads` are kept across rebuilds.
 
+The app container checks `GET /api/health` every 30 seconds. That returns 200 when Postgres answers and the uploads directory is writable, and 503 otherwise. Docker marks the container unhealthy after three failures. The response is `{ ok, db, uploads }` and does not include secrets.
+
+Process logs are one JSON object per line on stdout (info) or stderr (warn and error), with `time`, `level`, and `msg`.
+
+### Backup
+
+From the repo directory, with the database already up:
+
+```bash
+./scripts/backup.sh
+```
+
+That writes `backups/<UTC stamp>/trivia.pgdump` (Postgres custom format) and `uploads.tgz` (the uploads volume). `backups/` is not committed. Set `BACKUP_DIR` if you want another host folder. This command is not on a timer — run it yourself, or from cron on the server.
+
+To restore, stop the app first so nothing writes during the copy:
+
+```bash
+docker compose stop app
+docker compose exec -T db pg_restore --clean --if-exists --no-owner \
+  -U "${POSTGRES_USER:-trivia}" -d "${POSTGRES_DB:-trivia_live}" \
+  < backups/<stamp>/trivia.pgdump
+docker run --rm \
+  -v "$(docker volume ls -q --filter name=trivia_uploads)":/uploads \
+  -v "$PWD/backups/<stamp>":/in:ro \
+  alpine \
+  sh -c 'find /uploads -mindepth 1 -delete && tar xzf /in/uploads.tgz -C /uploads'
+docker compose start app
+```
+
+`--clean` drops existing tables before loading the dump. The uploads volume name ends in `trivia_uploads` (Compose prefixes the project directory). If more than one volume matches, pass the full name from `docker volume ls` instead of the command substitution.
+
 If you use the systemd unit above:
 
 ```bash
