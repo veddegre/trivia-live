@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { playbackRate } from "@/lib/audio-speed";
+import { holdPlaybackSession } from "@/lib/audio-output";
 import { visualNowMs } from "@/lib/question-clock";
 
 type Props = {
@@ -31,7 +32,14 @@ export function SpeedRevealAudio({
 }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const resumeAfterHold = useRef(false);
+  const wantPlay = useRef(false);
+  const pausedAtRef = useRef(pausedAt);
+  const clockOffsetRef = useRef(clockOffsetMs);
+  const appliedRate = useRef<number | null>(null);
+  const lastKick = useRef(0);
   const [playing, setPlaying] = useState(false);
+  pausedAtRef.current = pausedAt;
+  clockOffsetRef.current = clockOffsetMs;
   const [error, setError] = useState("");
   const [rateLabel, setRateLabel] = useState(revealed ? 1 : startSpeed);
 
@@ -46,27 +54,43 @@ export function SpeedRevealAudio({
     }
 
     if (!openedAt || !playing) {
-      audio.playbackRate = startSpeed;
-      setRateLabel(startSpeed);
+      if (audio.paused) {
+        audio.playbackRate = startSpeed;
+        setRateLabel(startSpeed);
+      }
       return;
     }
 
     const opened = new Date(openedAt).getTime();
     const limit = timeLimitSec ?? 30;
-    let raf = 0;
-    const tick = () => {
-      const rate = playbackRate({
-        startSpeed,
-        elapsedMs: visualNowMs(Date.now(), clockOffsetMs, pausedAt) - opened,
-        timeLimitSec: limit,
-      });
-      audio.playbackRate = rate;
-      setRateLabel(rate);
-      if (!pausedAt) raf = requestAnimationFrame(tick);
+    const apply = (rate: number) => {
+      const next = Math.round(rate * 100) / 100;
+      if (appliedRate.current === next) return;
+      appliedRate.current = next;
+      audio.playbackRate = next;
+      setRateLabel(next);
     };
-    tick();
-    return () => cancelAnimationFrame(raf);
-  }, [src, startSpeed, openedAt, timeLimitSec, revealed, playing, clockOffsetMs, pausedAt]);
+    apply(
+      playbackRate({
+        startSpeed,
+        elapsedMs: visualNowMs(Date.now(), clockOffsetRef.current, pausedAt) - opened,
+        timeLimitSec: limit,
+      })
+    );
+    // Safari stalls if playbackRate is rewritten every frame.
+    const id = window.setInterval(() => {
+      if (pausedAtRef.current) return;
+      apply(
+        playbackRate({
+          startSpeed,
+          elapsedMs:
+            visualNowMs(Date.now(), clockOffsetRef.current, pausedAtRef.current) - opened,
+          timeLimitSec: limit,
+        })
+      );
+    }, 200);
+    return () => window.clearInterval(id);
+  }, [src, startSpeed, openedAt, timeLimitSec, revealed, playing, pausedAt]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -86,6 +110,8 @@ export function SpeedRevealAudio({
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    wantPlay.current = false;
+    appliedRate.current = null;
     audio.pause();
     audio.currentTime = 0;
     resumeAfterHold.current = false;
@@ -94,8 +120,9 @@ export function SpeedRevealAudio({
   }, [src]);
 
   useEffect(() => {
+    const audio = audioRef.current;
     return () => {
-      audioRef.current?.pause();
+      audio?.pause();
     };
   }, []);
 
@@ -103,12 +130,24 @@ export function SpeedRevealAudio({
     const audio = audioRef.current;
     if (!audio || pausedAt) return;
     setError("");
+    holdPlaybackSession();
+    audio.playbackRate = revealed ? 1 : startSpeed;
+    wantPlay.current = true;
+    const started = audio.play();
     try {
       if (onPlayRequest) await onPlayRequest();
-      audio.playbackRate = revealed ? 1 : startSpeed;
-      await audio.play();
+    } catch (err) {
+      wantPlay.current = false;
+      audio.pause();
+      setPlaying(false);
+      setError(err instanceof Error ? err.message : "Could not start the timer");
+      return;
+    }
+    try {
+      await started;
       setPlaying(true);
     } catch {
+      wantPlay.current = false;
       setError("Could not play — check the host volume / browser autoplay");
       setPlaying(false);
     }
@@ -118,15 +157,30 @@ export function SpeedRevealAudio({
     const audio = audioRef.current;
     if (!audio) return;
     setError("");
+    holdPlaybackSession();
+    audio.playbackRate = 1;
+    audio.currentTime = 0;
+    wantPlay.current = true;
     try {
-      audio.playbackRate = 1;
-      audio.currentTime = 0;
       await audio.play();
       setPlaying(true);
     } catch {
+      wantPlay.current = false;
       setError("Could not play");
       setPlaying(false);
     }
+  }
+
+  function resumeIfInterrupted() {
+    const audio = audioRef.current;
+    if (!audio || !wantPlay.current || pausedAtRef.current || audio.ended) return;
+    const now = Date.now();
+    if (now - lastKick.current < 400) return;
+    lastKick.current = now;
+    void audio.play().catch(() => {
+      wantPlay.current = false;
+      setPlaying(false);
+    });
   }
 
   return (
@@ -137,7 +191,12 @@ export function SpeedRevealAudio({
         ref={audioRef}
         src={src}
         preload="auto"
-        onEnded={() => setPlaying(false)}
+        playsInline
+        onEnded={() => {
+          wantPlay.current = false;
+          setPlaying(false);
+        }}
+        onPause={resumeIfInterrupted}
       />
       <div className="text-xs font-bold uppercase tracking-[0.18em] text-amber">
         {revealed ? "Full speed" : `${rateLabel.toFixed(2)}×`}

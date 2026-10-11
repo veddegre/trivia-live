@@ -27,9 +27,14 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const mime = mimeForKey(decoded);
+  // Audio is not stored by a shared cache. Safari probes with a 2-byte range,
+  // and a CDN that saves that response will play a blip and then stop.
   const baseHeaders = {
-    "Content-Type": mimeForKey(decoded),
-    "Cache-Control": "public, max-age=31536000, immutable",
+    "Content-Type": mime,
+    "Cache-Control": mime.startsWith("audio/")
+      ? "private, no-store, no-transform"
+      : "public, max-age=31536000, immutable",
     "Accept-Ranges": "bytes",
   };
 
