@@ -95,7 +95,7 @@ Login is **email + password** (not a shared single password).
 5. Host presses **Continue** → between-question standings pause → **Start question N** for the next prompt (not an immediate jump). If you named rounds, the last question of a round shows that round’s mini-podium before the next section.
 6. After the last question, the host shows a **top-3 podium** and final standings. Phones show place and score.
 7. **Play again** (admin or finished host screen) clears players/scores and any kick-bans, keeps questions, issues a **new join code**, and reopens the lobby. Phones are sent back to `/join`.
-8. Finished nights appear under **Past winners** in admin (date/time, winner, podium, player count). Open **Recap** for full standings and per-question accuracy, or download a CSV. Recaps stay after Play again.
+8. Finished nights appear under **Past winners** in admin (date/time, winner, podium, player count). Open **Recap** for full standings and per-question accuracy, or download a CSV. Recaps stay after Play again. **Season** adds those night scores together for a date range. The same name, ignoring caps and spacing, is one player. Team nights count the team name. Dates are UTC.
 
 You can **Edit** a game in admin to fix questions or settings before answers exist (or after Play again). Mid-round edits are blocked.
 

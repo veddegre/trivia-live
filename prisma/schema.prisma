@@ -45,6 +45,7 @@ model User {
   games        Game[]
   results      GameResult[]
   banks        QuestionBank[]
+  seasons      Season[]
 }
 
 model Game {
@@ -100,6 +101,21 @@ model GameResult {
 
   @@unique([gameId, joinCode])
   @@index([finishedAt])
+  @@index([ownerId])
+}
+
+/** A date range of finished nights. Scores are summed by player name. */
+model Season {
+  id        String   @id @default(cuid())
+  title     String
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /** Inclusive YYYY-MM-DD in UTC. Null means no bound. */
+  startsOn  String?
+  endsOn    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([ownerId])
 }
 

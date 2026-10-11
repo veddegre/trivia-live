@@ -18,6 +18,7 @@ import {
   QuestionEditor,
   type DraftQuestion,
 } from "@/components/QuestionEditor";
+import { SeasonPanel } from "@/components/SeasonPanel";
 import { BankPicker, type PickerBank } from "@/components/BankPicker";
 import { parseGuess } from "@/lib/closest-wager";
 import { padDraftOptions } from "@/lib/question-draft";
@@ -38,6 +39,7 @@ type AdminTab =
   | "games"
   | "banks"
   | "winners"
+  | "season"
   | "hosts"
   | "admins"
   | "account";
@@ -187,6 +189,7 @@ const ADMIN_TABS: AdminTab[] = [
   "games",
   "banks",
   "winners",
+  "season",
   "hosts",
   "admins",
   "account",
@@ -1463,6 +1466,9 @@ function AdminInner() {
           <NavButton active={tab === "winners"} onClick={() => goTab("winners")}>
             Past winners
           </NavButton>
+          <NavButton active={tab === "season"} onClick={() => goTab("season")}>
+            Season
+          </NavButton>
 
           {isSuper && (
             <>
@@ -2083,6 +2089,8 @@ function AdminInner() {
               </div>
             </section>
           )}
+
+          {tab === "season" && <SeasonPanel showOwner={isSuper} />}
 
           {tab === "winners" && (
             <section className="mx-auto max-w-4xl">
