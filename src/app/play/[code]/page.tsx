@@ -56,14 +56,18 @@ function PlayInner({ code }: { code: string }) {
     state?.questionOpenedAt,
     state?.timeLimitSec,
     state?.phase === "question",
-    clockOffsetMs
+    clockOffsetMs,
+    state?.questionPausedAt,
+    state?.questionExtraMs ?? 0
   );
 
   const timeUp = remaining === 0;
+  const paused = !!state?.questionPausedAt;
   const canChange = !!state?.allowAnswerChange;
   const locked =
     (!canChange && !!player?.hasAnswered) ||
     timeUp ||
+    paused ||
     state?.phase !== "question" ||
     submitting;
 
@@ -523,10 +527,20 @@ function PlayInner({ code }: { code: string }) {
               <div className="mt-4">
                 <CountdownTimer
                   remainingSec={remaining}
-                  totalSec={state.timeLimitSec}
+                  totalSec={
+                    state.timeLimitSec == null
+                      ? null
+                      : state.timeLimitSec + Math.round(state.questionExtraMs / 1000)
+                  }
+                  paused={paused}
                   size="md"
                 />
               </div>
+              {paused && (
+                <p className="mt-3 text-center text-sm text-muted">
+                  Paused. Answers open again when the host resumes.
+                </p>
+              )}
               <h2 className="display mt-6 text-center text-[1.65rem] leading-snug text-chalk md:text-2xl">
                 {state.question.prompt}
               </h2>
@@ -553,6 +567,7 @@ function PlayInner({ code }: { code: string }) {
                   const letter = String.fromCharCode(65 + i);
                   const waitingForMusic =
                     gameTypeUsesAudio(state.gameType) && !state.questionOpenedAt;
+                  const held = !!state.questionPausedAt;
                   return (
                     <button
                       key={i}
@@ -573,6 +588,7 @@ function PlayInner({ code }: { code: string }) {
                       disabled={
                         locked ||
                         waitingForMusic ||
+                        held ||
                         player.selectedChoice === i
                       }
                       onClick={() => answer(i)}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { visualNowMs } from "@/lib/question-clock";
 import { zoomScale } from "@/lib/zoom";
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
   revealed?: boolean;
   /** Subtract from Date.now() so a fast or slow device tracks the server clock. */
   clockOffsetMs?: number;
+  pausedAt?: string | null;
   className?: string;
   alt?: string;
 };
@@ -22,6 +24,7 @@ export function ZoomRevealImage({
   timeLimitSec,
   revealed = false,
   clockOffsetMs = 0,
+  pausedAt = null,
   className = "",
   alt = "",
 }: Props) {
@@ -38,7 +41,7 @@ export function ZoomRevealImage({
     }
 
     img.style.transition = "none";
-    const now = () => Date.now() - clockOffsetMs;
+    const now = () => visualNowMs(Date.now(), clockOffsetMs, pausedAt);
     const opened = openedAt ? new Date(openedAt).getTime() : now();
     const limit = timeLimitSec ?? 30;
     let raf = 0;
@@ -49,11 +52,11 @@ export function ZoomRevealImage({
         timeLimitSec: limit,
       });
       img.style.transform = `scale(${scale})`;
-      raf = requestAnimationFrame(tick);
+      if (!pausedAt) raf = requestAnimationFrame(tick);
     };
     tick();
     return () => cancelAnimationFrame(raf);
-  }, [src, startZoom, openedAt, timeLimitSec, revealed, clockOffsetMs]);
+  }, [src, startZoom, openedAt, timeLimitSec, revealed, clockOffsetMs, pausedAt]);
 
   return (
     <div

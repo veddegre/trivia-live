@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { visualNowMs } from "@/lib/question-clock";
 import { silhouetteReveal } from "@/lib/zoom";
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
   revealed?: boolean;
   /** Subtract from Date.now() so a fast or slow device tracks the server clock. */
   clockOffsetMs?: number;
+  pausedAt?: string | null;
   className?: string;
   alt?: string;
 };
@@ -101,6 +103,7 @@ export function SilhouetteImage({
   timeLimitSec,
   revealed = false,
   clockOffsetMs = 0,
+  pausedAt = null,
   className = "",
   alt = "",
 }: Props) {
@@ -189,7 +192,7 @@ export function SilhouetteImage({
       }
       const tick = () => {
         if (cancelled) return;
-        const now = Date.now() - clockOffsetMs;
+        const now = visualNowMs(Date.now(), clockOffsetMs, pausedAt);
         const opened = openedAt ? new Date(openedAt).getTime() : now;
         paint(
           silhouetteReveal({
@@ -199,7 +202,7 @@ export function SilhouetteImage({
             revealed,
           })
         );
-        if (!revealed) raf = requestAnimationFrame(tick);
+        if (!revealed && !pausedAt) raf = requestAnimationFrame(tick);
       };
       tick();
     };
@@ -209,7 +212,7 @@ export function SilhouetteImage({
       cancelled = true;
       cancelAnimationFrame(raf);
     };
-  }, [src, startZoom, openedAt, timeLimitSec, revealed, clockOffsetMs]);
+  }, [src, startZoom, openedAt, timeLimitSec, revealed, clockOffsetMs, pausedAt]);
 
   return (
     <div

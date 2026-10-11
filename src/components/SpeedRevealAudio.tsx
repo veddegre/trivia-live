@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { playbackRate } from "@/lib/audio-speed";
+import { visualNowMs } from "@/lib/question-clock";
 
 type Props = {
   src: string;
@@ -11,6 +12,7 @@ type Props = {
   revealed?: boolean;
   /** Subtract from Date.now() so a fast or slow device tracks the server clock. */
   clockOffsetMs?: number;
+  pausedAt?: string | null;
   /** Called when the host taps Play (before audio starts). Should arm the round clock. */
   onPlayRequest?: () => void | Promise<void>;
   className?: string;
@@ -23,10 +25,12 @@ export function SpeedRevealAudio({
   timeLimitSec,
   revealed = false,
   clockOffsetMs = 0,
+  pausedAt = null,
   onPlayRequest,
   className = "",
 }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const resumeAfterHold = useRef(false);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
   const [rateLabel, setRateLabel] = useState(revealed ? 1 : startSpeed);
@@ -53,22 +57,38 @@ export function SpeedRevealAudio({
     const tick = () => {
       const rate = playbackRate({
         startSpeed,
-        elapsedMs: Date.now() - clockOffsetMs - opened,
+        elapsedMs: visualNowMs(Date.now(), clockOffsetMs, pausedAt) - opened,
         timeLimitSec: limit,
       });
       audio.playbackRate = rate;
       setRateLabel(rate);
-      raf = requestAnimationFrame(tick);
+      if (!pausedAt) raf = requestAnimationFrame(tick);
     };
     tick();
     return () => cancelAnimationFrame(raf);
-  }, [src, startSpeed, openedAt, timeLimitSec, revealed, playing, clockOffsetMs]);
+  }, [src, startSpeed, openedAt, timeLimitSec, revealed, playing, clockOffsetMs, pausedAt]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (pausedAt) {
+      if (!audio.paused) {
+        audio.pause();
+        resumeAfterHold.current = true;
+      }
+      return;
+    }
+    if (!resumeAfterHold.current) return;
+    resumeAfterHold.current = false;
+    void audio.play().catch(() => setPlaying(false));
+  }, [pausedAt, playing]);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     audio.pause();
     audio.currentTime = 0;
+    resumeAfterHold.current = false;
     setPlaying(false);
     setError("");
   }, [src]);
@@ -81,7 +101,7 @@ export function SpeedRevealAudio({
 
   async function handlePlay() {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || pausedAt) return;
     setError("");
     try {
       if (onPlayRequest) await onPlayRequest();
@@ -125,21 +145,23 @@ export function SpeedRevealAudio({
       <p className="mt-2 text-center text-sm text-muted">
         {revealed
           ? "Replay the snippet at normal speed"
-          : playing
-            ? "Listening…"
-            : onPlayRequest
-              ? "Tap play to start the snippet and the timer"
-              : openedAt
-                ? "Tap play to listen on this screen"
-                : "Waiting for the host to play"}
+            : pausedAt
+              ? "Paused"
+            : playing
+              ? "Listening…"
+              : onPlayRequest
+                ? "Tap play to start the snippet and the timer"
+                : openedAt
+                  ? "Tap play to listen on this screen"
+                  : "Waiting for the host to play"}
       </p>
       <button
         type="button"
         className="btn mt-5 px-10 uppercase tracking-wide"
-        disabled={!revealed && !openedAt && !onPlayRequest}
+        disabled={!!pausedAt || (!revealed && !openedAt && !onPlayRequest)}
         onClick={() => void (revealed ? handleReplay() : handlePlay())}
       >
-        {revealed ? "Replay" : playing ? "Playing…" : "Play snippet"}
+        {revealed ? "Replay" : pausedAt ? "Paused" : playing ? "Playing…" : "Play snippet"}
       </button>
       {error && <p className="mt-3 text-sm text-bad">{error}</p>}
     </div>

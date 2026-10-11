@@ -7,6 +7,7 @@ type Props = {
   src: string;
   openedAt?: string | null;
   revealed?: boolean;
+  pausedAt?: string | null;
   /** Called when the host taps Play (before audio starts). Should arm the round clock. */
   onPlayRequest?: () => void | Promise<void>;
   className?: string;
@@ -25,11 +26,18 @@ export function ReverseRevealAudio({
   src,
   openedAt,
   revealed = false,
+  pausedAt = null,
   onPlayRequest,
   className = "",
 }: Props) {
   const ctxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const anchorRef = useRef(0);
+  const offsetRef = useRef(0);
+  const resumeAfterHold = useRef(false);
+  const startRef = useRef<
+    ((buffer: AudioBuffer, loop: boolean, startOffset?: number) => Promise<void>) | null
+  >(null);
   const forwardRef = useRef<AudioBuffer | null>(null);
   const backwardRef = useRef<AudioBuffer | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -63,6 +71,8 @@ export function ReverseRevealAudio({
     setError("");
     forwardRef.current = null;
     backwardRef.current = null;
+    offsetRef.current = 0;
+    resumeAfterHold.current = false;
     stop();
 
     (async () => {
@@ -91,7 +101,30 @@ export function ReverseRevealAudio({
   useEffect(() => {
     stop();
     setPlaying(false);
+    offsetRef.current = 0;
+    resumeAfterHold.current = false;
   }, [revealed]);
+
+  useEffect(() => {
+    if (pausedAt) {
+      const ctx = ctxRef.current;
+      const source = sourceRef.current;
+      if (!ctx || !source) return;
+      const duration = source.buffer?.duration ?? 0;
+      let offset = ctx.currentTime - anchorRef.current;
+      if (duration > 0) offset = offset % duration;
+      offsetRef.current = Math.max(0, offset);
+      resumeAfterHold.current = true;
+      stop();
+      setPlaying(false);
+      return;
+    }
+    if (!resumeAfterHold.current) return;
+    resumeAfterHold.current = false;
+    const buffer = revealed ? forwardRef.current : backwardRef.current;
+    if (!buffer) return;
+    void startRef.current?.(buffer, !revealed, offsetRef.current);
+  }, [pausedAt, revealed, playing]);
 
   useEffect(() => {
     return () => {
@@ -101,10 +134,13 @@ export function ReverseRevealAudio({
     };
   }, []);
 
-  async function start(buffer: AudioBuffer, loop: boolean) {
+  async function start(buffer: AudioBuffer, loop: boolean, startOffset = 0) {
     const ctx = context();
     if (ctx.state === "suspended") await ctx.resume();
     stop();
+    const duration = buffer.duration;
+    const offset =
+      duration > 0 ? ((startOffset % duration) + duration) % duration : 0;
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.loop = loop;
@@ -116,11 +152,16 @@ export function ReverseRevealAudio({
       }
     };
     sourceRef.current = source;
-    source.start();
+    const when = ctx.currentTime;
+    source.start(when, offset);
+    anchorRef.current = when - offset;
     setPlaying(true);
   }
 
+  startRef.current = start;
+
   async function handlePlay() {
+    if (pausedAt) return;
     setError("");
     const buffer = revealed ? forwardRef.current : backwardRef.current;
     if (!buffer) {
@@ -154,18 +195,20 @@ export function ReverseRevealAudio({
             ? "Preparing clip…"
             : revealed
               ? "Replay the song forwards"
-              : playing
-                ? "Listening…"
-                : onPlayRequest
-                  ? "Tap play to start the clip backwards and the timer"
-                  : openedAt
-                    ? "Tap play to listen on this screen"
-                    : "Waiting for the host to play"}
+              : pausedAt
+                ? "Paused"
+                : playing
+                  ? "Listening…"
+                  : onPlayRequest
+                    ? "Tap play to start the clip backwards and the timer"
+                    : openedAt
+                      ? "Tap play to listen on this screen"
+                      : "Waiting for the host to play"}
       </p>
       <button
         type="button"
         className="btn mt-5 px-10 uppercase tracking-wide"
-        disabled={error && !ready ? false : !ready || waitingForHost}
+        disabled={!!pausedAt || (error && !ready ? false : !ready || waitingForHost)}
         onClick={() => {
           if (error && !ready) {
             setAttempt((n) => n + 1);
@@ -178,9 +221,11 @@ export function ReverseRevealAudio({
           ? "Try again"
           : revealed
             ? "Replay forwards"
-            : playing
-              ? "Playing…"
-              : "Play backwards"}
+            : pausedAt
+              ? "Paused"
+              : playing
+                ? "Playing…"
+                : "Play backwards"}
       </button>
     </div>
   );

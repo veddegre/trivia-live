@@ -55,6 +55,10 @@ model Game {
   gameType             GameType     @default(TRIVIA)
   currentQuestionIndex Int          @default(0)
   questionOpenedAt     DateTime?
+  /** Set while the host has paused this question. Cleared on resume. */
+  questionPausedAt     DateTime?
+  /** Milliseconds added with +10s. The question's own limit stays unchanged. */
+  questionExtraMs      Int          @default(0)
   hostToken            String       @unique @default(cuid())
   /** When false, players can only join while status is LOBBY */
   allowLateJoin        Boolean      @default(true)

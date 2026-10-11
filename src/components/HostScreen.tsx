@@ -209,6 +209,7 @@ function HostQuestionImage({
   timeLimitSec,
   revealed,
   clockOffsetMs,
+  pausedAt,
   className,
 }: {
   gameType: GameType;
@@ -218,6 +219,7 @@ function HostQuestionImage({
   timeLimitSec?: number | null;
   revealed?: boolean;
   clockOffsetMs?: number;
+  pausedAt?: string | null;
   className?: string;
 }) {
   if (gameType === "SILHOUETTE") {
@@ -229,6 +231,7 @@ function HostQuestionImage({
         timeLimitSec={timeLimitSec}
         revealed={revealed}
         clockOffsetMs={clockOffsetMs}
+        pausedAt={pausedAt}
         className={className}
         alt=""
       />
@@ -243,6 +246,7 @@ function HostQuestionImage({
         timeLimitSec={timeLimitSec}
         revealed={revealed}
         clockOffsetMs={clockOffsetMs}
+        pausedAt={pausedAt}
         className={className}
         alt=""
       />
@@ -256,6 +260,7 @@ function HostQuestionImage({
       timeLimitSec={timeLimitSec}
       revealed={revealed}
       clockOffsetMs={clockOffsetMs}
+      pausedAt={pausedAt}
       className={className}
       alt=""
     />
@@ -345,7 +350,9 @@ export function HostScreen({
     state?.questionOpenedAt,
     state?.timeLimitSec,
     state?.phase === "question",
-    clockOffsetMs
+    clockOffsetMs,
+    state?.questionPausedAt,
+    state?.questionExtraMs ?? 0
   );
 
   useEffect(() => {
@@ -545,7 +552,12 @@ export function HostScreen({
             </div>
             <CountdownTimer
               remainingSec={timerSec}
-              totalSec={state.timeLimitSec}
+              totalSec={
+                state.timeLimitSec == null
+                  ? null
+                  : state.timeLimitSec + Math.round(state.questionExtraMs / 1000)
+              }
+              paused={!!state.questionPausedAt}
               size={hasMedia ? "md" : "lg"}
             />
             <div className="flex items-center justify-center gap-2 text-sm md:justify-end">
@@ -581,6 +593,7 @@ export function HostScreen({
                 openedAt={state.questionOpenedAt}
                 timeLimitSec={state.timeLimitSec}
                 clockOffsetMs={clockOffsetMs}
+                pausedAt={state.questionPausedAt}
                 literal={snapshot}
                 className="mx-auto mt-4 max-w-4xl"
               />
@@ -594,6 +607,7 @@ export function HostScreen({
                 openedAt={state.questionOpenedAt}
                 timeLimitSec={state.timeLimitSec}
                 clockOffsetMs={clockOffsetMs}
+                pausedAt={state.questionPausedAt}
                 className="mx-auto mt-3 aspect-square w-full max-w-[min(42vh,22rem)] shrink-0 rounded-2xl border border-line"
               />
             )}
@@ -602,6 +616,7 @@ export function HostScreen({
               <ReverseRevealAudio
                 src={state.question.audioUrl!}
                 openedAt={state.questionOpenedAt}
+                pausedAt={state.questionPausedAt}
                 onPlayRequest={isHost ? startClock : undefined}
                 className="mx-auto mt-4 w-full max-w-xl shrink-0"
               />
@@ -614,6 +629,7 @@ export function HostScreen({
                 openedAt={state.questionOpenedAt}
                 timeLimitSec={state.timeLimitSec}
                 clockOffsetMs={clockOffsetMs}
+                pausedAt={state.questionPausedAt}
                 onPlayRequest={isHost ? startClock : undefined}
                 className="mx-auto mt-4 w-full max-w-xl shrink-0"
               />

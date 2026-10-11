@@ -1,0 +1,2 @@
+ALTER TABLE "Game" ADD COLUMN "questionPausedAt" TIMESTAMP(3),
+ADD COLUMN "questionExtraMs" INTEGER NOT NULL DEFAULT 0;

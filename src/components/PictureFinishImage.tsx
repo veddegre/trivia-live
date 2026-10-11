@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { visualNowMs } from "@/lib/question-clock";
 import { pictureFinishPixelSize } from "@/lib/zoom";
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
   revealed?: boolean;
   /** Subtract from Date.now() so a fast or slow device tracks the server clock. */
   clockOffsetMs?: number;
+  pausedAt?: string | null;
   className?: string;
   alt?: string;
 };
@@ -44,6 +46,7 @@ export function PictureFinishImage({
   timeLimitSec,
   revealed = false,
   clockOffsetMs = 0,
+  pausedAt = null,
   className = "",
   alt = "",
 }: Props) {
@@ -106,7 +109,7 @@ export function PictureFinishImage({
         paint(1);
         return;
       }
-      const now = () => Date.now() - clockOffsetMs;
+      const now = () => visualNowMs(Date.now(), clockOffsetMs, pausedAt);
       const opened = openedAt ? new Date(openedAt).getTime() : now();
       const limit = timeLimitSec ?? 45;
       const tick = () => {
@@ -118,7 +121,7 @@ export function PictureFinishImage({
             timeLimitSec: limit,
           })
         );
-        raf = requestAnimationFrame(tick);
+        if (!pausedAt) raf = requestAnimationFrame(tick);
       };
       tick();
     };
@@ -137,7 +140,7 @@ export function PictureFinishImage({
       cancelled = true;
       cancelAnimationFrame(raf);
     };
-  }, [src, startZoom, openedAt, timeLimitSec, revealed, clockOffsetMs]);
+  }, [src, startZoom, openedAt, timeLimitSec, revealed, clockOffsetMs, pausedAt]);
 
   return (
     <div

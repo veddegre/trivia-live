@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { visualNowMs } from "@/lib/question-clock";
 import { finishLineTokens, revealProgress, unscrambleText } from "@/lib/text-reveal";
 
 type Props = {
@@ -12,6 +13,7 @@ type Props = {
   revealed?: boolean;
   /** Subtract from Date.now() so a fast or slow device tracks the server clock. */
   clockOffsetMs?: number;
+  pausedAt?: string | null;
   /** Text is already the on-screen puzzle. Do not reveal further from a secret phrase. */
   literal?: boolean;
   className?: string;
@@ -25,11 +27,17 @@ export function TextReveal({
   timeLimitSec,
   revealed = false,
   clockOffsetMs = 0,
+  pausedAt = null,
   literal = false,
   className = "",
 }: Props) {
   const [progress, setProgress] = useState(() =>
-    revealProgress(openedAt, timeLimitSec, Date.now() - clockOffsetMs, revealed)
+    revealProgress(
+      openedAt,
+      timeLimitSec,
+      visualNowMs(Date.now(), clockOffsetMs, pausedAt),
+      revealed
+    )
   );
 
   useEffect(() => {
@@ -40,13 +48,18 @@ export function TextReveal({
     let raf = 0;
     const tick = () => {
       setProgress(
-        revealProgress(openedAt, timeLimitSec, Date.now() - clockOffsetMs, false)
+        revealProgress(
+          openedAt,
+          timeLimitSec,
+          visualNowMs(Date.now(), clockOffsetMs, pausedAt),
+          false
+        )
       );
-      raf = requestAnimationFrame(tick);
+      if (!pausedAt) raf = requestAnimationFrame(tick);
     };
     tick();
     return () => cancelAnimationFrame(raf);
-  }, [openedAt, timeLimitSec, revealed, clockOffsetMs, literal]);
+  }, [openedAt, timeLimitSec, revealed, clockOffsetMs, literal, pausedAt]);
 
   if (literal) {
     if (mode === "unscramble") {

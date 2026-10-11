@@ -14,13 +14,14 @@ export function forSpectator(
   if (state.gameType !== "UNSCRAMBLE" && state.gameType !== "FINISH_LINE") {
     return state;
   }
+  const at = state.questionPausedAt ? new Date(state.questionPausedAt).getTime() : now;
   const shown = visiblePuzzleText({
     text: question.revealText,
     mode: state.gameType === "FINISH_LINE" ? "line" : "unscramble",
     seed: question.id,
     openedAt: state.questionOpenedAt,
     timeLimitSec: state.timeLimitSec,
-    now,
+    now: at,
   });
   return {
     ...state,

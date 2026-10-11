@@ -53,6 +53,10 @@ export type GamePublicState = {
   questionTotal: number;
   question: PublicQuestion | null;
   questionOpenedAt: string | null;
+  /** Set while the host has paused the open question. */
+  questionPausedAt: string | null;
+  /** Milliseconds the host has added to this question's clock. */
+  questionExtraMs: number;
   /** Server time when this payload was built. Devices subtract the offset from Date.now(). */
   serverNow: string;
   timeLimitSec: number | null;

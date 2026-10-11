@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BrandMark } from "@/components/BrandMark";
 import { BrandProvider } from "@/components/BrandProvider";
+import { useClockOffset } from "@/hooks/useClockOffset";
+import { useQuestionCountdown } from "@/hooks/useQuestionCountdown";
 import { readHostToken, storeHostToken } from "@/lib/host-token";
 import { getSocket } from "@/lib/socket-client";
 import type { BrandConfig } from "@/lib/branding";
@@ -98,7 +100,17 @@ export function HostRemote({ code }: { code: string }) {
     emit("host:kick", { playerId: row.playerId });
   }
 
+  const clockOffsetMs = useClockOffset(state?.serverNow);
+  const remaining = useQuestionCountdown(
+    state?.questionOpenedAt,
+    state?.timeLimitSec,
+    state?.phase === "question",
+    clockOffsetMs,
+    state?.questionPausedAt,
+    state?.questionExtraMs ?? 0
+  );
   const phase = state?.phase;
+  const clockRunning = phase === "question" && !!state?.questionOpenedAt;
   const questionLabel = state
     ? `Question ${state.questionIndex + 1} of ${state.questionTotal}`
     : "";
@@ -134,6 +146,26 @@ export function HostRemote({ code }: { code: string }) {
               <p className="text-sm font-semibold text-chalk">
                 {state.answerCount} / {state.playerCount} answered
               </p>
+            )}
+            {clockRunning && remaining != null && (
+              <p className="text-center text-4xl font-extrabold tabular-nums text-chalk">
+                {state.questionPausedAt ? "Paused" : remaining}
+                <span className="ml-2 text-sm font-semibold uppercase tracking-[0.14em] text-muted">
+                  {state.questionPausedAt ? `${remaining}s left` : "seconds"}
+                </span>
+              </p>
+            )}
+            {clockRunning && (
+              <>
+                <RemoteButton
+                  onClick={() => emit(state.questionPausedAt ? "host:resume" : "host:pause")}
+                >
+                  {state.questionPausedAt ? "Resume" : "Pause"}
+                </RemoteButton>
+                <RemoteButton tone="ghost" onClick={() => emit("host:extend")}>
+                  Add 10 seconds
+                </RemoteButton>
+              </>
             )}
             {phase === "question" &&
               gameTypeUsesAudio(state.gameType) &&

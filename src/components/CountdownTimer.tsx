@@ -4,13 +4,19 @@ type Props = {
   remainingSec: number | null;
   totalSec: number | null;
   size?: "md" | "lg";
+  paused?: boolean;
 };
 
-export function CountdownTimer({ remainingSec, totalSec, size = "md" }: Props) {
+export function CountdownTimer({
+  remainingSec,
+  totalSec,
+  size = "md",
+  paused = false,
+}: Props) {
   if (remainingSec === null || !totalSec) return null;
 
   const pct = Math.max(0, Math.min(1, remainingSec / totalSec));
-  const urgent = remainingSec <= 5;
+  const urgent = !paused && remainingSec <= 5;
   const r = size === "lg" ? 52 : 40;
   const c = 2 * Math.PI * r;
   const offset = c * (1 - pct);
@@ -55,7 +61,7 @@ export function CountdownTimer({ remainingSec, totalSec, size = "md" }: Props) {
               size === "lg" ? "text-[0.65rem] text-amber" : "text-[0.6rem] text-amber"
             }`}
           >
-            {remainingSec === 0 ? "Up" : size === "lg" ? "Seconds" : "s"}
+            {paused ? "Paused" : remainingSec === 0 ? "Up" : size === "lg" ? "Seconds" : "s"}
           </div>
         </div>
       </div>

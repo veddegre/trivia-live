@@ -27,6 +27,12 @@ import type {
   PublicQuestion,
 } from "@/lib/types";
 import { choiceCountsFor } from "@/lib/choice-counts";
+import {
+  nextExtraMs,
+  QUESTION_EXTRA_CAP_MS,
+  questionRemainingMs,
+  resumedOpenedAt,
+} from "@/lib/question-clock";
 import { questionRecoveryPlan } from "@/lib/question-recovery";
 import { secretToken } from "@/lib/secret-token";
 import {
@@ -99,12 +105,23 @@ export async function recoverOpenQuestions(
   let locked = 0;
   let armed = 0;
   let waiting = 0;
+  let paused = 0;
 
   for (const game of games) {
     const limit = game.questions[game.currentQuestionIndex]?.timeLimitSec ?? 0;
-    const plan = questionRecoveryPlan(game.questionOpenedAt, limit, now);
+    const plan = questionRecoveryPlan(
+      game.questionOpenedAt,
+      limit,
+      now,
+      game.questionExtraMs,
+      game.questionPausedAt
+    );
     if (plan.action === "wait") {
       waiting += 1;
+      continue;
+    }
+    if (plan.action === "paused") {
+      paused += 1;
       continue;
     }
     if (plan.action === "lock") {
@@ -120,7 +137,7 @@ export async function recoverOpenQuestions(
     armed += 1;
   }
 
-  return { locked, armed, waiting };
+  return { locked, armed, waiting, paused };
 }
 
 function phaseFromStatus(status: Game["status"]): GamePhase {
@@ -343,6 +360,8 @@ export async function buildPublicState(
     questionTotal: game.questions.length,
     question,
     questionOpenedAt: game.questionOpenedAt?.toISOString() ?? null,
+    questionPausedAt: game.questionPausedAt?.toISOString() ?? null,
+    questionExtraMs: game.questionExtraMs,
     serverNow: new Date().toISOString(),
     timeLimitSec: q?.timeLimitSec ?? null,
     leaderboard,
@@ -453,7 +472,13 @@ export async function buildPlayerView(
 export async function openLobby(code: string) {
   await prisma.game.update({
     where: { code: code.toUpperCase() },
-    data: { status: "LOBBY", currentQuestionIndex: 0, questionOpenedAt: null },
+    data: {
+      status: "LOBBY",
+      currentQuestionIndex: 0,
+      questionOpenedAt: null,
+      questionPausedAt: null,
+      questionExtraMs: 0,
+    },
   });
   getRuntime(code.toUpperCase()).answerCount = 0;
 }
@@ -482,6 +507,8 @@ export async function openQuestion(code: string, index?: number) {
       status: "QUESTION",
       currentQuestionIndex: nextIndex,
       questionOpenedAt: openedAt,
+      questionPausedAt: null,
+      questionExtraMs: 0,
     },
   });
   const rt = getRuntime(game.code);
@@ -521,6 +548,145 @@ export async function startQuestionClock(code: string) {
     timeLimitSec: q.timeLimitSec,
     alreadyStarted: false,
   };
+}
+
+function activeQuestion(game: GameWithRelations) {
+  const q = game.questions[game.currentQuestionIndex];
+  if (!q) throw new Error("No active question");
+  if (game.status !== "QUESTION" || !game.questionOpenedAt) {
+    throw new Error(
+      game.status === "QUESTION" ? "The clock has not started" : "Question is not open"
+    );
+  }
+  return q;
+}
+
+/** Freeze the open question. The auto-lock timer is cleared by the socket caller. */
+export async function pauseQuestion(code: string) {
+  const game = await loadGame(code);
+  if (!game) throw new Error("Game not found");
+  activeQuestion(game);
+  if (game.questionPausedAt) return { alreadyPaused: true as const };
+
+  const pausedAt = new Date();
+  const alreadyPaused = await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<
+      Array<{ status: string; questionOpenedAt: Date | null; questionPausedAt: Date | null }>
+    >`
+      SELECT CAST(status AS text) AS status, "questionOpenedAt", "questionPausedAt"
+      FROM "Game"
+      WHERE id = ${game.id}
+      FOR UPDATE
+    `;
+    const row = rows[0];
+    if (!row || row.status !== "QUESTION" || !row.questionOpenedAt) {
+      throw new Error("Question is not open");
+    }
+    if (row.questionPausedAt) return true;
+    await tx.game.update({
+      where: { id: game.id },
+      data: { questionPausedAt: pausedAt },
+    });
+    return false;
+  });
+  return { alreadyPaused, pausedAt };
+}
+
+/** Continue a paused question with the time that was left, plus any extra seconds. */
+export async function resumeQuestion(code: string) {
+  const game = await loadGame(code);
+  if (!game) throw new Error("Game not found");
+  const q = activeQuestion(game);
+  if (!game.questionPausedAt || !game.questionOpenedAt) {
+    throw new Error("The question is not paused");
+  }
+
+  const now = new Date();
+  const clock = await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<
+      Array<{
+        status: string;
+        questionOpenedAt: Date | null;
+        questionPausedAt: Date | null;
+        questionExtraMs: number;
+      }>
+    >`
+      SELECT CAST(status AS text) AS status, "questionOpenedAt", "questionPausedAt", "questionExtraMs"
+      FROM "Game"
+      WHERE id = ${game.id}
+      FOR UPDATE
+    `;
+    const row = rows[0];
+    if (!row?.questionPausedAt || !row.questionOpenedAt || row.status !== "QUESTION") {
+      throw new Error("The question is not paused");
+    }
+    const shifted = resumedOpenedAt(row.questionOpenedAt, row.questionPausedAt, now);
+    await tx.game.update({
+      where: { id: game.id },
+      data: { questionOpenedAt: shifted, questionPausedAt: null },
+    });
+    return { openedAt: shifted, extraMs: row.questionExtraMs ?? 0 };
+  });
+
+  const remainingMs = questionRemainingMs({
+    openedAt: clock.openedAt,
+    timeLimitSec: q.timeLimitSec,
+    extraMs: clock.extraMs,
+    now: now.getTime(),
+  });
+  return { remainingMs: Math.max(0, remainingMs ?? 0) };
+}
+
+/** Add 10 seconds to the open question, whether or not it is paused. */
+export async function extendQuestion(code: string) {
+  const game = await loadGame(code);
+  if (!game) throw new Error("Game not found");
+  const q = activeQuestion(game);
+  if (game.questionExtraMs >= QUESTION_EXTRA_CAP_MS) {
+    throw new Error("This question already has the maximum extra time");
+  }
+
+  const now = new Date();
+  return prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<
+      Array<{
+        status: string;
+        questionOpenedAt: Date | null;
+        questionPausedAt: Date | null;
+        questionExtraMs: number;
+      }>
+    >`
+      SELECT CAST(status AS text) AS status, "questionOpenedAt", "questionPausedAt", "questionExtraMs"
+      FROM "Game"
+      WHERE id = ${game.id}
+      FOR UPDATE
+    `;
+    const row = rows[0];
+    if (!row || row.status !== "QUESTION" || !row.questionOpenedAt) {
+      throw new Error("Question is not open");
+    }
+    const currentExtra = row.questionExtraMs ?? 0;
+    if (currentExtra >= QUESTION_EXTRA_CAP_MS) {
+      throw new Error("This question already has the maximum extra time");
+    }
+    const extraMs = nextExtraMs(currentExtra);
+    await tx.game.update({
+      where: { id: game.id },
+      data: { questionExtraMs: extraMs },
+    });
+    const remainingMs = questionRemainingMs({
+      openedAt: row.questionOpenedAt,
+      timeLimitSec: q.timeLimitSec,
+      extraMs,
+      pausedAt: row.questionPausedAt,
+      now: now.getTime(),
+    });
+    return {
+      remainingMs: Math.max(0, remainingMs ?? 0),
+      paused: !!row.questionPausedAt,
+      extraMs,
+    };
+  });
 }
 
 function closedQuestionMessage(status: string | undefined, questionOpenedAt: Date | null) {
@@ -574,12 +740,12 @@ export async function submitAnswer(opts: {
     throw new Error(closedQuestionMessage(game.status, game.questionOpenedAt));
   }
 
-  const scored = (elapsedMs: number) => {
+  const scored = (elapsedMs: number, limitMs: number) => {
     const isCorrect = opts.choiceIndex === q.correctIndex;
     const points = scoreAnswer({
       isCorrect,
       elapsedMs,
-      timeLimitSec: q.timeLimitSec,
+      timeLimitSec: limitMs / 1000,
       basePoints: q.basePoints,
       timeBonus: q.timeBonus,
       bonus: questionBonus(q),
@@ -590,9 +756,14 @@ export async function submitAnswer(opts: {
   // Hold the game row so this write cannot land after lock has summed the answers.
   const outcome = await prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<
-      Array<{ status: string; questionOpenedAt: Date | null }>
+      Array<{
+        status: string;
+        questionOpenedAt: Date | null;
+        questionPausedAt: Date | null;
+        questionExtraMs: number;
+      }>
     >`
-      SELECT CAST(status AS text) AS status, "questionOpenedAt"
+      SELECT CAST(status AS text) AS status, "questionOpenedAt", "questionPausedAt", "questionExtraMs"
       FROM "Game"
       WHERE id = ${game.id}
       FOR UPDATE
@@ -601,6 +772,7 @@ export async function submitAnswer(opts: {
     if (!row || row.status !== "QUESTION" || !row.questionOpenedAt) {
       throw new Error(closedQuestionMessage(row?.status, row?.questionOpenedAt ?? null));
     }
+    if (row.questionPausedAt) throw new Error("The host paused this question");
 
     const stillPlaying = await tx.player.findUnique({
       where: { id: player.id },
@@ -610,10 +782,11 @@ export async function submitAnswer(opts: {
 
     const answeredAt = new Date();
     const elapsedMs = answeredAt.getTime() - new Date(row.questionOpenedAt).getTime();
-    if (elapsedMs > q.timeLimitSec * 1000) {
+    const limitMs = q.timeLimitSec * 1000 + (row.questionExtraMs ?? 0);
+    if (elapsedMs > limitMs) {
       throw new Error("Time is up");
     }
-    const { isCorrect, points } = scored(elapsedMs);
+    const { isCorrect, points } = scored(elapsedMs, limitMs);
     const data = {
       choiceIndex: opts.choiceIndex,
       answeredAt,
@@ -680,6 +853,8 @@ async function claimQuestionAndScore(
       where: { id: gameId, status: "QUESTION" },
       data: {
         status: next,
+        questionPausedAt: null,
+        questionExtraMs: 0,
         ...(next === "FINISHED" ? { questionOpenedAt: null } : {}),
       },
     });
@@ -689,19 +864,73 @@ async function claimQuestionAndScore(
   }, { maxWait: 30_000, timeout: 30_000 });
 }
 
-export async function lockQuestion(code: string): Promise<{ locked: boolean }> {
+/**
+ * Lock the open question.
+ * auto: only when the clock has actually run out. Pause and +10 hold the same row,
+ * so a timer that already fired cannot close a question that still has time.
+ */
+export async function lockQuestion(
+  code: string,
+  opts?: { auto?: boolean }
+): Promise<{ locked: boolean }> {
   const game = await loadGame(code);
-  if (!game) throw new Error("Game not found");
+  if (!game) {
+    if (opts?.auto) return { locked: false };
+    throw new Error("Game not found");
+  }
   if (game.status !== "QUESTION") {
-    if (game.status === "REVEAL" || game.status === "FINISHED") {
+    if (game.status === "REVEAL" || game.status === "FINISHED" || opts?.auto) {
       return { locked: false };
     }
     throw new Error("No open question");
   }
 
+  if (opts?.auto) {
+    const locked = await claimExpiredQuestion(game);
+    if (locked) clearQuestionTimer(game.code);
+    return { locked };
+  }
+
   clearQuestionTimer(game.code);
   const locked = await claimQuestionAndScore(game.id, "REVEAL");
   return { locked };
+}
+
+async function claimExpiredQuestion(game: GameWithRelations): Promise<boolean> {
+  const q = game.questions[game.currentQuestionIndex];
+  if (!q) return false;
+  return prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<
+      Array<{
+        status: string;
+        questionOpenedAt: Date | null;
+        questionPausedAt: Date | null;
+        questionExtraMs: number;
+      }>
+    >`
+      SELECT CAST(status AS text) AS status, "questionOpenedAt", "questionPausedAt", "questionExtraMs"
+      FROM "Game"
+      WHERE id = ${game.id}
+      FOR UPDATE
+    `;
+    const row = rows[0];
+    if (!row || row.status !== "QUESTION" || !row.questionOpenedAt || row.questionPausedAt) {
+      return false;
+    }
+    const left = questionRemainingMs({
+      openedAt: row.questionOpenedAt,
+      timeLimitSec: q.timeLimitSec,
+      extraMs: row.questionExtraMs ?? 0,
+      now: Date.now(),
+    });
+    if (left == null || left > 500) return false;
+    await tx.game.update({
+      where: { id: game.id },
+      data: { status: "REVEAL", questionPausedAt: null, questionExtraMs: 0 },
+    });
+    await recomputeTotals(tx, game.id);
+    return true;
+  }, { maxWait: 30_000, timeout: 30_000 });
 }
 
 /**
@@ -741,7 +970,7 @@ export async function voidQuestion(code: string, mode: "zero" | "credit") {
     if (status === "QUESTION") {
       await tx.game.update({
         where: { id: game.id },
-        data: { status: "REVEAL" },
+        data: { status: "REVEAL", questionPausedAt: null, questionExtraMs: 0 },
       });
     }
     if (mode === "zero") {
@@ -866,7 +1095,12 @@ export async function nextQuestion(code: string) {
   if (next >= game.questions.length) {
     await prisma.game.update({
       where: { id: game.id },
-      data: { status: "FINISHED", questionOpenedAt: null },
+      data: {
+        status: "FINISHED",
+        questionOpenedAt: null,
+        questionPausedAt: null,
+        questionExtraMs: 0,
+      },
     });
     await recordGameResult(game.code);
     return { finished: true as const, between: false as const };
@@ -878,6 +1112,8 @@ export async function nextQuestion(code: string) {
       status: "BETWEEN",
       currentQuestionIndex: next,
       questionOpenedAt: null,
+      questionPausedAt: null,
+      questionExtraMs: 0,
     },
   });
   return { finished: false as const, between: true as const, index: next };
@@ -895,7 +1131,12 @@ export async function finishGame(code: string) {
       async (tx) => {
         await tx.game.updateMany({
           where: { id: game.id, status: { not: "FINISHED" } },
-          data: { status: "FINISHED", questionOpenedAt: null },
+          data: {
+            status: "FINISHED",
+            questionOpenedAt: null,
+            questionPausedAt: null,
+            questionExtraMs: 0,
+          },
         });
         await recomputeTotals(tx, game.id);
       },
@@ -966,6 +1207,8 @@ export async function resetGame(gameId: string) {
         status: "LOBBY",
         currentQuestionIndex: 0,
         questionOpenedAt: null,
+        questionPausedAt: null,
+        questionExtraMs: 0,
         bannedNames: [],
       },
     }),

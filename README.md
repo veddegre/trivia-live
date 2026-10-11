@@ -18,7 +18,7 @@ Pick a **game type** when you create a night: classic multiple-choice **Trivia**
 - **Finish the Line** — type a lyric or quote. The first word shows on the host screen and the rest appear as the timer runs. Phones never receive the line.
 - **Guess the Song** — upload a short clip per round (MP3, M4A, WAV, OGG, or AAC, 10 MB max); starts fast and eases to normal speed; audio plays on the **host** TV/speakers (and a watch TV after the host starts); phones are the answer pad. Host taps Play to start the clip and the round clock.
 - **Backwards Song** — same clip upload as Guess the Song; the host/watch TVs play it reversed until reveal, then can replay it forwards. Phones stay the answer pad. Host taps Play to start the clip and the round clock.
-- **Host screen** — join code, QR → `/join?code=…`, typed join URL, second-TV watch URL, live lobby roster, reveal, between-round standings pause, podium finish. Opening the host screen opens the lobby. Start, Lock, Continue, Kick, Skip, and Void live on **Controls** (`/remote/[code]`), meant for the host’s phone. Song rounds still use Play on the big screen so the room speakers can start.
+- **Host screen** — join code, QR → `/join?code=…`, typed join URL, second-TV watch URL, live lobby roster, reveal, between-round standings pause, podium finish. Opening the host screen opens the lobby. Start, Lock, Continue, Kick, Skip, Void, Pause, and Add 10 seconds live on **Controls** (`/remote/[code]`), meant for the host’s phone. Song rounds still use Play on the big screen so the room speakers can start.
 - **Spectator** — `/watch/[code]` is the same big-screen boards (including Image Zoom, Picture Finish, and song audio) with no Start / Lock / Kick / Play again. Anyone with the join code can open it; it never includes the host token and does not open the lobby.
 - **Player phones** — join with code + name (no accounts); remembered display name; reconnect after refresh; rank/points after each round. Names are filtered for the projector (letters/numbers/spaces; obvious slurs blocked). Hosts can **Remove** a player from the lobby or standings; that name cannot rejoin until **Play again**. Answer buttons are large-type with colorblind-safe A–F letter chips.
 - **Scoring** — server timestamps only (phones can’t fake speed); board updates on lock so mid-question standings don’t spoil answers. Optional **Allow changing answers**: the pick can change until lock; speed bonus is scored from the **last tap**. Per-question **Double points** (2×) or **Lightning** (correct/wrong, no speed bonus). A 3+ correct streak is called out on the boards. Tied first place shares the win (no extra tiebreaker question).
@@ -164,7 +164,7 @@ Uploads (images and audio) are stored on disk (`UPLOAD_DIR`, default `data/uploa
 | `/` | Anyone | Landing |
 | `/admin` | Host / super-admin | Build/edit games, import/export packs, past winners; super-admin also manages hosts |
 | `/host/[code]?token=…` | Host display | Live board for the room. Song rounds still start with Play on this screen |
-| `/remote/[code]?token=…` | Host phone | Start, Lock, Continue, Kick, Skip, and Void. The token is stored and removed from the address bar |
+| `/remote/[code]?token=…` | Host phone | Start, Lock, Continue, Kick, Skip, Void, Pause, and Add 10 seconds. The token is stored and removed from the address bar |
 | `/watch/[code]` | Spectator TV | Same live board and media, no controls |
 | `/join` | Players | Enter code + name (`?code=` prefill from QR) |
 | `/play/[code]` | Players | Answer questions |

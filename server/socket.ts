@@ -13,10 +13,12 @@ import {
   markBroadcast,
   nextQuestion,
   openLobby,
+  extendQuestion,
   openQuestion,
+  pauseQuestion,
   recoverOpenQuestions,
   resetGame,
-  scheduleQuestionAutoLock,
+  resumeQuestion,
   scheduleQuestionAutoLockMs,
   shouldThrottleBroadcast,
   startQuestionClock,
@@ -119,6 +121,7 @@ function tooFast(
 type PuzzleArm = {
   questionId: string;
   openedAt: string;
+  pausedAt: string | null;
   timer: ReturnType<typeof setInterval>;
 };
 
@@ -162,10 +165,12 @@ function syncPuzzleArm(io: Server, state: GamePublicState) {
     return;
   }
   const existing = puzzleArms.get(code);
+  const pausedAt = state.questionPausedAt;
   if (
     existing &&
     existing.questionId === questionId &&
-    existing.openedAt === openedAt
+    existing.openedAt === openedAt &&
+    existing.pausedAt === pausedAt
   ) {
     return;
   }
@@ -179,11 +184,11 @@ function syncPuzzleArm(io: Server, state: GamePublicState) {
       seed: questionId,
       openedAt,
       timeLimitSec,
-      now: Date.now(),
+      now: pausedAt ? new Date(pausedAt).getTime() : Date.now(),
     });
     void emitPuzzleFrame(io, code, questionId, text);
   }, 200);
-  puzzleArms.set(code, { questionId, openedAt, timer });
+  puzzleArms.set(code, { questionId, openedAt, pausedAt, timer });
 }
 
 /** Origins allowed for browser Socket.io (Cloudflare hostname + local dev). */
@@ -292,9 +297,8 @@ function scheduleAnswerBroadcast(io: Server, code: string) {
 
 async function autoLockAndBroadcast(io: Server, code: string) {
   try {
-    const game = await prisma.game.findUnique({ where: { code: code.toUpperCase() } });
-    if (!game || game.status !== "QUESTION") return;
-    await lockQuestion(code);
+    const result = await lockQuestion(code, { auto: true });
+    if (!result.locked) return;
     await broadcastState(io, code, true);
     await refreshPlayers(io, code);
   } catch {
@@ -307,7 +311,11 @@ function armQuestionTimer(
   code: string,
   timeLimitSec: number
 ) {
-  scheduleQuestionAutoLock(code, timeLimitSec, () => {
+  armQuestionTimerMs(io, code, timeLimitSec * 1000);
+}
+
+function armQuestionTimerMs(io: Server, code: string, delayMs: number) {
+  scheduleQuestionAutoLockMs(code, delayMs, () => {
     void autoLockAndBroadcast(io, code);
   });
 }
@@ -325,9 +333,9 @@ export function createSocketServer(httpServer: HttpServer) {
     });
   })
     .then((summary) => {
-      if (summary.locked || summary.armed || summary.waiting) {
+        if (summary.locked || summary.armed || summary.waiting || summary.paused) {
         console.log(
-          `Recovered open questions: locked ${summary.locked}, re-armed ${summary.armed}, waiting for play ${summary.waiting}`
+          `Recovered open questions: locked ${summary.locked}, re-armed ${summary.armed}, waiting for play ${summary.waiting}, paused ${summary.paused}`
         );
       }
     })
@@ -533,6 +541,48 @@ export function createSocketServer(httpServer: HttpServer) {
           alreadyStarted: started.alreadyStarted,
         });
         void refreshPlayers(io, data.code);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Failed";
+        ack?.({ ok: false, message });
+        socket.emit("error", { message });
+      }
+    });
+
+    socket.on("host:pause", async (ack?: (r: unknown) => void) => {
+      try {
+        if (data.role !== "host" || !data.code) throw new Error("Not authorized");
+        await pauseQuestion(data.code);
+        clearQuestionTimer(data.code);
+        await broadcastState(io, data.code, true);
+        ack?.({ ok: true });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Failed";
+        ack?.({ ok: false, message });
+        socket.emit("error", { message });
+      }
+    });
+
+    socket.on("host:resume", async (ack?: (r: unknown) => void) => {
+      try {
+        if (data.role !== "host" || !data.code) throw new Error("Not authorized");
+        const resumed = await resumeQuestion(data.code);
+        armQuestionTimerMs(io, data.code, resumed.remainingMs);
+        await broadcastState(io, data.code, true);
+        ack?.({ ok: true });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Failed";
+        ack?.({ ok: false, message });
+        socket.emit("error", { message });
+      }
+    });
+
+    socket.on("host:extend", async (ack?: (r: unknown) => void) => {
+      try {
+        if (data.role !== "host" || !data.code) throw new Error("Not authorized");
+        const extended = await extendQuestion(data.code);
+        if (!extended.paused) armQuestionTimerMs(io, data.code, extended.remainingMs);
+        await broadcastState(io, data.code, true);
+        ack?.({ ok: true });
       } catch (e) {
         const message = e instanceof Error ? e.message : "Failed";
         ack?.({ ok: false, message });

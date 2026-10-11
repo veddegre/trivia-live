@@ -101,6 +101,8 @@ const board = {
     revealText: "one two three",
   },
   questionOpenedAt: null,
+  questionPausedAt: null,
+  questionExtraMs: 0,
   serverNow: "2026-10-10T12:00:00.000Z",
   timeLimitSec: 30,
   leaderboard: [],
