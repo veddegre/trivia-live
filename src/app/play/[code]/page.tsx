@@ -765,13 +765,14 @@ function PlayInner({ code }: { code: string }) {
               ) : (
               <div className="mt-7 grid gap-3">
                 {state.question.options.map((opt, i) => {
+                  const question = state.question;
                   const selected = player.selectedChoice === i;
                   const letter = String.fromCharCode(65 + i);
                   const waitingForMusic =
                     gameTypeUsesAudio(state.gameType) && !state.questionOpenedAt;
                   const held = !!state.questionPausedAt;
                   const sameWager =
-                    !state.question.wager ||
+                    !question?.wager ||
                     player.answerWager === Number(wagerDraft);
                   return (
                     <button
